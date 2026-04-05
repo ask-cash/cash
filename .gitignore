@@ -1,0 +1,7 @@
+.env
+token.json
+outlook_token.json
+credentials.json
+user_data/
+__pycache__/
+*.pyc
