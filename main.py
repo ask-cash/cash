@@ -123,8 +123,8 @@ def main():
         name="evening_summary",
     )
 
-    # Email check — every 5 minutes
-    email_check_interval = int(os.getenv("EMAIL_CHECK_INTERVAL_SECONDS", "300"))
+    # Email check — every 30 minutes
+    email_check_interval = int(os.getenv("EMAIL_CHECK_INTERVAL_SECONDS", "1800"))
     job_queue.run_repeating(
         scheduled_email_check,
         interval=email_check_interval,
