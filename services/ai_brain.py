@@ -70,6 +70,8 @@ Available actions:
 - "search_memory" — search past conversations (params: {"query": "..."})
 - "show_decisions" — show active decisions/intentions (params: {})
 - "show_calendars" — show connected calendar status (params: {})
+- "check_emails" — check and classify recent emails (params: {})
+- "show_email_prefs" — show learned email filtering preferences (params: {})
 
 Be smart about interpreting intent. Examples:
 - "what's my day look like" → show_briefing

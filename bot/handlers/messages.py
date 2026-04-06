@@ -20,7 +20,8 @@ from services.memory import (
     get_active_decisions,
     search_conversations,
 )
-from bot.jobs import get_cal
+from services.email_classifier import classify_emails, get_preferences_summary, mark_email_seen
+from bot.jobs import get_cal, get_gmail
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,36 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif action == "show_calendars":
             cal = get_cal()
             reply = f"📅 Calendar Status:\n\n{cal.sources_summary()}"
+
+        elif action == "check_emails":
+            gmail = get_gmail()
+            if not gmail:
+                reply = "❌ Gmail not connected yet."
+            else:
+                emails = gmail.fetch_recent_emails(max_results=15, query="is:inbox")
+                if not emails:
+                    reply = reply or "📭 Inbox is empty!"
+                else:
+                    classified = classify_emails(emails)
+                    important = [e for e in classified if e.get("classification") == "important"]
+                    low = [e for e in classified if e.get("classification") == "low_priority"]
+                    spam = [e for e in classified if e.get("classification") == "spam"]
+                    for e in classified:
+                        mark_email_seen(e["id"], e.get("classification", "low_priority"))
+                    reply = reply or (
+                        f"📧 Email Triage:\n\n"
+                        f"🔴 Important: {len(important)}\n"
+                        f"🟡 Low Priority: {len(low)}\n"
+                        f"⚪ Spam: {len(spam)}\n\n"
+                    )
+                    if important:
+                        reply += "Top important:\n"
+                        for e in important[:5]:
+                            reply += f"  • {e['from_name']}: {e['subject'][:50]}\n"
+                    reply += "\nUse /emails for full details with reclassify options."
+
+        elif action == "show_email_prefs":
+            reply = get_preferences_summary()
 
         final_reply = reply or "👍"
         await update.message.reply_text(final_reply)
