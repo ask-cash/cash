@@ -6,6 +6,7 @@ Handles fetching events, detecting conflicts, and creating/moving events.
 import os
 import datetime as dt
 from typing import Optional
+from services.user_profile import today as ist_today
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -45,7 +46,7 @@ class GoogleCalendarManager:
     # ------------------------------------------------------------------
     def get_today_events(self, timezone: str = "Asia/Kolkata") -> list[dict]:
         """Get all events for today."""
-        return self.get_events_for_date(dt.date.today(), timezone)
+        return self.get_events_for_date(ist_today(), timezone)
 
     def get_events_for_date(self, date: dt.date, timezone: str = "Asia/Kolkata") -> list[dict]:
         """Get events for a specific date across all calendars."""

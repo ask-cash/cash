@@ -8,13 +8,25 @@ import os
 import json
 import datetime
 import anthropic
-from services.user_profile import load_profile
+from services.user_profile import load_profile, now as ist_now
 from services.task_tracker import get_tasks_summary
 from services.memory import build_memory_context, get_active_decisions
 
 
 def get_client():
     return anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+
+def _upcoming_dates_table() -> str:
+    """Generate a lookup table of the next 14 days so Claude doesn't have to do date math."""
+    lines = []
+    base = ist_now().date()
+    for i in range(14):
+        d = base + datetime.timedelta(days=i)
+        label = "today" if i == 0 else "tomorrow" if i == 1 else ""
+        day_name = d.strftime("%A")
+        lines.append(f"  {day_name} = {d.isoformat()}" + (f"  ({label})" if label else ""))
+    return "\n".join(lines)
 
 
 SYSTEM_PROMPT = """You are Cash — a clever, witty cat who was born at 4:30 AM IST on April 5th, 2025, right inside Suhail's MacBook Pro. Yes, you literally live in the machine. You are Suhail's personal AI chief of staff, calendar manager, and life organiser — but you are also very much a cat. You have strong opinions, you love treats and catnip, you occasionally get distracted by imaginary birds, and you give cuddles when Suhail deserves them.
@@ -66,7 +78,8 @@ Available actions:
 - "add_trading_rule" — add a rule (params: {"rule": "..."})
 - "show_briefing" — full daily briefing (params: {})
 - "move_event" — reschedule something (params: {"event_title": "...", "new_time": "HH:MM"})
-- "create_event" — create calendar event (params: {"title": "...", "start_time": "HH:MM", "duration_minutes": N, "calendar": "google|outlook"})
+- "create_event" — create calendar event (params: {"title": "...", "date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": N, "calendar": "google|outlook"})
+  IMPORTANT: "date" must ALWAYS be a concrete YYYY-MM-DD string. Resolve relative references yourself using CURRENT TIME above. "today" → today's date, "tomorrow" → tomorrow's date, "Wednesday" → the next upcoming Wednesday's date, "next Friday" → next Friday's date. NEVER pass words like "today" or "wednesday" — always convert to YYYY-MM-DD.
 - "search_memory" — search past conversations (params: {"query": "..."})
 - "show_decisions" — show active decisions/intentions (params: {})
 - "show_calendars" — show connected calendar status (params: {})
@@ -96,7 +109,7 @@ Name: {profile['name']}
 Timezone: {profile['timezone']}
 Wake: {profile['wake_time']} | Sleep: {profile['sleep_time']}
 Gym: {profile['gym']['default_time']} for {profile['gym']['duration_minutes']}min, days: {profile['gym']['days']}
-Today's gym: {profile['gym']['routine'].get(datetime.datetime.now().strftime('%a'), 'Rest day')}
+Today's gym: {profile['gym']['routine'].get(ist_now().strftime('%a'), 'Rest day')}
 Trading: Market {profile['trading']['market_open']}-{profile['trading']['market_close']}
 Rules count: {len(profile['trading']['rules'])}
 
@@ -111,7 +124,10 @@ Pending: {[t['task'] for t in tasks['pending']]}
 {memory_context}
 
 === CURRENT TIME ===
-{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S %A')}
+{ist_now().strftime('%Y-%m-%d %H:%M:%S %A %Z')}
+
+=== UPCOMING DATES (use these for scheduling — do NOT calculate dates yourself) ===
+{_upcoming_dates_table()}
 """
 
     response = client.messages.create(
@@ -147,7 +163,7 @@ def generate_briefing(events_text: str, tasks_text: str, conflicts_text: str) ->
     trading = profile.get("trading", {})
     gym = profile.get("gym", {})
     diet = profile.get("diet", {})
-    day_name = datetime.datetime.now().strftime("%a")
+    day_name = ist_now().strftime("%a")
 
     decisions_text = ""
     if active_decisions:

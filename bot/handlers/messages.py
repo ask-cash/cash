@@ -7,7 +7,7 @@ import datetime as dt
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from services.user_profile import load_profile
+from services.user_profile import load_profile, today as ist_today
 from services.task_tracker import initialize_daily_tasks, format_tasks, add_task, mark_done
 from services.scheduler import resolve_conflicts, format_suggestions
 from services.ai_brain import interpret_message
@@ -24,6 +24,45 @@ from services.email_classifier import classify_emails, get_preferences_summary, 
 from bot.jobs import get_cal, get_gmail
 
 logger = logging.getLogger(__name__)
+
+DAY_NAMES = {
+    "monday": 0, "mon": 0,
+    "tuesday": 1, "tue": 1,
+    "wednesday": 2, "wed": 2,
+    "thursday": 3, "thu": 3,
+    "friday": 4, "fri": 4,
+    "saturday": 5, "sat": 5,
+    "sunday": 6, "sun": 6,
+}
+
+
+def _resolve_date(date_str: str) -> dt.date:
+    """Resolve a date string to a concrete date. Handles YYYY-MM-DD, day names, today, tomorrow."""
+    current_date = ist_today()
+
+    if date_str in ("today", ""):
+        return current_date
+    if date_str == "tomorrow":
+        return current_date + dt.timedelta(days=1)
+
+    # Try YYYY-MM-DD first
+    try:
+        return dt.date.fromisoformat(date_str)
+    except ValueError:
+        pass
+
+    # Try day name (e.g. "wednesday", "next friday")
+    cleaned = date_str.replace("next ", "").strip()
+    if cleaned in DAY_NAMES:
+        target_weekday = DAY_NAMES[cleaned]
+        current_weekday = current_date.weekday()
+        days_ahead = (target_weekday - current_weekday) % 7
+        if days_ahead == 0:
+            days_ahead = 7
+        return current_date + dt.timedelta(days=days_ahead)
+
+    logger.warning(f"Could not resolve date '{date_str}', defaulting to today")
+    return current_date
 
 
 def process_memory_ops(ops: list[dict]):
@@ -122,14 +161,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif action == "create_event":
             cal = get_cal()
-            today = dt.date.today()
+            date_str = (params.get("date") or "today").strip().lower()
+            event_date = _resolve_date(date_str)
             start_time = dt.time.fromisoformat(params.get("start_time", "09:00"))
-            start = dt.datetime.combine(today, start_time)
+            start = dt.datetime.combine(event_date, start_time)
             duration = params.get("duration_minutes", 60)
             end = start + dt.timedelta(minutes=duration)
             target_cal = params.get("calendar", "google")
             cal.create_event(params.get("title", "New Event"), start, end, calendar=target_cal)
-            reply = reply or f"📅 Created: {params.get('title')} at {params.get('start_time')} on {target_cal}"
+            reply = reply or f"📅 Created: {params.get('title')} at {params.get('start_time')} on {event_date.strftime('%A, %b %d')} ({target_cal})"
 
         elif action == "move_event":
             reply = reply or f"I'll note that you want to move '{params.get('event_title')}' to {params.get('new_time')}."

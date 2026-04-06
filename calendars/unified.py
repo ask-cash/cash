@@ -7,6 +7,7 @@ from typing import Optional
 
 from calendars.google_calendar import GoogleCalendarManager
 from calendars.outlook_calendar import OutlookCalendarManager
+from services.user_profile import today as ist_today
 
 
 class UnifiedCalendar:
@@ -29,7 +30,7 @@ class UnifiedCalendar:
             print(f"⚠️ Outlook Calendar not available: {e}")
 
     def get_today_events(self, timezone: str = "Asia/Kolkata") -> list[dict]:
-        return self.get_events_for_date(dt.date.today(), timezone)
+        return self.get_events_for_date(ist_today(), timezone)
 
     def get_events_for_date(self, date: dt.date, timezone: str = "Asia/Kolkata") -> list[dict]:
         """Fetch and merge events from all connected calendars."""
@@ -59,7 +60,7 @@ class UnifiedCalendar:
         return all_events
 
     def get_tomorrow_events(self, timezone: str = "Asia/Kolkata") -> list[dict]:
-        return self.get_events_for_date(dt.date.today() + dt.timedelta(days=1), timezone)
+        return self.get_events_for_date(ist_today() + dt.timedelta(days=1), timezone)
 
     def create_event(self, title: str, start: dt.datetime, end: dt.datetime,
                      calendar: str = "google", description: str = "") -> Optional[dict]:

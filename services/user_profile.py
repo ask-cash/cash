@@ -4,9 +4,26 @@ No separate JSON to maintain. Everything lives in environment variables.
 """
 
 import os
+import datetime as dt
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def get_tz() -> ZoneInfo:
+    """Get the user's configured timezone."""
+    return ZoneInfo(os.getenv("TIMEZONE", "Asia/Kolkata"))
+
+
+def now() -> dt.datetime:
+    """Current datetime in user's timezone."""
+    return dt.datetime.now(get_tz())
+
+
+def today() -> dt.date:
+    """Current date in user's timezone."""
+    return now().date()
 
 
 def _split(val: str, sep: str = ",") -> list[str]:

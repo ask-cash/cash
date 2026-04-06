@@ -7,17 +7,18 @@ import json
 import os
 import datetime as dt
 from typing import Optional
+from services.user_profile import now as ist_now, today as ist_today
 
 TASKS_DIR = "user_data/tasks"
 
 
 def _today_path() -> str:
     os.makedirs(TASKS_DIR, exist_ok=True)
-    return os.path.join(TASKS_DIR, f"{dt.date.today().isoformat()}.json")
+    return os.path.join(TASKS_DIR, f"{ist_today().isoformat()}.json")
 
 
 def _load_tasks(date: Optional[dt.date] = None) -> list[dict]:
-    path = os.path.join(TASKS_DIR, f"{(date or dt.date.today()).isoformat()}.json")
+    path = os.path.join(TASKS_DIR, f"{(date or ist_today()).isoformat()}.json")
     if os.path.exists(path):
         with open(path) as f:
             return json.load(f)
@@ -26,7 +27,7 @@ def _load_tasks(date: Optional[dt.date] = None) -> list[dict]:
 
 def _save_tasks(tasks: list[dict], date: Optional[dt.date] = None):
     os.makedirs(TASKS_DIR, exist_ok=True)
-    path = os.path.join(TASKS_DIR, f"{(date or dt.date.today()).isoformat()}.json")
+    path = os.path.join(TASKS_DIR, f"{(date or ist_today()).isoformat()}.json")
     with open(path, "w") as f:
         json.dump(tasks, f, indent=2)
 
@@ -40,7 +41,7 @@ def initialize_daily_tasks(default_tasks: list[dict]) -> list[dict]:
     if tasks:
         return tasks
 
-    yesterday = dt.date.today() - dt.timedelta(days=1)
+    yesterday = ist_today() - dt.timedelta(days=1)
     yesterday_tasks = _load_tasks(yesterday)
     rollover = [
         {**t, "rolled_over": True, "done": False, "done_at": None}
@@ -95,12 +96,12 @@ def mark_done(task_id: int = None, task_text: str = None) -> Optional[dict]:
     for t in tasks:
         if task_id is not None and t["id"] == task_id:
             t["done"] = True
-            t["done_at"] = dt.datetime.now().isoformat()
+            t["done_at"] = ist_now().isoformat()
             _save_tasks(tasks)
             return t
         if task_text and task_text.lower() in t["task"].lower():
             t["done"] = True
-            t["done_at"] = dt.datetime.now().isoformat()
+            t["done_at"] = ist_now().isoformat()
             _save_tasks(tasks)
             return t
     return None

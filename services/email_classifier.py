@@ -10,6 +10,7 @@ import json
 import logging
 import datetime as dt
 import anthropic
+from services.user_profile import now as ist_now
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ def mark_email_seen(email_id: str, classification: str):
     seen = _load_seen()
     seen[email_id] = {
         "classification": classification,
-        "seen_at": dt.datetime.now().isoformat(),
+        "seen_at": ist_now().isoformat(),
     }
     # Keep only last 500 entries to avoid unbounded growth
     if len(seen) > 500:
@@ -88,7 +89,7 @@ def record_feedback(email_id: str, from_email: str, subject: str, old_label: str
         "subject": subject,
         "old_label": old_label,
         "new_label": new_label,
-        "timestamp": dt.datetime.now().isoformat(),
+        "timestamp": ist_now().isoformat(),
     })
 
     # Keep feedback log bounded

@@ -13,6 +13,7 @@ import json
 import os
 import datetime as dt
 from typing import Optional
+from services.user_profile import now as ist_now, today as ist_today
 
 MEMORY_DIR = "user_data/memory"
 
@@ -29,8 +30,8 @@ def log_message(role: str, text: str, metadata: dict = None):
     """Log every single message (user or bot) with timestamp."""
     _ensure_dir()
     entry = {
-        "timestamp": dt.datetime.now().isoformat(),
-        "date": dt.date.today().isoformat(),
+        "timestamp": ist_now().isoformat(),
+        "date": ist_today().isoformat(),
         "role": role,  # "user" or "assistant"
         "text": text,
         "metadata": metadata or {},
@@ -46,7 +47,7 @@ def get_recent_conversations(days: int = 7, limit: int = 100) -> list[dict]:
     if not os.path.exists(path):
         return []
 
-    cutoff = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+    cutoff = (ist_today() - dt.timedelta(days=days)).isoformat()
     entries = []
     with open(path, "r") as f:
         for line in f:
@@ -95,7 +96,7 @@ def store_fact(fact: str, category: str = "general", source_message: str = ""):
     facts.append({
         "fact": fact,
         "category": category,  # e.g. "preference", "plan", "person", "general"
-        "learned_on": dt.datetime.now().isoformat(),
+        "learned_on": ist_now().isoformat(),
         "source": source_message,
     })
     _save_facts(facts)
@@ -145,19 +146,19 @@ def store_decision(decision: str, scope: str = "today", expires: str = None):
 
     if not expires:
         if scope == "today":
-            expires = dt.date.today().isoformat()
+            expires = ist_today().isoformat()
         elif scope == "this_week":
-            expires = (dt.date.today() + dt.timedelta(days=7)).isoformat()
+            expires = (ist_today() + dt.timedelta(days=7)).isoformat()
         elif scope == "this_month":
-            expires = (dt.date.today() + dt.timedelta(days=30)).isoformat()
+            expires = (ist_today() + dt.timedelta(days=30)).isoformat()
         else:
             expires = "9999-12-31"  # permanent
 
     decisions.append({
         "decision": decision,
         "scope": scope,
-        "made_on": dt.datetime.now().isoformat(),
-        "made_date": dt.date.today().isoformat(),
+        "made_on": ist_now().isoformat(),
+        "made_date": ist_today().isoformat(),
         "expires": expires,
         "fulfilled": False,
     })
@@ -167,7 +168,7 @@ def store_decision(decision: str, scope: str = "today", expires: str = None):
 def get_active_decisions() -> list[dict]:
     """Get all decisions that haven't expired yet."""
     decisions = _load_decisions()
-    today = dt.date.today().isoformat()
+    today = ist_today().isoformat()
     return [d for d in decisions if d.get("expires", "") >= today]
 
 
@@ -185,7 +186,7 @@ def fulfill_decision(decision_text: str) -> Optional[dict]:
     for d in decisions:
         if q in d.get("decision", "").lower():
             d["fulfilled"] = True
-            d["fulfilled_on"] = dt.datetime.now().isoformat()
+            d["fulfilled_on"] = ist_now().isoformat()
             _save_decisions(decisions)
             return d
     return None
@@ -203,8 +204,8 @@ def log_trade(entry: dict):
     if os.path.exists(path):
         with open(path) as f:
             journal = json.load(f)
-    entry["timestamp"] = dt.datetime.now().isoformat()
-    entry["date"] = dt.date.today().isoformat()
+    entry["timestamp"] = ist_now().isoformat()
+    entry["date"] = ist_today().isoformat()
     journal.append(entry)
     with open(path, "w") as f:
         json.dump(journal, f, indent=2)
@@ -218,7 +219,7 @@ def get_recent_trades(days: int = 7) -> list[dict]:
         return []
     with open(path) as f:
         journal = json.load(f)
-    cutoff = (dt.date.today() - dt.timedelta(days=days)).isoformat()
+    cutoff = (ist_today() - dt.timedelta(days=days)).isoformat()
     return [t for t in journal if t.get("date", "") >= cutoff]
 
 

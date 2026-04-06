@@ -7,6 +7,7 @@ import os
 import json
 import datetime as dt
 from typing import Optional
+from services.user_profile import today as ist_today
 
 import msal
 import requests
@@ -125,7 +126,7 @@ class OutlookCalendarManager:
         return normalized
 
     def get_today_events(self, timezone: str = "Asia/Kolkata") -> list[dict]:
-        return self.get_events_for_date(dt.date.today(), timezone)
+        return self.get_events_for_date(ist_today(), timezone)
 
     # ------------------------------------------------------------------
     # Create / Update
