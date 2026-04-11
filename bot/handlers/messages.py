@@ -3,6 +3,7 @@ messages.py — Natural language message handler with AI brain + memory.
 """
 
 import logging
+import re
 import datetime as dt
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -65,6 +66,33 @@ def _resolve_date(date_str: str) -> dt.date:
     return current_date
 
 
+def _extract_time_from_text(text: str) -> str:
+    """Extract a time reference like '9 am', '2:30 pm', '14:00' from text.
+
+    Returns HH:MM in 24h format, or '' if nothing found.
+    """
+    # Match patterns like "9am", "9 am", "9:30 pm", "14:00"
+    m = re.search(
+        r'\b(\d{1,2})(?::(\d{2}))?\s*(am|pm|AM|PM)\b', text
+    )
+    if m:
+        hour = int(m.group(1))
+        minute = int(m.group(2) or 0)
+        period = m.group(3).lower()
+        if period == "pm" and hour != 12:
+            hour += 12
+        elif period == "am" and hour == 12:
+            hour = 0
+        return f"{hour:02d}:{minute:02d}"
+
+    # 24h format like "14:00"
+    m = re.search(r'\b([01]?\d|2[0-3]):([0-5]\d)\b', text)
+    if m:
+        return f"{int(m.group(1)):02d}:{m.group(2)}"
+
+    return ""
+
+
 def process_memory_ops(ops: list[dict]):
     """Execute memory operations returned by the AI brain."""
     if not ops:
@@ -90,6 +118,7 @@ def process_memory_ops(ops: list[dict]):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_msg = update.message.text
+    print(f"User message: {update}")
     if not user_msg:
         return
 
@@ -161,6 +190,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif action == "create_event":
             cal = get_cal()
+<<<<<<< Updated upstream
             date_str = (params.get("date") or "today").strip().lower()
             event_date = _resolve_date(date_str)
             start_time = dt.time.fromisoformat(params.get("start_time", "09:00"))
@@ -170,9 +200,104 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             target_cal = params.get("calendar", "google")
             cal.create_event(params.get("title", "New Event"), start, end, calendar=target_cal)
             reply = reply or f"📅 Created: {params.get('title')} at {params.get('start_time')} on {event_date.strftime('%A, %b %d')} ({target_cal})"
+=======
+            title = params.get("title", "New Event")
+            target_cal = params.get("calendar", "google")
+            try:
+                today = dt.date.today()
+                start_time = dt.time.fromisoformat(params.get("start_time", "09:00"))
+                start = dt.datetime.combine(today, start_time)
+                duration = params.get("duration_minutes", 60)
+                end = start + dt.timedelta(minutes=duration)
+                result = cal.create_event(title, start, end, calendar=target_cal)
+                if result:
+                    reply = f"📅 Created '{title}' at {params.get('start_time')} on {target_cal.capitalize()} Calendar."
+                else:
+                    reply = f"😿 Failed to create '{title}' on {target_cal.capitalize()} Calendar. The calendar may not be connected."
+            except Exception as e:
+                logger.error("Failed to create event '%s': %s", title, e)
+                reply = f"😿 Failed to create '{title}' on {target_cal.capitalize()} Calendar: {e}"
+
+        elif action == "delete_event":
+            cal = get_cal()
+            event_title = params.get("event_title", "")
+            event_time = params.get("event_time", "")
+            date_param = params.get("date", "today")
+            if date_param == "tomorrow":
+                target_date = dt.date.today() + dt.timedelta(days=1)
+            elif date_param and date_param not in ("today", ""):
+                try:
+                    target_date = dt.date.fromisoformat(date_param)
+                except ValueError:
+                    target_date = dt.date.today()
+            else:
+                target_date = dt.date.today()
+
+            # If AI didn't extract event_time, try extracting from user message
+            if not event_time:
+                event_time = _extract_time_from_text(user_msg)
+                if event_time:
+                    logger.info("Extracted time '%s' from user message as fallback", event_time)
+
+            event = cal.find_event(
+                title=event_title, event_time=event_time, date=target_date
+            )
+            if event:
+                source = event.get("_source", params.get("source", "google"))
+                try:
+                    success = cal.delete_event(event["id"], source=source)
+                except Exception as e:
+                    logger.error("Exception deleting event '%s': %s", event.get("summary"), e)
+                    success = False
+                if success:
+                    reply = f"🗑️ Deleted '{event.get('summary')}' from {source.capitalize()} Calendar."
+                else:
+                    reply = f"😿 Could not delete '{event.get('summary')}' from {source.capitalize()} Calendar. The delete failed on the calendar."
+            else:
+                desc = f"'{event_title}'" if event_title else f"at {event_time}"
+                reply = f"😿 Could not find an event matching {desc} on {target_date}. No event was deleted."
+>>>>>>> Stashed changes
 
         elif action == "move_event":
-            reply = reply or f"I'll note that you want to move '{params.get('event_title')}' to {params.get('new_time')}."
+            cal = get_cal()
+            event_title = params.get("event_title", "")
+            event_time = params.get("event_time", "")
+            new_time = params.get("new_time", "")
+            # If AI didn't extract event_time, try extracting from user message
+            if not event_time:
+                event_time = _extract_time_from_text(user_msg)
+                if event_time:
+                    logger.info("Extracted time '%s' from user message as fallback", event_time)
+            event = cal.find_event(title=event_title, event_time=event_time)
+            if event and new_time:
+                source = event.get("_source", "google")
+                start_raw = event.get("start", {}).get("dateTime", "")
+                if start_raw:
+                    try:
+                        old_start = dt.datetime.fromisoformat(start_raw)
+                        end_raw = event.get("end", {}).get("dateTime", "")
+                        if end_raw:
+                            old_end = dt.datetime.fromisoformat(end_raw)
+                            duration = int((old_end - old_start).total_seconds() / 60)
+                        else:
+                            duration = 60
+                        new_start_time = dt.time.fromisoformat(new_time)
+                        new_start = dt.datetime.combine(old_start.date(), new_start_time)
+                        result = cal.move_event(event["id"], new_start, duration, source=source)
+                        if result:
+                            reply = f"📅 Moved '{event.get('summary')}' to {new_time} on {source.capitalize()} Calendar."
+                        else:
+                            reply = f"😿 Could not move '{event.get('summary')}' on {source.capitalize()} Calendar. The update failed on the calendar."
+                    except Exception as e:
+                        logger.error("Exception moving event '%s': %s", event.get("summary"), e)
+                        reply = f"😿 Could not move '{event.get('summary')}' on {source.capitalize()} Calendar: {e}"
+                else:
+                    reply = f"😿 Could not move '{event.get('summary')}' — the event has no start time to work with."
+            elif not event:
+                desc = f"'{event_title}'" if event_title else f"at {event_time}"
+                reply = f"😿 Could not find an event matching {desc}. No event was moved."
+            else:
+                reply = f"😿 No new time specified for '{event.get('summary')}'. Could not move the event."
 
         elif action == "search_memory":
             query = params.get("query", "")

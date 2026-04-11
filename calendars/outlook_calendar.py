@@ -3,11 +3,14 @@ outlook_calendar.py — Microsoft Outlook / Office 365 Calendar integration.
 Uses MSAL (Microsoft Authentication Library) + Microsoft Graph API.
 """
 
+import logging
 import os
 import json
 import datetime as dt
 from typing import Optional
 from services.user_profile import today as ist_today
+
+logger = logging.getLogger(__name__)
 
 import msal
 import requests
@@ -30,6 +33,7 @@ class OutlookCalendarManager:
         self._app = None
 
         if self.enabled:
+            logger.debug("Outlook Calendar enabled, loading token cache")
             self._load_cache()
             self._app = msal.ConfidentialClientApplication(
                 self.client_id,
@@ -56,9 +60,11 @@ class OutlookCalendarManager:
         accounts = self._app.get_accounts()
         result = None
         if accounts:
+            logger.debug("Attempting silent token acquisition for Outlook")
             result = self._app.acquire_token_silent(SCOPES, account=accounts[0])
 
         if not result:
+            logger.info("No cached Outlook token, initiating device flow")
             flow = self._app.initiate_device_flow(scopes=SCOPES)
             if "user_code" in flow:
                 print(f"\n🔐 Outlook Auth: Go to {flow['verification_uri']}")
@@ -66,8 +72,10 @@ class OutlookCalendarManager:
                 result = self._app.acquire_token_by_device_flow(flow)
 
         if result and "access_token" in result:
+            logger.debug("Outlook access token acquired successfully")
             self._save_cache()
             return result["access_token"]
+        logger.error("Failed to acquire Outlook access token")
         return None
 
     def _headers(self) -> dict:
@@ -85,6 +93,7 @@ class OutlookCalendarManager:
         if not self.enabled:
             return []
 
+        logger.info("Fetching Outlook Calendar events for date=%s", date)
         start = dt.datetime.combine(date, dt.time.min).isoformat()
         end = dt.datetime.combine(date, dt.time.max).isoformat()
 
@@ -99,9 +108,11 @@ class OutlookCalendarManager:
 
         resp = requests.get(url, headers=headers)
         if resp.status_code != 200:
+            logger.error("Outlook Calendar fetch failed: HTTP %d", resp.status_code)
             return []
 
         events = resp.json().get("value", [])
+        logger.info("Fetched %d Outlook event(s) for %s", len(events), date)
         normalized = []
         for ev in events:
             normalized.append({
@@ -142,6 +153,7 @@ class OutlookCalendarManager:
         if not self.enabled:
             return None
 
+        logger.info("Creating Outlook Calendar event '%s' from %s to %s", title, start, end)
         body = {
             "subject": title,
             "start": {"dateTime": start.isoformat(), "timeZone": timezone},
@@ -149,7 +161,12 @@ class OutlookCalendarManager:
             "body": {"contentType": "text", "content": description},
         }
         resp = requests.post(f"{GRAPH_URL}/me/events", headers=self._headers(), json=body)
-        return resp.json() if resp.status_code in (200, 201) else None
+        if resp.status_code in (200, 201):
+            result = resp.json()
+            logger.info("Outlook event created with id='%s'", result.get("id"))
+            return result
+        logger.error("Failed to create Outlook event: HTTP %d", resp.status_code)
+        return None
 
     def move_event(
         self,
@@ -161,6 +178,8 @@ class OutlookCalendarManager:
         if not self.enabled:
             return None
 
+        logger.info("Moving Outlook Calendar event id='%s' to %s (duration=%d min)",
+                    event_id, new_start, duration_minutes)
         new_end = new_start + dt.timedelta(minutes=duration_minutes)
         body = {
             "start": {"dateTime": new_start.isoformat(), "timeZone": timezone},
@@ -171,7 +190,26 @@ class OutlookCalendarManager:
             headers=self._headers(),
             json=body,
         )
-        return resp.json() if resp.status_code == 200 else None
+        if resp.status_code == 200:
+            logger.info("Outlook event id='%s' moved successfully", event_id)
+            return resp.json()
+        logger.error("Failed to move Outlook event id='%s': HTTP %d", event_id, resp.status_code)
+        return None
+
+    def delete_event(self, event_id: str) -> bool:
+        """Delete an Outlook calendar event by ID."""
+        if not self.enabled:
+            return False
+        logger.info("Deleting Outlook Calendar event id='%s'", event_id)
+        resp = requests.delete(
+            f"{GRAPH_URL}/me/events/{event_id}",
+            headers=self._headers(),
+        )
+        if resp.status_code == 204:
+            logger.info("Outlook event id='%s' deleted successfully", event_id)
+            return True
+        logger.error("Failed to delete Outlook event id='%s': HTTP %d", event_id, resp.status_code)
+        return False
 
     def format_event(self, event: dict) -> str:
         title = event.get("summary", "(No title)")
