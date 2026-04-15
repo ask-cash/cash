@@ -3,6 +3,7 @@ commands.py — All Telegram slash command handlers.
 """
 
 import logging
+import os
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -374,6 +375,70 @@ async def cmd_connect_google(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def cmd_connect_gmail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Connect Gmail."""
     await _start_google_oauth(update, GMAIL_SCOPES, GMAIL_TOKEN_PATH, "Gmail")
+
+
+async def cmd_connect_outlook(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Kick off Outlook device-code flow; deliver code + verification URL via Telegram."""
+    import asyncio
+    import threading
+    from calendars.outlook_calendar import OutlookCalendarManager, SCOPES as OUTLOOK_SCOPES
+
+    chat_id = update.effective_chat.id
+
+    try:
+        outlook = OutlookCalendarManager()
+    except Exception as e:
+        await update.message.reply_text(f"😿 Outlook init failed: {e}")
+        return
+
+    if not outlook.enabled:
+        await update.message.reply_text(
+            "😿 Outlook not configured. Set OUTLOOK_CLIENT_ID and OUTLOOK_CLIENT_SECRET in .env."
+        )
+        return
+
+    flow = outlook._app.initiate_device_flow(scopes=OUTLOOK_SCOPES)
+    if "user_code" not in flow:
+        await update.message.reply_text(f"😿 Couldn't start Outlook device flow: {flow.get('error_description','unknown error')}")
+        return
+
+    await update.message.reply_text(
+        "🔌 Connect Outlook:\n\n"
+        f"1. Open: {flow['verification_uri']}\n"
+        f"2. Enter this code: `{flow['user_code']}`\n\n"
+        "I'll confirm here once you're done.",
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+    )
+
+    loop = asyncio.get_running_loop()
+    app = context.application
+
+    def _wait_for_token():
+        try:
+            result = outlook._app.acquire_token_by_device_flow(flow)
+            if "access_token" in result:
+                outlook._save_cache()
+                from bot.jobs import reset_cal
+                reset_cal()
+                asyncio.run_coroutine_threadsafe(
+                    app.bot.send_message(chat_id=chat_id, text="✅ Outlook reconnected. Purrs all round."),
+                    loop,
+                )
+            else:
+                err = result.get("error_description", "unknown error")
+                asyncio.run_coroutine_threadsafe(
+                    app.bot.send_message(chat_id=chat_id, text=f"😿 Outlook OAuth failed: {err}"),
+                    loop,
+                )
+        except Exception as e:
+            logger.error("Outlook device flow error: %s", e)
+            asyncio.run_coroutine_threadsafe(
+                app.bot.send_message(chat_id=chat_id, text=f"😿 Outlook OAuth crashed: {e}"),
+                loop,
+            )
+
+    threading.Thread(target=_wait_for_token, name="outlook-device-flow", daemon=True).start()
 
 
 async def on_google_connected(chat_id: int, label: str):

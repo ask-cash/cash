@@ -47,6 +47,13 @@ def get_gmail() -> Optional[GmailManager]:
     return _gmail
 
 
+def reset_gmail() -> Optional[GmailManager]:
+    """Force a fresh GmailManager — call after OAuth re-auth."""
+    global _gmail
+    _gmail = None
+    return get_gmail()
+
+
 async def scheduled_morning_briefing(context: ContextTypes.DEFAULT_TYPE):
     owner_id = context.bot_data.get("owner_id", 0)
     if owner_id == 0:

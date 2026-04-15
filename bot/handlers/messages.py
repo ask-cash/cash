@@ -14,7 +14,7 @@ from services.task_tracker import initialize_daily_tasks, format_tasks, add_task
 from services.scheduler import resolve_conflicts, format_suggestions
 from services.ai_brain import interpret_message, answer_about_file
 from services.files import find_by_ref
-from services.drive import upload_and_share
+from services.drive import upload_and_share, shorten_url
 from services.memory import (
     log_message,
     store_fact,
@@ -390,9 +390,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     error_msg = str(e)
 
                 if drive_file and drive_file.get("webViewLink"):
+                    short = shorten_url(drive_file["webViewLink"])
                     link_line = (
                         f"☁️ '{drive_file.get('name', record['name'])}' is on Drive.\n"
-                        f"🔗 {drive_file['webViewLink']}"
+                        f"🔗 {short}"
                     )
                     reply = f"{reply}\n\n{link_line}" if reply else link_line
                 else:
@@ -424,9 +425,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             record.get("mime_type", ""),
                         )
 
-                    description_lines = [f"📎 {record['name']}"]
+                    short_link = ""
                     if drive_file and drive_file.get("webViewLink"):
-                        description_lines.append(f"Drive link: {drive_file['webViewLink']}")
+                        short_link = shorten_url(drive_file["webViewLink"])
+
+                    description_lines = [f"📎 {record['name']}"]
+                    if short_link:
+                        description_lines.append(f"Drive link: {short_link}")
                     else:
                         description_lines.append(f"Local path: {record.get('path', '')}")
                     if record.get("caption"):
@@ -448,7 +453,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         attachments=attachments,
                     )
                     if result:
-                        link_line = f"\n🔗 {drive_file['webViewLink']}" if drive_file and drive_file.get("webViewLink") else ""
+                        link_line = f"\n🔗 {short_link}" if short_link else ""
                         confirm = (
                             f"📅 Created '{title}' at {params.get('start_time', '09:00')} on "
                             f"{event_date.strftime('%A, %b %d')} ({target_cal.capitalize()} Calendar) "

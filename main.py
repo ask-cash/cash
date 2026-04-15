@@ -36,12 +36,14 @@ from bot.handlers.commands import (
     cmd_email_detail,
     cmd_email_prefs,
     cmd_connect_google,
+    cmd_connect_gmail,
+    cmd_connect_outlook,
     on_google_connected,
     handle_email_feedback,
 )
 from bot.handlers.messages import handle_message
 from bot.handlers.files import handle_file
-from bot.jobs import get_cal
+from bot.jobs import get_cal, get_gmail
 from services import oauth_server
 from bot.jobs import (
     scheduled_morning_briefing,
@@ -90,17 +92,28 @@ async def _post_init(app: Application):
     else:
         logger.warning("OAUTH_REDIRECT_URI not set — /connect_google will be unavailable")
 
-    # Probe Google Calendar on boot; DM owner if it's disconnected.
+    # Probe connectors on boot; DM owner which ones need reconnecting.
     if OWNER_ID:
+        missing = []
         try:
             cal = get_cal()
             if not cal.google:
-                await app.bot.send_message(
-                    chat_id=OWNER_ID,
-                    text="😿 Google Calendar isn't connected. Send /connect_google to reconnect me.",
-                )
+                missing.append(("Google Calendar", "/connect_google"))
+            if os.getenv("OUTLOOK_CLIENT_ID") and not cal.outlook:
+                missing.append(("Outlook", "/connect_outlook"))
         except Exception as e:
             logger.error("Startup calendar probe failed: %s", e)
+        try:
+            if not get_gmail():
+                missing.append(("Gmail", "/connect_gmail"))
+        except Exception as e:
+            logger.error("Startup gmail probe failed: %s", e)
+
+        if missing:
+            lines = ["😿 Some connectors need attention:"]
+            for name, cmd in missing:
+                lines.append(f"  • {name} — send {cmd}")
+            await app.bot.send_message(chat_id=OWNER_ID, text="\n".join(lines))
 
 
 def main():
@@ -130,6 +143,8 @@ def main():
     app.add_handler(CommandHandler("email_detail", owner_only(cmd_email_detail)))
     app.add_handler(CommandHandler("email_prefs", owner_only(cmd_email_prefs)))
     app.add_handler(CommandHandler("connect_google", owner_only(cmd_connect_google)))
+    app.add_handler(CommandHandler("connect_gmail", owner_only(cmd_connect_gmail)))
+    app.add_handler(CommandHandler("connect_outlook", owner_only(cmd_connect_outlook)))
     app.add_handler(CallbackQueryHandler(handle_email_feedback, pattern=r"^email_fb:"))
 
     # Free text → Claude AI with memory

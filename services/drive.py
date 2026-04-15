@@ -9,6 +9,7 @@ import logging
 import os
 from typing import Optional
 
+import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -69,3 +70,21 @@ def upload_and_share(local_path: str, filename: str, mime_type: str = "") -> Opt
         logger.warning("Could not set anyone-with-link permission on '%s': %s", filename, e)
 
     return file
+
+
+def shorten_url(long_url: str) -> str:
+    """Shorten a URL via TinyURL's no-auth API. Returns the original URL on failure."""
+    if not long_url:
+        return long_url
+    try:
+        resp = requests.get(
+            "https://tinyurl.com/api-create.php",
+            params={"url": long_url},
+            timeout=5,
+        )
+        if resp.status_code == 200 and resp.text.startswith("http"):
+            return resp.text.strip()
+        logger.warning("TinyURL returned %s: %s", resp.status_code, resp.text[:100])
+    except Exception as e:
+        logger.warning("TinyURL request failed: %s", e)
+    return long_url
