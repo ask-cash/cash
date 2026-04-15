@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     ContextTypes,
@@ -30,6 +31,10 @@ from bot.handlers.commands import (
     cmd_memory,
     cmd_calendars,
     cmd_settings,
+    cmd_emails,
+    cmd_email_detail,
+    cmd_email_prefs,
+    handle_email_feedback,
 )
 from bot.handlers.messages import handle_message
 from bot.jobs import (
@@ -37,6 +42,7 @@ from bot.jobs import (
     scheduled_trading_reminder,
     scheduled_meeting_check,
     scheduled_evening_summary,
+    scheduled_email_check,
 )
 
 load_dotenv()
@@ -79,6 +85,10 @@ def main():
     app.add_handler(CommandHandler("memory", owner_only(cmd_memory)))
     app.add_handler(CommandHandler("calendars", owner_only(cmd_calendars)))
     app.add_handler(CommandHandler("settings", owner_only(cmd_settings)))
+    app.add_handler(CommandHandler("emails", owner_only(cmd_emails)))
+    app.add_handler(CommandHandler("email_detail", owner_only(cmd_email_detail)))
+    app.add_handler(CommandHandler("email_prefs", owner_only(cmd_email_prefs)))
+    app.add_handler(CallbackQueryHandler(handle_email_feedback, pattern=r"^email_fb:"))
 
     # Free text → Claude AI with memory
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, owner_only(handle_message)))
@@ -111,6 +121,15 @@ def main():
         scheduled_evening_summary,
         time=dt.time(int(sleep[0]), int(sleep[1])),
         name="evening_summary",
+    )
+
+    # Email check — every 30 minutes
+    email_check_interval = int(os.getenv("EMAIL_CHECK_INTERVAL_SECONDS", "1800"))
+    job_queue.run_repeating(
+        scheduled_email_check,
+        interval=email_check_interval,
+        first=30,
+        name="email_check",
     )
 
     logger.info("🚀 Bot is running with memory + multi-calendar!")

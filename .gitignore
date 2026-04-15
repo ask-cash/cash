@@ -1,8 +1,11 @@
 .env
 token.json
+gmail_token.json
 outlook_token.json
 credentials.json
 user_data/
 __pycache__/
 *.pyc
 venv/
+.mcp.json
+gmail_token.json
