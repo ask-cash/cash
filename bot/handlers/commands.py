@@ -20,7 +20,10 @@ from services.email_classifier import (
     is_email_seen,
     mark_email_seen,
 )
-from bot.jobs import get_cal, get_gmail
+from bot.jobs import get_cal, get_gmail, reset_cal, reset_gmail
+from services import oauth_server
+from calendars.google_calendar import SCOPES as GOOGLE_CAL_SCOPES
+from services.gmail import GMAIL_SCOPES, GMAIL_TOKEN_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -334,3 +337,57 @@ async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"\nEdit .env to change defaults. Or tell me things and I'll remember!"
     )
     await update.message.reply_text(text)
+
+
+async def _start_google_oauth(update: Update, scopes: list[str], token_path: str, label: str):
+    """Shared entry point for any Google connector."""
+    chat_id = update.effective_chat.id
+    try:
+        url = oauth_server.create_auth_url(chat_id, scopes, token_path, label)
+    except FileNotFoundError:
+        await update.message.reply_text(
+            "😿 Missing credentials.json — drop your Google OAuth client file in the project root."
+        )
+        return
+    except RuntimeError as e:
+        await update.message.reply_text(f"😿 {e}")
+        return
+    except Exception as e:
+        logger.error("create_auth_url for %s failed: %s", label, e)
+        await update.message.reply_text(f"😿 Couldn't start {label} OAuth: {e}")
+        return
+
+    await update.message.reply_text(
+        f"🔌 Tap to connect {label}:\n\n"
+        f"{url}\n\n"
+        "Once you approve, I'll confirm here.",
+        disable_web_page_preview=True,
+    )
+
+
+async def cmd_connect_google(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Connect Google Calendar + Drive."""
+    token_path = os.getenv("GOOGLE_TOKEN_PATH", "token.json")
+    await _start_google_oauth(update, GOOGLE_CAL_SCOPES, token_path, "Google Calendar")
+
+
+async def cmd_connect_gmail(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Connect Gmail."""
+    await _start_google_oauth(update, GMAIL_SCOPES, GMAIL_TOKEN_PATH, "Gmail")
+
+
+async def on_google_connected(chat_id: int, label: str):
+    """Callback fired by the OAuth server after any Google token is written."""
+    from telegram.ext import Application  # local import to avoid cycles
+    app: Application = on_google_connected._app  # type: ignore[attr-defined]
+    try:
+        if label == "Gmail":
+            reset_gmail()
+        else:
+            reset_cal()
+        await app.bot.send_message(
+            chat_id=chat_id,
+            text=f"✅ {label} reconnected. Purrs all round.",
+        )
+    except Exception as e:
+        logger.error("on_google_connected failed: %s", e)

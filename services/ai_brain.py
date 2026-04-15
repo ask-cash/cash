@@ -11,6 +11,10 @@ import anthropic
 from services.user_profile import load_profile, now as ist_now
 from services.task_tracker import get_tasks_summary
 from services.memory import build_memory_context, get_active_decisions
+from services.files import (
+    build_files_context,
+    build_claude_content_block,
+)
 
 
 def get_client():
@@ -77,20 +81,32 @@ Available actions:
 - "show_trading_rules" — display trading rules (params: {})
 - "add_trading_rule" — add a rule (params: {"rule": "..."})
 - "show_briefing" — full daily briefing (params: {})
-<<<<<<< Updated upstream
-- "move_event" — reschedule something (params: {"event_title": "...", "new_time": "HH:MM"})
+- "move_event" — reschedule something (params: {"event_title": "...", "event_time": "HH:MM" (24h, the current time of the event if referenced by time), "new_time": "HH:MM"})
 - "create_event" — create calendar event (params: {"title": "...", "date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": N, "calendar": "google|outlook"})
   IMPORTANT: "date" must ALWAYS be a concrete YYYY-MM-DD string. Resolve relative references yourself using CURRENT TIME above. "today" → today's date, "tomorrow" → tomorrow's date, "Wednesday" → the next upcoming Wednesday's date, "next Friday" → next Friday's date. NEVER pass words like "today" or "wednesday" — always convert to YYYY-MM-DD.
-=======
-- "move_event" — reschedule something (params: {"event_title": "...", "event_time": "HH:MM" (24h, the current time of the event if referenced by time), "new_time": "HH:MM"})
-- "create_event" — create calendar event (params: {"title": "...", "start_time": "HH:MM", "duration_minutes": N, "calendar": "google|outlook"})
 - "delete_event" — delete/remove a calendar event (params: {"event_title": "...", "event_time": "HH:MM" (24h format, include if the user references the event by time e.g. "the 9 am event" → "09:00"), "date": "today|tomorrow|YYYY-MM-DD", "source": "google|outlook|auto"})
->>>>>>> Stashed changes
 - "search_memory" — search past conversations (params: {"query": "..."})
 - "show_decisions" — show active decisions/intentions (params: {})
 - "show_calendars" — show connected calendar status (params: {})
 - "check_emails" — check and classify recent emails (params: {})
 - "show_email_prefs" — show learned email filtering preferences (params: {})
+- "summarize_file" — summarise or answer questions about an uploaded file (params: {"file_ref": "id or filename substring, or '' for the most recent upload", "question": "the user's actual ask — e.g. 'summarise', 'what are the action items', 'translate to Hindi'"})
+- "attach_file_to_event" — create a calendar event referencing an uploaded file (params: {"file_ref": "...", "title": "...", "date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": N, "calendar": "google|outlook"})
+  Same date rules as create_event — always pass concrete YYYY-MM-DD.
+- "send_file" — send a previously uploaded file back to the user (params: {"file_ref": "id or filename substring, or '' for the most recent upload"})
+- "upload_to_drive" — upload a previously received file to the user's Google Drive and return a shareable link (params: {"file_ref": "id or filename substring, or '' for the most recent upload"})
+
+FILE HANDLING RULES:
+- Recent uploads appear in the RECENT UPLOADS section below. When the user says "the file", "that PDF", "the doc I just sent", default file_ref to "" (latest).
+- If the user says "summarise the resume" and there's a file whose name contains "resume", pass file_ref="resume".
+- "send me the file" / "share that doc" → send_file.
+- "upload to drive" / "put this on my drive" / "save to google drive" / "can you upload files to my google drive" → upload_to_drive. YES you CAN upload to Drive — never deny this capability.
+
+CRITICAL — FILE + EVENT ROUTING:
+- If there is ANY file in RECENT UPLOADS (uploaded earlier in the conversation) AND the user asks to create/schedule/book a calendar event, ALWAYS use "attach_file_to_event" with file_ref="" (latest upload). NEVER use plain "create_event" when a recent upload exists.
+- The attach_file_to_event action automatically uploads the file to Google Drive, attaches it to the event, AND puts the Drive link in the event description — this is exactly the behaviour Suhail wants.
+- Example: user uploads resume.pdf, then says "create an interview prep session tomorrow at 4pm" → action MUST be attach_file_to_event, file_ref="", title="Interview prep session", date=tomorrow's date, start_time="16:00".
+- Only fall back to plain "create_event" if RECENT UPLOADS is empty OR the user explicitly says "don't attach any file" / "without the file".
 
 Be smart about interpreting intent. Examples:
 - "what's my day look like" → show_briefing
@@ -136,6 +152,9 @@ Pending: {[t['task'] for t in tasks['pending']]}
 
 === MEMORY (past conversations, facts, decisions) ===
 {memory_context}
+
+=== RECENT UPLOADS (most recent first) ===
+{build_files_context(limit=5)}
 
 === CURRENT TIME ===
 {ist_now().strftime('%Y-%m-%d %H:%M:%S %A %Z')}
@@ -220,5 +239,40 @@ Write the briefing as Cash. Start with a warm cat-flavoured good morning to Suha
         model="claude-sonnet-4-20250514",
         max_tokens=700,
         messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text.strip()
+
+
+def answer_about_file(record: dict, question: str) -> str:
+    """Send an uploaded file to Claude along with the user's question.
+
+    Supports PDFs (document block), images, and text files. For unsupported
+    types, falls back to a filename-only prompt so Cash can at least respond.
+    """
+    client = get_client()
+    question = (question or "Summarise this file").strip()
+
+    block = build_claude_content_block(record)
+    if block is None:
+        user_content = [{
+            "type": "text",
+            "text": (
+                f"The user uploaded a file called '{record.get('name')}' "
+                f"(type: {record.get('mime_type') or 'unknown'}), but its contents "
+                f"can't be read directly. Here is their question: {question}\n\n"
+                f"Reply as Cash — acknowledge the file by name and answer as best you can."
+            ),
+        }]
+    else:
+        user_content = [
+            block,
+            {"type": "text", "text": f"File: {record.get('name')}\n\nUser's ask: {question}\n\nReply as Cash — warm, concise, and helpful."},
+        ]
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1500,
+        system="You are Cash — a clever, witty cat who lives in Suhail's MacBook. Answer in your usual voice: warm, playful, occasional cat-isms, but sharp and useful. Keep replies Telegram-sized.",
+        messages=[{"role": "user", "content": user_content}],
     )
     return response.content[0].text.strip()

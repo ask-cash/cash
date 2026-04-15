@@ -29,6 +29,13 @@ def get_cal() -> UnifiedCalendar:
     return _cal
 
 
+def reset_cal() -> UnifiedCalendar:
+    """Force a fresh UnifiedCalendar — call after OAuth re-auth."""
+    global _cal
+    _cal = UnifiedCalendar()
+    return _cal
+
+
 def get_gmail() -> Optional[GmailManager]:
     global _gmail
     if _gmail is None:
