@@ -6,3 +6,5 @@ user_data/
 __pycache__/
 *.pyc
 venv/
+.mcp.json
+gmail_token.json
