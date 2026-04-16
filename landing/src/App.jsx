@@ -13,7 +13,7 @@ export default function App() {
   return (
     <>
       <Navbar />
-      <main className="pt-32">
+      <main>
         <Hero />
         <Testimonials />
         <Features />
