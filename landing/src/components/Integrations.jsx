@@ -1,74 +1,48 @@
 import { motion } from 'framer-motion'
 import { useScrollReveal } from '../hooks/useScrollReveal'
 
-const HUB = { x: 12, y: 50 }
-const TRUNK_START = 12
-const TRUNK_END = 94
-const TRUNK_Y = 50
-const TRUNK_START_DELAY = 0.5
-const TRUNK_DURATION = 1.4
+const VB_W = 180
+const VB_H = 100
 
-// Sorted left-to-right so branches reveal in order as the trunk draws
+const HUB = {
+  cx: 34,
+  cy: 50,
+  w: 40,
+  h: 36,
+}
+const HUB_EXIT_X = HUB.cx + HUB.w / 2
+const HUB_EXIT_Y = HUB.cy
+const CTRL_X = 92
+const NODE_X = 130
+
 const integrations = [
-  {
-    name: 'Google Drive',
-    icon: 'https://cdn.simpleicons.org/googledrive/4285F4',
-    x: 22,
-    y: 86,
-  },
   {
     name: 'Google Calendar',
     icon: 'https://cdn.simpleicons.org/googlecalendar/4285F4',
-    x: 30,
-    y: 14,
   },
+  { name: 'Gmail', icon: 'https://cdn.simpleicons.org/gmail/EA4335' },
   {
-    name: 'Notion',
-    icon: 'https://cdn.simpleicons.org/notion/000000',
-    x: 42,
-    y: 86,
+    name: 'Google Drive',
+    icon: 'https://cdn.simpleicons.org/googledrive/4285F4',
   },
-  {
-    name: 'Gmail',
-    icon: 'https://cdn.simpleicons.org/gmail/EA4335',
-    x: 50,
-    y: 14,
-  },
+  { name: 'Notion', icon: 'https://cdn.simpleicons.org/notion/000000' },
+  { name: 'Slack', icon: 'https://api.iconify.design/logos/slack-icon.svg' },
+  { name: 'X / Twitter', icon: 'https://cdn.simpleicons.org/x/000000' },
+  { name: 'GitHub', icon: 'https://cdn.simpleicons.org/github/000000' },
   {
     name: 'Outlook',
-    icon: 'https://cdn.simpleicons.org/microsoftoutlook/0078D4',
-    x: 60,
-    y: 86,
+    icon: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/outlook.svg',
   },
-  {
-    name: 'Slack',
-    icon: 'https://cdn.simpleicons.org/slack/E01E5A',
-    x: 68,
-    y: 14,
-  },
-  {
-    name: 'X / Twitter',
-    icon: 'https://cdn.simpleicons.org/x/000000',
-    x: 78,
-    y: 86,
-  },
-  {
-    name: 'GitHub',
-    icon: 'https://cdn.simpleicons.org/github/000000',
-    x: 86,
-    y: 14,
-  },
-  {
-    name: 'Spotify',
-    icon: 'https://cdn.simpleicons.org/spotify/1DB954',
-    x: 92,
-    y: 86,
-  },
+  { name: 'Spotify', icon: 'https://cdn.simpleicons.org/spotify/1DB954' },
 ]
 
-function branchDelay(x) {
-  const t = (x - TRUNK_START) / (TRUNK_END - TRUNK_START)
-  return TRUNK_START_DELAY + t * TRUNK_DURATION
+const N = integrations.length
+const Y_START = 6
+const Y_END = 94
+const nodeY = (i) => Y_START + ((Y_END - Y_START) * i) / (N - 1)
+
+function linePath(targetY) {
+  return `M ${HUB_EXIT_X},${HUB_EXIT_Y} C ${CTRL_X},${HUB_EXIT_Y} ${CTRL_X},${targetY} ${NODE_X},${targetY}`
 }
 
 export default function Integrations() {
@@ -78,7 +52,7 @@ export default function Integrations() {
     <section
       id="integrations"
       ref={ref}
-      className="relative py-20 md:py-28 text-[#1a0f05] overflow-hidden border-t border-[rgba(124,45,18,0.1)]"
+      className="relative py-20 md:py-28 text-[#1a0f05] border-t border-[rgba(124,45,18,0.1)]"
       style={{
         background:
           'radial-gradient(1100px circle at 10% 0%, rgba(249,115,22,0.06), transparent 55%), radial-gradient(900px circle at 90% 100%, rgba(217,119,6,0.05), transparent 55%), #ffffff',
@@ -106,88 +80,69 @@ export default function Integrations() {
           </p>
         </motion.div>
 
-        <div className="hidden md:block relative h-[420px] lg:h-[460px]">
+        <div
+          className="hidden md:block relative w-full max-w-[920px] mx-auto"
+          style={{ aspectRatio: `${VB_W} / ${VB_H}` }}
+        >
           <svg
-            className="absolute inset-0 w-full h-full pointer-events-none"
-            viewBox="0 0 100 100"
+            className="absolute inset-0 w-full h-full"
+            viewBox={`0 0 ${VB_W} ${VB_H}`}
             preserveAspectRatio="none"
             aria-hidden
           >
-            <motion.line
-              x1={TRUNK_START}
-              y1={TRUNK_Y}
-              x2={TRUNK_END}
-              y2={TRUNK_Y}
-              stroke="#f97316"
-              strokeOpacity={0.55}
-              strokeWidth={1.25}
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-              initial={{ pathLength: 0 }}
-              animate={isInView ? { pathLength: 1 } : { pathLength: 0 }}
-              transition={{
-                duration: TRUNK_DURATION,
-                delay: TRUNK_START_DELAY,
-                ease: [0.65, 0, 0.35, 1],
-              }}
-            />
-
-            {integrations.map((it) => (
-              <motion.line
-                key={`branch-${it.name}`}
-                x1={it.x}
-                y1={TRUNK_Y}
-                x2={it.x}
-                y2={it.y}
+            <defs>
+              {integrations.map((_, i) => (
+                <clipPath key={`cp-${i}`} id={`rev-line-${i}`}>
+                  <motion.rect
+                    x={HUB_EXIT_X}
+                    y={0}
+                    height={VB_H}
+                    initial={{ width: 0 }}
+                    animate={isInView ? { width: 100 } : { width: 0 }}
+                    transition={{
+                      duration: 0.75,
+                      delay: 0.4 + i * 0.14,
+                      ease: [0.25, 0.4, 0.25, 1],
+                    }}
+                  />
+                </clipPath>
+              ))}
+            </defs>
+            {integrations.map((it, i) => (
+              <path
+                key={`line-${it.name}`}
+                d={linePath(nodeY(i))}
                 stroke="#f97316"
-                strokeOpacity={0.5}
-                strokeWidth={1.25}
+                strokeWidth={0.6}
+                strokeOpacity={0.8}
+                strokeDasharray="2.4 1.8"
                 strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-                initial={{ pathLength: 0 }}
-                animate={isInView ? { pathLength: 1 } : { pathLength: 0 }}
-                transition={{
-                  duration: 0.32,
-                  delay: branchDelay(it.x),
-                  ease: 'easeOut',
-                }}
-              />
-            ))}
-
-            {integrations.map((it) => (
-              <motion.circle
-                key={`joint-${it.name}`}
-                cx={it.x}
-                cy={TRUNK_Y}
-                r={0.9}
-                fill="#f97316"
-                vectorEffect="non-scaling-stroke"
-                initial={{ opacity: 0, scale: 0 }}
-                animate={isInView ? { opacity: 1, scale: 1 } : {}}
-                transition={{
-                  duration: 0.2,
-                  delay: branchDelay(it.x),
-                  ease: 'easeOut',
-                }}
+                fill="none"
+                clipPath={`url(#rev-line-${i})`}
               />
             ))}
           </svg>
 
           <motion.div
-            className="absolute -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${HUB.x}%`, top: `${HUB.y}%` }}
-            initial={{ opacity: 0, scale: 0.8 }}
+            className="absolute"
+            style={{
+              left: `${((HUB.cx - HUB.w / 2) / VB_W) * 100}%`,
+              top: `${((HUB.cy - HUB.h / 2) / VB_H) * 100}%`,
+              width: `${(HUB.w / VB_W) * 100}%`,
+              aspectRatio: `${HUB.w} / ${HUB.h}`,
+            }}
+            initial={{ opacity: 0, scale: 0.85 }}
             animate={isInView ? { opacity: 1, scale: 1 } : {}}
-            transition={{ duration: 0.5, delay: 0.1, ease: 'easeOut' }}
+            transition={{ duration: 0.55, delay: 0.1, ease: 'easeOut' }}
           >
-            <div className="relative flex flex-col items-center">
+            <div className="relative w-full h-full">
               <motion.span
-                className="absolute -inset-4 rounded-full"
+                className="absolute -inset-3 rounded-[28px]"
                 style={{
                   background:
                     'radial-gradient(circle, rgba(249,115,22,0.35) 0%, transparent 70%)',
                 }}
-                animate={{ scale: [1, 1.25, 1], opacity: [0.6, 0.25, 0.6] }}
+                animate={{ scale: [1, 1.1, 1], opacity: [0.55, 0.25, 0.55] }}
                 transition={{
                   duration: 3,
                   repeat: Infinity,
@@ -195,12 +150,12 @@ export default function Integrations() {
                 }}
               />
               <motion.div
-                className="relative w-[96px] h-[96px] rounded-full flex items-center justify-center shadow-[0_12px_40px_rgba(249,115,22,0.38)] ring-[3px] ring-white"
+                className="relative w-full h-full rounded-[22px] flex items-center justify-center shadow-[0_24px_60px_rgba(249,115,22,0.38)] ring-[3px] ring-white"
                 style={{
                   background:
                     'linear-gradient(135deg, #fed7aa 0%, #fdba74 100%)',
                 }}
-                animate={{ rotate: [0, -4, 4, 0] }}
+                animate={{ rotate: [0, -3, 3, 0] }}
                 transition={{
                   duration: 1.6,
                   repeat: Infinity,
@@ -208,56 +163,51 @@ export default function Integrations() {
                   ease: 'easeInOut',
                 }}
               >
-                <span className="text-[3rem] leading-none" aria-hidden>
+                <span
+                  className="leading-none"
+                  style={{ fontSize: 'clamp(2.4rem, 7.5vw, 4.5rem)' }}
+                  aria-hidden
+                >
                   😼
                 </span>
-                <span className="absolute -bottom-0.5 -right-0.5 flex w-3.5 h-3.5">
+                <span className="absolute -bottom-1 -right-1 flex w-4 h-4">
                   <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-60 animate-ping" />
-                  <span className="relative w-3.5 h-3.5 rounded-full bg-[#10b981] ring-[2.5px] ring-white" />
+                  <span className="relative w-4 h-4 rounded-full bg-[#10b981] ring-[3px] ring-white" />
                 </span>
               </motion.div>
-              <p className="mt-3 font-display font-bold text-[0.72rem] text-[#c2410c] uppercase tracking-[0.18em]">
+              <p className="absolute left-1/2 -translate-x-1/2 -bottom-8 font-display font-bold text-[0.72rem] text-[#c2410c] uppercase tracking-[0.18em]">
                 Cash
               </p>
             </div>
           </motion.div>
 
-          {integrations.map((it) => {
-            const delay = branchDelay(it.x) + 0.28
-            return (
-              <motion.div
-                key={it.name}
-                className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-2 px-3.5 py-2 rounded-full bg-white border border-[rgba(124,45,18,0.18)] shadow-[0_4px_16px_rgba(124,45,18,0.08)] cursor-default"
-                style={{ left: `${it.x}%`, top: `${it.y}%` }}
-                initial={{ opacity: 0, scale: 0.5, y: it.y > TRUNK_Y ? -6 : 6 }}
+          {integrations.map((it, i) => (
+            <div
+              key={it.name}
+              className="absolute"
+              style={{
+                left: `${(NODE_X / VB_W) * 100}%`,
+                top: `${(nodeY(i) / VB_H) * 100}%`,
+              }}
+            >
+              <motion.img
+                src={it.icon}
+                alt={it.name}
+                title={it.name}
+                loading="lazy"
+                className="-translate-y-1/2 ml-3 w-8 h-8 object-contain"
+                initial={{ opacity: 0, scale: 0.4 }}
                 animate={
-                  isInView
-                    ? { opacity: 1, scale: 1, y: 0 }
-                    : { opacity: 0, scale: 0.5 }
+                  isInView ? { opacity: 1, scale: 1 } : { opacity: 0 }
                 }
                 transition={{
-                  duration: 0.4,
-                  delay,
+                  duration: 0.45,
+                  delay: 0.4 + i * 0.14 + 0.5,
                   ease: [0.25, 1.25, 0.4, 1],
                 }}
-                whileHover={{
-                  y: -2,
-                  borderColor: 'rgba(249,115,22,0.6)',
-                  boxShadow: '0 10px 24px rgba(249,115,22,0.2)',
-                }}
-              >
-                <img
-                  src={it.icon}
-                  alt={it.name}
-                  className="w-4 h-4 shrink-0"
-                  loading="lazy"
-                />
-                <span className="text-[0.78rem] font-medium text-[#1a0f05] whitespace-nowrap">
-                  {it.name}
-                </span>
-              </motion.div>
-            )
-          })}
+              />
+            </div>
+          ))}
         </div>
 
         <motion.div
@@ -267,23 +217,17 @@ export default function Integrations() {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           {integrations.map((item, i) => (
-            <motion.div
+            <motion.img
               key={item.name}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-white border border-[rgba(124,45,18,0.18)] shadow-sm"
+              src={item.icon}
+              alt={item.name}
+              title={item.name}
+              loading="lazy"
+              className="w-8 h-8 object-contain"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={isInView ? { opacity: 1, scale: 1 } : {}}
               transition={{ duration: 0.3, delay: 0.25 + i * 0.04 }}
-            >
-              <img
-                src={item.icon}
-                alt={item.name}
-                className="w-4 h-4"
-                loading="lazy"
-              />
-              <span className="text-[0.78rem] font-medium text-[#1a0f05]">
-                {item.name}
-              </span>
-            </motion.div>
+            />
           ))}
         </motion.div>
 
@@ -295,5 +239,3 @@ export default function Integrations() {
     </section>
   )
 }
-</parameter>
-</invoke>

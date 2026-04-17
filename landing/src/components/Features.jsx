@@ -453,7 +453,13 @@ function ChatDemo() {
           book lunch w/ Ben thu
         </div>
       </motion.div>
-      <motion.div variants={itemFade} className="flex justify-start min-h-[28px]">
+      <motion.div variants={itemFade} className="relative">
+        <div
+          aria-hidden
+          className="invisible max-w-[85%] rounded-[14px] rounded-bl-[4px] border border-transparent text-[0.78rem] px-2.5 py-1.5 leading-snug"
+        >
+          done. Thu 1 PM. judged your calendar on the way. 😼
+        </div>
         <AnimatePresence mode="wait">
           {phase === 1 && (
             <motion.div
@@ -462,7 +468,7 @@ function ChatDemo() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="rounded-[14px] rounded-bl-[4px] bg-white border border-[rgba(124,45,18,0.12)] px-2.5 py-1.5"
+              className="absolute top-0 left-0 rounded-[14px] rounded-bl-[4px] bg-white border border-[rgba(124,45,18,0.12)] px-2.5 py-1.5"
             >
               <TypingDots />
             </motion.div>
@@ -474,7 +480,7 @@ function ChatDemo() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.2 } }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="max-w-[85%] rounded-[14px] rounded-bl-[4px] bg-white border border-[rgba(124,45,18,0.12)] text-[#1a0f05] text-[0.78rem] px-2.5 py-1.5 leading-snug"
+              className="absolute top-0 left-0 max-w-[85%] rounded-[14px] rounded-bl-[4px] bg-white border border-[rgba(124,45,18,0.12)] text-[#1a0f05] text-[0.78rem] px-2.5 py-1.5 leading-snug"
             >
               done. Thu 1 PM. judged your calendar on the way.{' '}
               <motion.span
