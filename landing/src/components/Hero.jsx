@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
+import CashMascotEmbed from './CashMascotEmbed'
 
 const HERO_GIF =
   'https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExczh2dmN5d293NnNhaDlidmpnbG1kMm5uMW9rOTg1bTE5amNrZzN5YiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/JIX9t2j0ZTN9S/giphy.gif'
@@ -106,19 +107,10 @@ export default function Hero() {
           animate="visible"
           className="flex flex-col items-center mb-6"
         >
-          <div className="relative inline-block">
-            <span
-              className="text-6xl sm:text-7xl leading-none select-none block"
-              style={{ filter: 'drop-shadow(0 8px 30px rgba(249,115,22,0.35))' }}
-              aria-hidden
-            >
-              😼
-            </span>
-            <span className="absolute bottom-1 right-0 flex w-3.5 h-3.5">
-              <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-75 animate-ping" />
-              <span className="relative w-3.5 h-3.5 rounded-full bg-[#10b981] ring-[3px] ring-[#fff7ed]" />
-            </span>
-          </div>
+          <CashMascotEmbed
+            className="w-40 h-32 sm:w-52 sm:h-40"
+            loading="eager"
+          />
           <div className="mt-4">
             <LiveStatus />
           </div>

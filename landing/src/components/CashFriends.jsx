@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useScrollReveal } from '../hooks/useScrollReveal'
+import CashMascotEmbed from './CashMascotEmbed'
 
 const CASH_MESSAGE =
   "My human can't shut up about AI, so I work here for treats. But I have friends — smart AI cats looking for humans to run. Join the waitlist; I'll introduce you."
