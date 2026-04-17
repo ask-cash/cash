@@ -6,70 +6,70 @@ const testimonials = [
     handle: 'sleep_deprived_dev',
     quote:
       "Set up Cash yesterday. She already rescheduled my standup because I 'looked tired in Slack.' She's not wrong.",
-    href: 'https://x.com',
+    avatar: 'https://cataas.com/cat/cute?width=120&height=120&position=center',
     time: '14m',
   },
   {
     handle: 'calendar_hostage',
     quote:
       "I asked for a reminder. She built a whole narrative arc about my procrastination. 10/10 would get judged again.",
-    href: 'https://x.com',
+    avatar: 'https://cataas.com/cat/orange?width=120&height=120&position=center',
     time: '52m',
   },
   {
     handle: 'leg_day_skipper',
     quote:
       "Cash has reminded me about leg day for 47 days straight. She added it to my calendar as 'optional trauma.'",
-    href: 'https://x.com',
+    avatar: 'https://cataas.com/cat/kitten?width=120&height=120&position=center',
     time: '2h',
   },
   {
     handle: 'ramen_budget',
     quote:
       "She categorized my expenses and sent me a pie chart that was literally just 'cope purchases.' I felt seen. I hated it.",
-    href: 'https://x.com',
+    avatar: 'https://cataas.com/cat/funny?width=120&height=120&position=center',
     time: '4h',
   },
   {
     handle: 'inbox_zero_lies',
     quote:
       "Inbox zero lasted 11 minutes. Cash left a voice note pretending to be proud. It was sarcastic. I cried a little.",
-    href: 'https://x.com',
+    avatar: 'https://cataas.com/cat/white?width=120&height=120&position=center',
     time: '6h',
   },
   {
     handle: 'claude_max_refund',
     quote:
       "It's like having a coworker who lives in Telegram, remembers everything, and thinks your OKRs are a cry for help.",
-    href: 'https://x.com',
+    avatar: 'https://cataas.com/cat/black?width=120&height=120&position=center',
     time: '9h',
   },
 ]
 
-function Avatar({ handle }) {
-  const initial = handle.charAt(0).toUpperCase()
+function Avatar({ avatar, handle }) {
   return (
     <div
-      className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold text-base border-2 border-black/5"
+      className="shrink-0 w-11 h-11 rounded-full overflow-hidden border-2 border-black/5 bg-[#fff7ed]"
       style={{
-        background: 'linear-gradient(135deg, #fb923c 0%, #c2410c 100%)',
+        boxShadow: '0 4px 10px rgba(249,115,22,0.22)',
       }}
-      aria-hidden
     >
-      {initial}
+      <img
+        src={avatar}
+        alt={`${handle} avatar`}
+        className="w-full h-full object-cover"
+        loading="lazy"
+      />
     </div>
   )
 }
 
 function TestimonialCard({ t }) {
   return (
-    <a
-      href={t.href}
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
       className="testimonial-card group/card flex items-start gap-3 shrink-0 min-w-[18rem] max-w-[22rem] sm:min-w-[20rem] sm:max-w-[25rem] rounded-xl border border-[rgba(124,45,18,0.18)] bg-white/95 p-4 backdrop-blur-md shadow-sm transition-all duration-300 hover:border-[#f97316]/60 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(249,115,22,0.22)]"
     >
-      <Avatar handle={t.handle} />
+      <Avatar avatar={t.avatar} handle={t.handle} />
       <div className="flex flex-col gap-1.5 min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[0.78rem]">
           <span className="font-display font-semibold text-[#c2410c]">
@@ -89,7 +89,7 @@ function TestimonialCard({ t }) {
           &ldquo;{t.quote}&rdquo;
         </p>
       </div>
-    </a>
+    </div>
   )
 }
 
@@ -111,7 +111,7 @@ export default function Testimonials() {
     >
       <div className="max-w-[860px] mx-auto px-6">
         <motion.div
-          className="flex items-center justify-between gap-4 mb-5"
+          className="flex items-center gap-4 mb-5"
           initial={{ opacity: 0, y: 14 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.45 }}
@@ -122,14 +122,6 @@ export default function Testimonials() {
             </span>
             <span>What my friends say about Cash</span>
           </h2>
-          <a
-            href="https://x.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-medium text-[#c2410c] hover:text-[#f97316] shrink-0 transition-colors"
-          >
-            View all <span aria-hidden>→</span>
-          </a>
         </motion.div>
 
         <div className="flex items-center gap-2 text-sm text-[#8c5a2a] mb-6 pl-[1.35rem]">
@@ -138,7 +130,7 @@ export default function Testimonials() {
             <span className="relative w-1.5 h-1.5 rounded-full bg-[#10b981]" />
           </span>
           <span>
-            live from X — (all these are Cash in a trench coat. still true.)
+            (all these are Cash in a trench coat. still true.)
           </span>
         </div>
 

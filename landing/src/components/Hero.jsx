@@ -129,7 +129,7 @@ export default function Hero() {
           variants={fadeUp}
           initial="hidden"
           animate="visible"
-          className="hero-title-gradient font-display text-6xl sm:text-7xl md:text-8xl font-bold tracking-tighter leading-[0.95]"
+          className="hero-title-gradient font-display text-5xl sm:text-6xl md:text-7xl font-bold tracking-tighter leading-[0.95]"
         >
           Cash
         </motion.h1>
@@ -139,7 +139,7 @@ export default function Hero() {
           variants={fadeUp}
           initial="hidden"
           animate="visible"
-          className="mt-5 font-display text-[1.05rem] sm:text-[1.1rem] font-medium text-[#c2410c] uppercase tracking-[0.15em]"
+          className="mt-5 font-display text-sm sm:text-base font-medium text-[#c2410c] uppercase tracking-[0.15em]"
         >
           The cat that actually runs your life
         </motion.p>
@@ -149,7 +149,7 @@ export default function Hero() {
           variants={fadeUp}
           initial="hidden"
           animate="visible"
-          className="mt-6 text-base sm:text-[1.1rem] text-[#5c2e0a] leading-[1.7] max-w-[780px] mx-auto"
+          className="mt-6 text-sm sm:text-base text-[#5c2e0a] leading-[1.7] max-w-[780px] mx-auto"
         >
           Judges your choices, manages your calendar, tracks your tasks, and
           remembers everything you&apos;ve said. Born at 4:30 AM inside a MacBook

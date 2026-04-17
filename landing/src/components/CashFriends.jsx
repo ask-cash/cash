@@ -1,37 +1,47 @@
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
 import { useScrollReveal } from '../hooks/useScrollReveal'
 
 const CASH_MESSAGE =
-  "My human can't shut up about AI, so I work here for treats. But I have friends — smart AI cats looking for humans to run. Join the waitlist; I'll introduce you. 😼"
+  "My human can't shut up about AI, so I work here for treats. But I have friends — smart AI cats looking for humans to run. Join the waitlist; I'll introduce you."
 
-const friends = [
-  {
-    emoji: '🐱',
-    name: 'Pixel',
-    role: 'The Organizer',
-    desc: 'Sorts your chaos into color-coded spreadsheets. Will silently judge your folder naming.',
-  },
-  {
-    emoji: '🐈',
-    name: 'Whiskers',
-    role: 'The Drill Sergeant',
-    desc: 'Slaps your hand away from late-night snack runs and unfinished workouts. Not gentle about it.',
-  },
-  {
-    emoji: '🐈\u200D⬛',
-    name: 'Midnight',
-    role: 'The Night Owl',
-    desc: 'Works the late shift. For the 2am insomniacs who need someone to tell them to go to sleep.',
-  },
-  {
-    emoji: '😺',
-    name: 'Mochi',
-    role: 'The Wellness Cat',
-    desc: 'Tracks your water intake, gym sessions, and emotional breakdowns. Mostly the breakdowns.',
-  },
-]
+function TypingDots() {
+  return (
+    <div className="inline-flex items-center gap-[4px] py-[3px]">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="w-1.5 h-1.5 rounded-full bg-black/40"
+          animate={{ y: [0, -3, 0], opacity: [0.4, 1, 0.4] }}
+          transition={{
+            duration: 0.95,
+            repeat: Infinity,
+            delay: i * 0.15,
+            ease: 'easeInOut',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
 
 function ChatWindow({ isInView }) {
+  // 0: nothing, 1: typing dots, 2: message shown, 3: delivered label shown
+  const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    if (!isInView) return
+    setStep(0)
+    const t1 = setTimeout(() => setStep(1), 600)
+    const t2 = setTimeout(() => setStep(2), 2100)
+    const t3 = setTimeout(() => setStep(3), 2700)
+    return () => {
+      clearTimeout(t1)
+      clearTimeout(t2)
+      clearTimeout(t3)
+    }
+  }, [isInView])
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 24, scale: 0.98 }}
@@ -41,16 +51,33 @@ function ChatWindow({ isInView }) {
     >
       <div className="flex flex-col items-center gap-2.5 px-5 pt-6 pb-5 bg-gradient-to-b from-[#f6f6f8] to-white border-b border-black/[0.06]">
         <div className="relative">
-          <div
+          <motion.div
             className="w-14 h-14 rounded-full flex items-center justify-center shadow-[0_4px_14px_rgba(249,115,22,0.28)]"
             style={{
               background: 'linear-gradient(135deg, #fed7aa 0%, #fdba74 100%)',
             }}
+            animate={{ rotate: [0, -4, 4, 0] }}
+            transition={{
+              duration: 1.6,
+              repeat: Infinity,
+              repeatDelay: 3.5,
+              ease: 'easeInOut',
+            }}
           >
-            <span className="text-[1.75rem] leading-none" aria-hidden>
+            <motion.span
+              className="text-[1.75rem] leading-none inline-block"
+              aria-hidden
+              animate={{ rotate: [0, 10, -10, 0] }}
+              transition={{
+                duration: 1.4,
+                repeat: Infinity,
+                repeatDelay: 2.5,
+                ease: 'easeInOut',
+              }}
+            >
               😼
-            </span>
-          </div>
+            </motion.span>
+          </motion.div>
           <span className="absolute -bottom-0.5 -right-0.5 flex w-3.5 h-3.5">
             <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-60 animate-ping" />
             <span className="relative w-3.5 h-3.5 rounded-full bg-[#10b981] ring-[2.5px] ring-white" />
@@ -60,13 +87,21 @@ function ChatWindow({ isInView }) {
           <p className="font-semibold text-[0.95rem] text-black leading-none tracking-tight">
             Cash
           </p>
-          <p className="mt-1.5 text-[0.72rem] text-black/40 leading-none">
-            active now
-          </p>
+          <motion.p
+            className="mt-1.5 text-[0.72rem] text-black/40 leading-none"
+            animate={{ opacity: step === 1 ? [0.4, 1, 0.4] : 0.4 }}
+            transition={{
+              duration: 1.2,
+              repeat: step === 1 ? Infinity : 0,
+              ease: 'easeInOut',
+            }}
+          >
+            {step === 1 ? 'typing…' : 'active now'}
+          </motion.p>
         </div>
       </div>
 
-      <div className="px-4 py-6 min-h-[220px] bg-white flex flex-col">
+      <div className="px-4 py-6 min-h-[240px] bg-white flex flex-col">
         <motion.p
           initial={{ opacity: 0 }}
           animate={isInView ? { opacity: 1 } : {}}
@@ -76,19 +111,49 @@ function ChatWindow({ isInView }) {
           <span className="font-semibold text-black/55">Today</span> 10:47 AM
         </motion.p>
 
-        <motion.div
-          initial={{ opacity: 0, y: 8, scale: 0.96 }}
-          animate={isInView ? { opacity: 1, y: 0, scale: 1 } : {}}
-          transition={{ duration: 0.4, delay: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="imessage-bubble self-start max-w-[85%] bg-[#e9e9eb] rounded-[20px] px-[14px] py-[9px] text-[0.95rem] leading-[1.38] text-black"
-        >
-          {CASH_MESSAGE}
-        </motion.div>
+        <AnimatePresence mode="wait">
+          {step === 1 && (
+            <motion.div
+              key="typing"
+              initial={{ opacity: 0, y: 6, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="self-start bg-[#e9e9eb] rounded-[20px] px-3.5 py-2"
+            >
+              <TypingDots />
+            </motion.div>
+          )}
+
+          {step >= 2 && (
+            <motion.div
+              key="message"
+              initial={{ opacity: 0, y: 10, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="imessage-bubble self-start max-w-[85%] bg-[#e9e9eb] rounded-[20px] px-[14px] py-[9px] text-[0.95rem] leading-[1.38] text-black"
+            >
+              {CASH_MESSAGE}{' '}
+              <motion.span
+                className="inline-block"
+                animate={{ rotate: [0, 18, -18, 0] }}
+                transition={{
+                  duration: 1.4,
+                  repeat: Infinity,
+                  repeatDelay: 2,
+                  ease: 'easeInOut',
+                }}
+              >
+                😼
+              </motion.span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <motion.p
           initial={{ opacity: 0 }}
-          animate={isInView ? { opacity: 1 } : {}}
-          transition={{ duration: 0.4, delay: 0.95 }}
+          animate={{ opacity: step >= 3 ? 1 : 0 }}
+          transition={{ duration: 0.3 }}
           className="self-start text-[0.62rem] text-black/35 ml-2 mt-1.5 uppercase tracking-[0.08em] font-medium"
         >
           Delivered
@@ -155,86 +220,16 @@ export default function CashFriends() {
             </span>
             DM from Cash
           </p>
-          <h2 className="font-display font-bold text-[2rem] sm:text-[2.4rem] md:text-[2.75rem] tracking-tight leading-[1.05]">
+          <h2 className="font-display font-bold text-2xl sm:text-3xl md:text-4xl tracking-tight leading-[1.05]">
             A message from your{' '}
             <span className="hero-title-gradient">cat.</span>
           </h2>
-          <p className="mt-4 text-[#5c2e0a] text-[0.95rem] sm:text-base">
+          <p className="mt-4 text-[#5c2e0a] text-sm sm:text-base">
             She has thoughts.
           </p>
         </motion.div>
 
         <ChatWindow isInView={isInView} />
-
-        <div className="mt-24 md:mt-28">
-          <motion.div
-            className="text-center mb-10"
-            initial={{ opacity: 0, y: 14 }}
-            animate={isInView ? { opacity: 1, y: 0 } : {}}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#c2410c] uppercase tracking-[0.22em] mb-3 inline-flex items-center gap-2">
-              <span className="text-[#f97316]" aria-hidden>
-                ⟩
-              </span>
-              The crew
-            </p>
-            <h3 className="font-display font-bold text-[1.6rem] sm:text-[1.85rem] tracking-tight leading-[1.1]">
-              Meet Cash&apos;s friends
-            </h3>
-            <p className="mt-3 text-[#5c2e0a] text-sm sm:text-[0.95rem]">
-              All AI. All judgmental. All available for hire.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {friends.map((f, i) => (
-              <motion.article
-                key={f.name}
-                initial={{ opacity: 0, y: 20 }}
-                animate={isInView ? { opacity: 1, y: 0 } : {}}
-                transition={{ duration: 0.5, delay: 0.35 + i * 0.08 }}
-                whileHover={{ y: -3 }}
-                className="group relative rounded-2xl border border-[rgba(124,45,18,0.14)] bg-white/90 backdrop-blur-sm p-5 transition-all duration-300 hover:border-[#f97316]/50 hover:shadow-[0_12px_40px_rgba(249,115,22,0.14)]"
-              >
-                <div className="flex items-start gap-3.5">
-                  <motion.span
-                    whileHover={{
-                      rotate: [0, -8, 6, 0],
-                      transition: { duration: 0.5 },
-                    }}
-                    className="shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-br from-[#fff7ed] to-[#ffedd5] border border-[rgba(124,45,18,0.1)] text-2xl"
-                    style={{
-                      filter: 'drop-shadow(0 4px 10px rgba(249,115,22,0.18))',
-                    }}
-                    aria-hidden
-                  >
-                    {f.emoji}
-                  </motion.span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <h4 className="font-sans font-bold text-[1rem] tracking-tight text-[#1a0f05]">
-                          {f.name}
-                        </h4>
-                        <p className="font-display text-[0.7rem] uppercase tracking-[0.18em] text-[#c2410c] mt-0.5">
-                          {f.role}
-                        </p>
-                      </div>
-                      <span className="shrink-0 inline-flex items-center gap-1 text-[0.65rem] font-medium tracking-wider uppercase text-[#8c5a2a] bg-[#fff7ed] border border-[rgba(124,45,18,0.12)] px-2 py-0.5 rounded-full">
-                        <span className="w-1 h-1 rounded-full bg-[#f97316]" />
-                        Soon
-                      </span>
-                    </div>
-                    <p className="mt-2.5 text-[0.88rem] leading-relaxed text-[#5c2e0a]">
-                      {f.desc}
-                    </p>
-                  </div>
-                </div>
-              </motion.article>
-            ))}
-          </div>
-        </div>
       </div>
     </section>
   )
