@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Assistant Cash Cat</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 0;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      display: block;
+    }
+
+    /* ── Animations ── */
+    .body {
+      animation: breathe 2.4s ease-in-out infinite;
+      transform-origin: 340px 290px;
+    }
+    .tail {
+      animation: wag 1.8s ease-in-out infinite;
+      transform-origin: 270px 370px;
+    }
+    .ear-l {
+      animation: eartwitch 3s ease-in-out infinite;
+      transform-origin: 285px 198px;
+    }
+    .ear-r {
+      animation: eartwitch 3s ease-in-out infinite 0.15s;
+      transform-origin: 395px 198px;
+    }
+    .eyes {
+      animation: blink 4s ease-in-out infinite;
+      transform-origin: 340px 280px;
+    }
+    .paw-r {
+      animation: pawwave 3s ease-in-out infinite;
+      transform-origin: 415px 355px;
+    }
+
+    @keyframes breathe {
+      0%, 100% { transform: scaleY(1); }
+      50%       { transform: scaleY(1.03); }
+    }
+    @keyframes wag {
+      0%, 100% { transform: rotate(-12deg); }
+      50%      { transform: rotate(18deg); }
+    }
+    @keyframes eartwitch {
+      0%, 85%, 100% { transform: rotate(0deg); }
+      90%           { transform: rotate(-8deg); }
+      95%           { transform: rotate(4deg); }
+    }
+    @keyframes blink {
+      0%, 90%, 100% { transform: scaleY(1); }
+      93%           { transform: scaleY(0.08); }
+      96%           { transform: scaleY(1); }
+    }
+    @keyframes pawwave {
+      0%, 100% { transform: rotate(-5deg); }
+      50%      { transform: rotate(15deg); }
+    }
+  </style>
+</head>
+<body>
+
+<svg viewBox="0 0 680 500" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+
+  <!-- Background glow -->
+  <ellipse cx="340" cy="430" rx="160" ry="28" fill="#2563EB" opacity="0.12"/>
+
+  <!-- TAIL -->
+  <g class="tail">
+    <path d="M275 368 Q220 340 200 305 Q185 275 210 260 Q228 250 238 268 Q220 280 232 300 Q252 330 280 355 Z"
+          fill="#FFFFFF" stroke="#D4D4D8" stroke-width="1.5"/>
+    <path d="M200 262 Q195 240 210 230 Q225 220 230 238"
+          fill="#F4F4F5" stroke="#D4D4D8" stroke-width="1"/>
+  </g>
+
+  <!-- BODY -->
+  <g class="body">
+    <ellipse cx="340" cy="415" rx="105" ry="20" fill="#A1A1AA" opacity="0.18"/>
+    <ellipse cx="340" cy="330" rx="105" ry="105" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="1.5"/>
+    <ellipse cx="340" cy="345" rx="60" ry="62" fill="#FAFAFA"/>
+
+    <!-- Body shading (subtle) -->
+    <path d="M295 265 Q300 285 296 310" stroke="#E4E4E7" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.7"/>
+    <path d="M385 265 Q380 285 384 310" stroke="#E4E4E7" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.7"/>
+    <path d="M270 300 Q280 310 270 325" stroke="#E4E4E7" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <path d="M410 300 Q400 310 410 325" stroke="#E4E4E7" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.6"/>
+
+    <!-- LEFT EAR -->
+    <g class="ear-l">
+      <ellipse cx="285" cy="190" rx="34" ry="36" fill="#FFFFFF" stroke="#D4D4D8" stroke-width="1.5"/>
+      <ellipse cx="285" cy="193" rx="20" ry="22" fill="#93C5FD"/>
+    </g>
+
+    <!-- RIGHT EAR -->
+    <g class="ear-r">
+      <ellipse cx="395" cy="190" rx="34" ry="36" fill="#FFFFFF" stroke="#D4D4D8" stroke-width="1.5"/>
+      <ellipse cx="395" cy="193" rx="20" ry="22" fill="#93C5FD"/>
+    </g>
+
+    <!-- HEAD -->
+    <circle cx="340" cy="258" r="90" fill="#FFFFFF" stroke="#E4E4E7" stroke-width="1.5"/>
+
+    <!-- Head shading (subtle) -->
+    <path d="M320 178 Q322 200 318 220" stroke="#E4E4E7" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <path d="M340 175 Q340 197 340 217" stroke="#E4E4E7" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6"/>
+    <path d="M360 178 Q358 200 362 220" stroke="#E4E4E7" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6"/>
+
+    <!-- Muzzle -->
+    <ellipse cx="340" cy="283" rx="38" ry="28" fill="#FAFAFA"/>
+
+    <!-- Eyes -->
+    <g class="eyes">
+      <ellipse cx="312" cy="258" rx="16" ry="17" fill="white"/>
+      <ellipse cx="368" cy="258" rx="16" ry="17" fill="white"/>
+      <ellipse cx="314" cy="260" rx="9" ry="11" fill="#1C1917"/>
+      <ellipse cx="370" cy="260" rx="9" ry="11" fill="#1C1917"/>
+      <circle cx="318" cy="254" r="4" fill="white"/>
+      <circle cx="374" cy="254" r="4" fill="white"/>
+      <ellipse cx="312" cy="258" rx="16" ry="17" fill="none" stroke="#D4D4D8" stroke-width="1.5"/>
+      <ellipse cx="368" cy="258" rx="16" ry="17" fill="none" stroke="#D4D4D8" stroke-width="1.5"/>
+    </g>
+
+    <!-- Nose -->
+    <ellipse cx="340" cy="281" rx="9" ry="7" fill="#60A5FA"/>
+
+    <!-- Whiskers left -->
+    <line x1="302" y1="279" x2="250" y2="273" stroke="#A1A1AA" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    <line x1="302" y1="284" x2="248" y2="284" stroke="#A1A1AA" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    <line x1="302" y1="289" x2="252" y2="293" stroke="#A1A1AA" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    <!-- Whiskers right -->
+    <line x1="378" y1="279" x2="430" y2="273" stroke="#A1A1AA" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    <line x1="378" y1="284" x2="432" y2="284" stroke="#A1A1AA" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+    <line x1="378" y1="289" x2="428" y2="293" stroke="#A1A1AA" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+
+    <!-- LEFT PAW -->
+    <ellipse cx="265" cy="385" rx="36" ry="28" fill="#FFFFFF" stroke="#D4D4D8" stroke-width="1.5"/>
+    <ellipse cx="265" cy="390" rx="24" ry="14" fill="#93C5FD"/>
+    <line x1="255" y1="389" x2="253" y2="398" stroke="#D4D4D8" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <line x1="265" y1="390" x2="265" y2="400" stroke="#D4D4D8" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    <line x1="275" y1="389" x2="277" y2="398" stroke="#D4D4D8" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+
+    <!-- RIGHT PAW (waves) -->
+    <g class="paw-r">
+      <ellipse cx="415" cy="355" rx="36" ry="28" fill="#FFFFFF" stroke="#D4D4D8" stroke-width="1.5"/>
+      <ellipse cx="415" cy="360" rx="24" ry="14" fill="#93C5FD"/>
+      <line x1="405" y1="359" x2="403" y2="368" stroke="#D4D4D8" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="415" y1="360" x2="415" y2="370" stroke="#D4D4D8" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+      <line x1="425" y1="359" x2="427" y2="368" stroke="#D4D4D8" stroke-width="1.2" stroke-linecap="round" opacity="0.7"/>
+    </g>
+  </g>
+
+</svg>
+</body>
+</html>

@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Satoshi', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Clash Display', 'Inter', system-ui, sans-serif;
+
+  /* Deep-space base — single colour from start to end */
+  --color-bg: #06080f;
+  --color-bg-subtle: #0a0e1c;
+  --color-bg-muted: #11162a;
+  --color-bg-card: rgba(255, 255, 255, 0.04);
+  --color-bg-dark: #06080f;
+
+  /* Light typography on dark sky */
+  --color-text: #f1f3f9;
+  --color-text-secondary: #a8b0c0;
+  --color-text-tertiary: #6b7480;
+  --color-text-inverse: #06080f;
+
+  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+
+  /* Cash brand accent (orange tabby) */
+  --color-accent: #f97316;
+  --color-accent-strong: #c2410c;
+  --color-accent-soft: rgba(249, 115, 22, 0.15);
+
+  /* Calendly-style primary blue */
+  --color-blue: #4f8eff;
+  --color-blue-strong: #0069ff;
+  --color-blue-soft: rgba(0, 105, 255, 0.18);
+
+  --color-mint: #6ee7b7;
+  --color-violet: #c4b5fd;
+}
+
+html {
+  scroll-behavior: smooth;
+  background-color: var(--color-bg);
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-blue) 35%, transparent);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+@keyframes hero-gradient-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.hero-title-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #4f8eff 55%, #f97316 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: hero-gradient-shift 8s ease infinite;
+}
+
+@keyframes star-twinkle {
+  0%,
+  100% {
+    opacity: var(--star-min, 0.25);
+  }
+  50% {
+    opacity: var(--star-max, 1);
+  }
+}
+
+@keyframes shooting-star {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(var(--shoot-angle, -25deg));
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--shoot-x, 360px), var(--shoot-y, -160px), 0)
+      rotate(var(--shoot-angle, -25deg));
+    opacity: 0;
+  }
+}
+
+@keyframes testimonials-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes testimonials-marquee-reverse {
+  from {
+    transform: translate3d(-50%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.testimonials-track {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+  padding: 8px 0;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 5%,
+    black 95%,
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 5%,
+    black 95%,
+    transparent
+  );
+}
+
+.testimonials-marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 1rem;
+  animation: testimonials-marquee 45s linear infinite;
+  padding: 4px 0;
+}
+
+.testimonials-marquee-track.reverse {
+  animation-name: testimonials-marquee-reverse;
+}
+
+.testimonials-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .testimonials-marquee-track {
+    animation: none;
+    flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
+    justify-content: center;
+    row-gap: 1rem;
+  }
+}
