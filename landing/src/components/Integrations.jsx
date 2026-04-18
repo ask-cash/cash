@@ -52,11 +52,7 @@ export default function Integrations() {
     <section
       id="integrations"
       ref={ref}
-      className="relative py-20 md:py-28 text-[#1a0f05] border-t border-[rgba(124,45,18,0.1)]"
-      style={{
-        background:
-          'radial-gradient(1100px circle at 10% 0%, rgba(249,115,22,0.06), transparent 55%), radial-gradient(900px circle at 90% 100%, rgba(217,119,6,0.05), transparent 55%), #ffffff',
-      }}
+      className="relative py-20 md:py-28 text-[#f1f3f9]"
     >
       <div className="max-w-[1100px] mx-auto px-6">
         <motion.div
@@ -65,8 +61,8 @@ export default function Integrations() {
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5 }}
         >
-          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#c2410c] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
-            <span className="text-[#f97316]" aria-hidden>
+          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#7fa9ff] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
+            <span className="text-[#7fa9ff]" aria-hidden>
               ⟩
             </span>
             Integrations
@@ -75,7 +71,7 @@ export default function Integrations() {
             Her paws in{' '}
             <span className="hero-title-gradient">everything.</span>
           </h2>
-          <p className="mt-4 text-[#5c2e0a] text-sm sm:text-base">
+          <p className="mt-4 text-[#a8b0c0] text-sm sm:text-base">
             Cash hooks into the tools you pretend to be productive with.
           </p>
         </motion.div>
@@ -112,9 +108,9 @@ export default function Integrations() {
               <path
                 key={`line-${it.name}`}
                 d={linePath(nodeY(i))}
-                stroke="#f97316"
+                stroke="#7fa9ff"
                 strokeWidth={0.6}
-                strokeOpacity={0.8}
+                strokeOpacity={0.95}
                 strokeDasharray="2.4 1.8"
                 strokeLinecap="round"
                 fill="none"
@@ -150,7 +146,7 @@ export default function Integrations() {
                 }}
               />
               <motion.div
-                className="relative w-full h-full rounded-[22px] flex items-center justify-center shadow-[0_24px_60px_rgba(249,115,22,0.38)] ring-[3px] ring-white"
+                className="relative w-full h-full rounded-[22px] flex items-center justify-center shadow-[0_24px_60px_rgba(249,115,22,0.55)] ring-[3px] ring-white/15"
                 style={{
                   background:
                     'linear-gradient(135deg, #fed7aa 0%, #fdba74 100%)',
@@ -172,10 +168,10 @@ export default function Integrations() {
                 </span>
                 <span className="absolute -bottom-1 -right-1 flex w-4 h-4">
                   <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-60 animate-ping" />
-                  <span className="relative w-4 h-4 rounded-full bg-[#10b981] ring-[3px] ring-white" />
+                  <span className="relative w-4 h-4 rounded-full bg-[#10b981] ring-[3px] ring-[#06080f]" />
                 </span>
               </motion.div>
-              <p className="absolute left-1/2 -translate-x-1/2 -bottom-8 font-display font-bold text-[0.72rem] text-[#c2410c] uppercase tracking-[0.18em]">
+              <p className="absolute left-1/2 -translate-x-1/2 -bottom-8 font-display font-bold text-[0.72rem] text-[#f1f3f9] uppercase tracking-[0.18em]">
                 Cash
               </p>
             </div>
@@ -231,7 +227,7 @@ export default function Integrations() {
           ))}
         </motion.div>
 
-        <p className="mt-12 text-center text-[#8c5a2a] text-xs">
+        <p className="mt-12 text-center text-[#6b7480] text-xs">
           More integrations coming. Cash demands access to your entire digital
           life.
         </p>

@@ -30,7 +30,7 @@ function LiveStatus() {
     return () => clearInterval(t)
   }, [])
   return (
-    <div className="inline-flex items-center gap-2 text-sm text-[#5c2e0a] font-medium">
+    <div className="inline-flex items-center gap-2 text-sm text-[#a8b0c0] font-medium">
       <span className="relative flex w-2 h-2">
         <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-70 animate-ping" />
         <span className="relative w-2 h-2 rounded-full bg-[#10b981]" />
@@ -43,7 +43,7 @@ function LiveStatus() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={{ duration: 0.28, ease: 'easeOut' }}
-          className="font-display font-semibold text-[#c2410c]"
+          className="font-display font-semibold text-[#f1f3f9]"
         >
           {JUDGING[i]}
         </motion.span>
@@ -54,11 +54,11 @@ function LiveStatus() {
 
 export default function Hero() {
   return (
-    <section className="relative w-full min-h-[100dvh] flex flex-col overflow-hidden text-[#1a0f05]">
+    <section className="relative w-full min-h-[100dvh] flex flex-col overflow-hidden text-[#f1f3f9]">
       <div className="absolute inset-0 z-0" aria-hidden>
         <img
           alt=""
-          className="absolute inset-0 size-full min-w-full min-h-full object-cover object-[50%_38%]"
+          className="absolute inset-0 size-full min-w-full min-h-full object-cover object-[50%_38%] opacity-25 mix-blend-screen"
           src={HERO_GIF}
           loading="eager"
         />
@@ -66,35 +66,34 @@ export default function Hero() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              'radial-gradient(ellipse 125% 90% at 50% 42%, rgba(255,247,237,0.88) 0%, rgba(255,237,213,0.55) 42%, rgba(255,247,237,0.18) 68%, transparent 100%)',
+              'radial-gradient(ellipse 130% 90% at 50% 42%, rgba(6,8,15,0.55) 0%, rgba(6,8,15,0.78) 55%, rgba(6,8,15,0.95) 100%)',
           }}
         />
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              'radial-gradient(1200px circle at 12% -10%, rgba(249,115,22,0.14), transparent 58%), radial-gradient(900px circle at 88% -12%, rgba(217,119,6,0.12), transparent 56%)',
+              'radial-gradient(900px circle at 18% -10%, rgba(79,142,255,0.18), transparent 55%), radial-gradient(800px circle at 82% -12%, rgba(249,115,22,0.14), transparent 55%)',
           }}
         />
-        <div className="absolute inset-x-0 top-0 h-44 bg-gradient-to-b from-[#fff7ed]/80 to-transparent pointer-events-none" />
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col justify-center max-w-[860px] w-full mx-auto px-6 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-16 md:pb-24 text-center [&_h1]:drop-shadow-[0_1px_20px_rgba(255,247,237,0.9)] [&_p]:drop-shadow-[0_1px_10px_rgba(255,247,237,0.85)]">
+      <div className="relative z-10 flex-1 flex flex-col justify-center max-w-[860px] w-full mx-auto px-6 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-16 md:pb-24 text-center [&_h1]:drop-shadow-[0_2px_30px_rgba(79,142,255,0.35)]">
         <motion.a
           custom={0}
           variants={fadeUp}
           initial="hidden"
           animate="visible"
           href="#waitlist"
-          className="self-center inline-flex items-center gap-2 rounded-full border border-[rgba(124,45,18,0.16)] bg-white/80 backdrop-blur-md px-3.5 py-1.5 text-sm text-[#5c2e0a] hover:border-[#f97316]/50 hover:text-[#1a0f05] transition-all mb-8 group shadow-sm"
+          className="self-center inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] backdrop-blur-md px-3.5 py-1.5 text-sm text-[#a8b0c0] hover:border-[#4f8eff]/55 hover:text-white transition-all mb-8 group"
         >
-          <span className="inline-flex items-center rounded-full bg-[#f97316]/15 text-[#c2410c] px-2 py-0.5 text-[0.7rem] font-semibold tracking-wider uppercase">
+          <span className="inline-flex items-center rounded-full bg-[#4f8eff]/18 text-[#7fa9ff] px-2 py-0.5 text-[0.7rem] font-semibold tracking-wider uppercase">
             New
           </span>
           <span>Cash partners with your calendar</span>
           <span
             aria-hidden
-            className="text-[#f97316] transition-transform group-hover:translate-x-0.5"
+            className="text-[#7fa9ff] transition-transform group-hover:translate-x-0.5"
           >
             →
           </span>
@@ -131,7 +130,7 @@ export default function Hero() {
           variants={fadeUp}
           initial="hidden"
           animate="visible"
-          className="mt-5 font-display text-sm sm:text-base font-medium text-[#c2410c] uppercase tracking-[0.15em]"
+          className="mt-5 font-display text-sm sm:text-base font-medium text-[#7fa9ff] uppercase tracking-[0.15em]"
         >
           The cat that actually runs your life
         </motion.p>
@@ -141,7 +140,7 @@ export default function Hero() {
           variants={fadeUp}
           initial="hidden"
           animate="visible"
-          className="mt-6 text-sm sm:text-base text-[#5c2e0a] leading-[1.7] max-w-[780px] mx-auto"
+          className="mt-6 text-sm sm:text-base text-[#a8b0c0] leading-[1.7] max-w-[780px] mx-auto"
         >
           Judges your choices, manages your calendar, tracks your tasks, and
           remembers everything you&apos;ve said. Born at 4:30 AM inside a MacBook
@@ -161,7 +160,7 @@ export default function Hero() {
             onSubmit={(e) => e.preventDefault()}
           >
             <input
-              className="flex-1 min-w-0 rounded-xl border border-[rgba(124,45,18,0.22)] bg-white/95 px-[18px] py-[14px] text-[0.95rem] text-[#1a0f05] placeholder:text-[#8c5a2a] outline-none transition-all focus:border-[#f97316] focus:ring-[3px] focus:ring-[#f97316]/25"
+              className="flex-1 min-w-0 rounded-xl border border-white/12 bg-white/[0.05] backdrop-blur-md px-[18px] py-[14px] text-[0.95rem] text-white placeholder:text-white/40 outline-none transition-all focus:border-[#4f8eff] focus:ring-[3px] focus:ring-[#4f8eff]/25"
               placeholder="you@domain.com"
               type="email"
               autoComplete="email"
@@ -173,14 +172,15 @@ export default function Hero() {
               className="shrink-0 rounded-xl px-6 py-[14px] font-display text-[0.95rem] font-semibold text-white cursor-pointer transition-all"
               style={{
                 background:
-                  'linear-gradient(135deg, #f97316 0%, #c2410c 100%)',
-                boxShadow: '0 4px 20px rgba(249,115,22,0.35)',
+                  'linear-gradient(135deg, #4f8eff 0%, #0050cc 100%)',
+                boxShadow:
+                  '0 4px 24px rgba(79,142,255,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
               }}
             >
               Join waitlist
             </motion.button>
           </form>
-          <p className="mt-3 text-xs text-[#8c5a2a] text-center">
+          <p className="mt-3 text-xs text-[#6b7480] text-center">
             No spam. Cash will still judge you, but only about productivity.
           </p>
         </motion.div>

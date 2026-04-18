@@ -19,7 +19,7 @@ function DemoShell({ children, className = '' }) {
       initial="hidden"
       whileInView="visible"
       viewport={{ once: true, margin: '-10% 0px' }}
-      className={`rounded-lg border border-[rgba(124,45,18,0.12)] bg-[#fff7ed]/70 p-3 ${className}`}
+      className={`rounded-lg border border-white/8 bg-white/[0.03] p-3 ${className}`}
     >
       {children}
     </motion.div>
@@ -31,10 +31,10 @@ function MemoryDemo() {
     <DemoShell>
       <motion.div
         variants={itemFade}
-        className="flex items-center gap-2 text-[0.62rem] font-display font-semibold uppercase tracking-[0.14em] text-[#c2410c]"
+        className="flex items-center gap-2 text-[0.62rem] font-display font-semibold uppercase tracking-[0.14em] text-[#7fa9ff]"
       >
         <motion.span
-          className="w-1 h-1 rounded-full bg-[#f97316]"
+          className="w-1 h-1 rounded-full bg-[#4f8eff]"
           animate={{ opacity: [1, 0.3, 1], scale: [1, 1.6, 1] }}
           transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
         />
@@ -42,13 +42,13 @@ function MemoryDemo() {
       </motion.div>
       <motion.p
         variants={itemFade}
-        className="mt-1.5 text-[0.85rem] text-[#1a0f05] font-medium"
+        className="mt-1.5 text-[0.85rem] text-[#f1f3f9] font-medium"
       >
         &ldquo;just one&rdquo; beer
       </motion.p>
       <motion.p
         variants={itemFade}
-        className="mt-0.5 text-[0.68rem] text-[#8c5a2a]"
+        className="mt-0.5 text-[0.68rem] text-[#6b7480]"
       >
         logged Mar 12, 7:14 PM · still counting
       </motion.p>
@@ -58,9 +58,9 @@ function MemoryDemo() {
 
 function CalendarDemo() {
   const rows = [
-    { time: '09:00', title: 'Standup', tag: 'Work', color: '#f97316' },
+    { time: '09:00', title: 'Standup', tag: 'Work', color: '#4f8eff' },
     { time: '11:30', title: '1:1 w/ Alex', tag: 'Personal', color: '#10b981' },
-    { time: '14:00', title: 'Dentist', tag: 'Family', color: '#a855f7' },
+    { time: '14:00', title: 'Dentist', tag: 'Family', color: '#c4b5fd' },
   ]
   return (
     <DemoShell className="space-y-1.5">
@@ -70,7 +70,7 @@ function CalendarDemo() {
           variants={itemFade}
           className="flex items-center gap-2 text-[0.75rem]"
         >
-          <span className="font-mono text-[0.65rem] text-[#8c5a2a] w-10 shrink-0">
+          <span className="font-mono text-[0.65rem] text-[#6b7480] w-10 shrink-0">
             {r.time}
           </span>
           <motion.span
@@ -84,10 +84,10 @@ function CalendarDemo() {
               ease: 'easeInOut',
             }}
           />
-          <span className="text-[#1a0f05] font-medium flex-1 truncate">
+          <span className="text-[#f1f3f9] font-medium flex-1 truncate">
             {r.title}
           </span>
-          <span className="text-[0.6rem] text-[#8c5a2a] uppercase tracking-wider shrink-0">
+          <span className="text-[0.6rem] text-[#6b7480] uppercase tracking-wider shrink-0">
             {r.tag}
           </span>
         </motion.div>
@@ -102,7 +102,7 @@ function ScheduleDemo() {
     <DemoShell>
       <motion.div
         variants={itemFade}
-        className="flex items-center gap-1.5 text-[0.62rem] font-display font-semibold uppercase tracking-[0.14em] text-[#c2410c]"
+        className="flex items-center gap-1.5 text-[0.62rem] font-display font-semibold uppercase tracking-[0.14em] text-[#7fa9ff]"
       >
         <motion.span
           className="material-symbols-outlined text-[13px]"
@@ -124,13 +124,13 @@ function ScheduleDemo() {
       </motion.div>
       <motion.p
         variants={itemFade}
-        className="mt-1.5 text-[0.85rem] text-[#1a0f05] font-medium"
+        className="mt-1.5 text-[0.85rem] text-[#f1f3f9] font-medium"
       >
         Gym moved{' '}
         <span className="relative inline-block">
-          <span className="text-[#8c5a2a]">8 PM</span>
+          <span className="text-[#6b7480]">8 PM</span>
           <motion.span
-            className="absolute left-0 right-0 top-1/2 h-[1.5px] bg-[#8c5a2a] origin-left -translate-y-1/2"
+            className="absolute left-0 right-0 top-1/2 h-[1.5px] bg-[#6b7480] origin-left -translate-y-1/2"
             animate={{ scaleX: [0, 0, 1, 1, 0] }}
             transition={{
               duration: CYCLE,
@@ -141,7 +141,7 @@ function ScheduleDemo() {
           />
         </span>
         <motion.span
-          className="text-[#f97316] inline-block font-semibold"
+          className="text-[#7fa9ff] inline-block font-semibold"
           animate={{ opacity: [0, 0, 1, 1, 0], x: [-10, -10, 0, 0, -4] }}
           transition={{
             duration: CYCLE,
@@ -155,7 +155,7 @@ function ScheduleDemo() {
       </motion.p>
       <motion.p
         variants={itemFade}
-        className="mt-0.5 text-[0.68rem] text-[#8c5a2a]"
+        className="mt-0.5 text-[0.68rem] text-[#6b7480]"
       >
         you said you&apos;d go. receipts attached.
       </motion.p>
@@ -190,7 +190,7 @@ function HabitsDemo() {
         variants={itemFade}
         className="flex items-center justify-between"
       >
-        <div className="flex items-center gap-1.5 text-[0.78rem] font-medium text-[#1a0f05]">
+        <div className="flex items-center gap-1.5 text-[0.78rem] font-medium text-[#f1f3f9]">
           <motion.span
             aria-hidden
             animate={{ rotate: [0, -10, 10, -5, 0] }}
@@ -208,7 +208,7 @@ function HabitsDemo() {
         <motion.span
           className="text-[0.6rem] font-semibold uppercase tracking-wider"
           animate={{
-            color: ['#c2410c', '#c2410c', '#f97316', '#f97316', '#c2410c'],
+            color: ['#a8b0c0', '#a8b0c0', '#7fa9ff', '#7fa9ff', '#a8b0c0'],
             scale: [1, 1, 1.12, 1.12, 1],
           }}
           transition={{
@@ -227,14 +227,14 @@ function HabitsDemo() {
             <motion.span
               key={i}
               className="flex-1 h-1.5 rounded-full"
-              initial={{ backgroundColor: 'rgba(124,45,18,0.12)' }}
+              initial={{ backgroundColor: 'rgba(255,255,255,0.10)' }}
               animate={{
                 backgroundColor: [
-                  'rgba(124,45,18,0.12)',
-                  'rgba(124,45,18,0.12)',
-                  '#f97316',
-                  '#f97316',
-                  'rgba(124,45,18,0.12)',
+                  'rgba(255,255,255,0.10)',
+                  'rgba(255,255,255,0.10)',
+                  '#4f8eff',
+                  '#4f8eff',
+                  'rgba(255,255,255,0.10)',
                 ],
               }}
               transition={{
@@ -249,10 +249,10 @@ function HabitsDemo() {
       </motion.div>
       <motion.p
         variants={itemFade}
-        className="mt-1.5 text-[0.65rem] text-[#8c5a2a]"
+        className="mt-1.5 text-[0.65rem] text-[#6b7480]"
       >
         streak:{' '}
-        <span className="tabular-nums font-semibold text-[#c2410c]">
+        <span className="tabular-nums font-semibold text-[#7fa9ff]">
           {streak}
         </span>
         /{BARS} · case: still zipped
@@ -272,24 +272,24 @@ function TaskRow({ it, delayFrac }) {
         className="relative w-3.5 h-3.5 rounded-[4px] border shrink-0 flex items-center justify-center overflow-hidden"
         initial={{
           backgroundColor: 'rgba(0,0,0,0)',
-          borderColor: 'rgba(194,65,12,0.4)',
+          borderColor: 'rgba(255,255,255,0.32)',
         }}
         animate={{
           backgroundColor: [
             'rgba(0,0,0,0)',
             'rgba(0,0,0,0)',
-            '#f97316',
-            '#f97316',
+            '#4f8eff',
+            '#4f8eff',
             'rgba(0,0,0,0)',
             'rgba(0,0,0,0)',
           ],
           borderColor: [
-            'rgba(194,65,12,0.4)',
-            'rgba(194,65,12,0.4)',
-            '#f97316',
-            '#f97316',
-            'rgba(194,65,12,0.4)',
-            'rgba(194,65,12,0.4)',
+            'rgba(255,255,255,0.32)',
+            'rgba(255,255,255,0.32)',
+            '#4f8eff',
+            '#4f8eff',
+            'rgba(255,255,255,0.32)',
+            'rgba(255,255,255,0.32)',
           ],
         }}
         transition={{
@@ -338,10 +338,10 @@ function TaskRow({ it, delayFrac }) {
           />
         </svg>
       </motion.span>
-      <span className="text-[#1a0f05] flex-1 truncate relative">
+      <span className="text-[#f1f3f9] flex-1 truncate relative">
         {it.text}
         <motion.span
-          className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[1px] bg-[#8c5a2a] origin-left"
+          className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[1px] bg-[#6b7480] origin-left"
           animate={{ scaleX: [0, 0, 1, 1, 0, 0] }}
           transition={{
             duration: CYCLE,
@@ -361,7 +361,7 @@ function TaskRow({ it, delayFrac }) {
       <motion.span
         className="text-[0.6rem] font-semibold tabular-nums shrink-0"
         animate={{
-          color: ['#c2410c', '#c2410c', '#8c5a2a', '#8c5a2a', '#c2410c'],
+          color: ['#7fa9ff', '#7fa9ff', '#6b7480', '#6b7480', '#7fa9ff'],
         }}
         transition={{
           duration: CYCLE,
@@ -402,7 +402,7 @@ function TypingDots() {
       {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
-          className="w-1 h-1 rounded-full bg-[#8c5a2a]"
+          className="w-1 h-1 rounded-full bg-[#a8b0c0]"
           animate={{ y: [0, -3, 0], opacity: [0.4, 1, 0.4] }}
           transition={{
             duration: 0.9,
@@ -449,7 +449,7 @@ function ChatDemo() {
   return (
     <DemoShell className="space-y-1.5">
       <motion.div variants={itemFade} className="flex justify-end">
-        <div className="max-w-[80%] rounded-[14px] rounded-br-[4px] bg-[#f97316] text-white text-[0.78rem] px-2.5 py-1.5 leading-snug">
+        <div className="max-w-[80%] rounded-[14px] rounded-br-[4px] bg-[#4f8eff] text-white text-[0.78rem] px-2.5 py-1.5 leading-snug">
           book lunch w/ Ben thu
         </div>
       </motion.div>
@@ -468,7 +468,7 @@ function ChatDemo() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.15 } }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="absolute top-0 left-0 rounded-[14px] rounded-bl-[4px] bg-white border border-[rgba(124,45,18,0.12)] px-2.5 py-1.5"
+              className="absolute top-0 left-0 rounded-[14px] rounded-bl-[4px] bg-white/10 border border-white/12 px-2.5 py-1.5 backdrop-blur"
             >
               <TypingDots />
             </motion.div>
@@ -480,7 +480,7 @@ function ChatDemo() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, transition: { duration: 0.2 } }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute top-0 left-0 max-w-[85%] rounded-[14px] rounded-bl-[4px] bg-white border border-[rgba(124,45,18,0.12)] text-[#1a0f05] text-[0.78rem] px-2.5 py-1.5 leading-snug"
+              className="absolute top-0 left-0 max-w-[85%] rounded-[14px] rounded-bl-[4px] bg-white/10 border border-white/12 text-[#f1f3f9] text-[0.78rem] px-2.5 py-1.5 leading-snug backdrop-blur"
             >
               done. Thu 1 PM. judged your calendar on the way.{' '}
               <motion.span
@@ -574,11 +574,7 @@ export default function Features() {
     <section
       id="features"
       ref={ref}
-      className="relative py-20 md:py-28 text-[#1a0f05]"
-      style={{
-        background:
-          'radial-gradient(1000px circle at 88% 0%, rgba(249,115,22,0.06), transparent 55%), radial-gradient(900px circle at 10% 100%, rgba(217,119,6,0.05), transparent 55%), #ffffff',
-      }}
+      className="relative py-20 md:py-28 text-[#f1f3f9]"
     >
       <div className="max-w-[1100px] mx-auto px-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16">
@@ -588,8 +584,8 @@ export default function Features() {
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.5 }}
             >
-              <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#c2410c] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
-                <span className="text-[#f97316]" aria-hidden>
+              <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#7fa9ff] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
+                <span className="text-[#7fa9ff]" aria-hidden>
                   ⟩
                 </span>
                 She&apos;s a whole ops team
@@ -598,7 +594,7 @@ export default function Features() {
                 Details that{' '}
                 <span className="hero-title-gradient">matter.</span>
               </h2>
-              <p className="mt-4 text-[#5c2e0a] text-sm sm:text-base max-w-sm">
+              <p className="mt-4 text-[#a8b0c0] text-sm sm:text-base max-w-sm">
                 Cash sweats the small stuff. Scroll through what she actually
                 does — she&apos;ll wait.
               </p>
@@ -610,22 +606,22 @@ export default function Features() {
                     <li key={f.title} className="flex items-center gap-3">
                       <span
                         className="relative w-5 h-[2px] rounded-full overflow-hidden"
-                        style={{ background: 'rgba(124,45,18,0.15)' }}
+                        style={{ background: 'rgba(255,255,255,0.14)' }}
                       >
                         <motion.span
-                          className="absolute inset-y-0 left-0 rounded-full bg-[#f97316]"
+                          className="absolute inset-y-0 left-0 rounded-full bg-[#4f8eff]"
                           initial={false}
                           animate={{ width: active ? '100%' : '0%' }}
                           transition={{ duration: 0.4, ease: 'easeOut' }}
                         />
                       </span>
-                      <span className="font-mono text-[0.62rem] text-[#c2410c]/50 w-5 tabular-nums">
+                      <span className="font-mono text-[0.62rem] text-[#7fa9ff]/55 w-5 tabular-nums">
                         {String(i + 1).padStart(2, '0')}
                       </span>
                       <motion.span
                         className="text-sm"
                         animate={{
-                          color: active ? '#1a0f05' : '#8c5a2a',
+                          color: active ? '#f1f3f9' : '#6b7480',
                           fontWeight: active ? 600 : 500,
                         }}
                         transition={{ duration: 0.3 }}
@@ -654,22 +650,22 @@ export default function Features() {
                   whileHover={{ y: -4 }}
                   animate={{
                     borderColor: active
-                      ? 'rgba(249,115,22,0.55)'
-                      : 'rgba(124,45,18,0.18)',
+                      ? 'rgba(79,142,255,0.55)'
+                      : 'rgba(255,255,255,0.10)',
                     boxShadow: active
-                      ? '0 20px 50px -18px rgba(249,115,22,0.3)'
-                      : '0 1px 2px rgba(0,0,0,0.04)',
+                      ? '0 24px 60px -18px rgba(79,142,255,0.45)'
+                      : '0 8px 24px rgba(0,0,0,0.30)',
                     scale: active ? 1.015 : 1,
                   }}
-                  className="group relative rounded-xl border bg-white/95 backdrop-blur-md p-5"
+                  className="group relative rounded-xl border bg-white/[0.04] backdrop-blur-md p-5"
                 >
                   <motion.span
                     aria-hidden
                     className="absolute top-4 right-5 font-display font-semibold text-[0.68rem] tracking-[0.15em]"
                     animate={{
                       color: active
-                        ? 'rgba(194,65,12,1)'
-                        : 'rgba(194,65,12,0.4)',
+                        ? 'rgba(127,169,255,1)'
+                        : 'rgba(255,255,255,0.30)',
                     }}
                     transition={{ duration: 0.3 }}
                   >
@@ -678,7 +674,7 @@ export default function Features() {
 
                   <div className="flex items-center gap-2.5 mb-4">
                     <motion.span
-                      className="flex items-center justify-center w-8 h-8 rounded-lg bg-gradient-to-br from-[#fff7ed] to-[#ffedd5] border border-[rgba(124,45,18,0.12)] text-[#c2410c]"
+                      className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#4f8eff]/12 border border-[#4f8eff]/25 text-[#7fa9ff]"
                       aria-hidden
                       animate={{ rotate: active ? [0, -6, 6, 0] : 0 }}
                       transition={{ duration: 0.6 }}
@@ -693,14 +689,14 @@ export default function Features() {
                         {f.icon}
                       </span>
                     </motion.span>
-                    <h3 className="font-sans font-bold text-[0.98rem] tracking-tight text-[#1a0f05]">
+                    <h3 className="font-sans font-bold text-[0.98rem] tracking-tight text-[#f1f3f9]">
                       {f.title}
                     </h3>
                   </div>
 
                   <f.Demo />
 
-                  <p className="mt-4 text-[0.85rem] leading-relaxed text-[#5c2e0a]">
+                  <p className="mt-4 text-[0.85rem] leading-relaxed text-[#a8b0c0]">
                     {f.desc}
                   </p>
                 </motion.article>

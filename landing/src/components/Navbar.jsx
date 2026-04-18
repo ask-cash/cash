@@ -33,8 +33,9 @@ export default function Navbar() {
               whileTap={{ scale: 0.98 }}
               className="pointer-events-auto font-display text-sm font-semibold text-white px-5 py-2.5 rounded-full"
               style={{
-                background: 'linear-gradient(135deg, #f97316 0%, #c2410c 100%)',
-                boxShadow: '0 6px 20px rgba(249,115,22,0.35)',
+                background: 'linear-gradient(135deg, #4f8eff 0%, #0050cc 100%)',
+                boxShadow:
+                  '0 6px 24px rgba(79,142,255,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
               }}
             >
               Join Waitlist

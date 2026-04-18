@@ -49,9 +49,9 @@ const testimonials = [
 function Avatar({ avatar, handle }) {
   return (
     <div
-      className="shrink-0 w-11 h-11 rounded-full overflow-hidden border-2 border-black/5 bg-[#fff7ed]"
+      className="shrink-0 w-11 h-11 rounded-full overflow-hidden border border-white/15 bg-white/5"
       style={{
-        boxShadow: '0 4px 10px rgba(249,115,22,0.22)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.45)',
       }}
     >
       <img
@@ -66,13 +66,11 @@ function Avatar({ avatar, handle }) {
 
 function TestimonialCard({ t }) {
   return (
-    <div
-      className="testimonial-card group/card flex items-start gap-3 shrink-0 min-w-[18rem] max-w-[22rem] sm:min-w-[20rem] sm:max-w-[25rem] rounded-xl border border-[rgba(124,45,18,0.18)] bg-white/95 p-4 backdrop-blur-md shadow-sm transition-all duration-300 hover:border-[#f97316]/60 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(249,115,22,0.22)]"
-    >
+    <div className="testimonial-card group/card flex items-start gap-3 shrink-0 min-w-[18rem] max-w-[22rem] sm:min-w-[20rem] sm:max-w-[25rem] rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md shadow-[0_8px_28px_rgba(0,0,0,0.30)] transition-all duration-300 hover:border-[#4f8eff]/45 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(79,142,255,0.22)]">
       <Avatar avatar={t.avatar} handle={t.handle} />
       <div className="flex flex-col gap-1.5 min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[0.78rem]">
-          <span className="font-display font-semibold text-[#c2410c]">
+          <span className="font-display font-semibold text-[#f1f3f9]">
             @{t.handle}
           </span>
           <span
@@ -82,10 +80,10 @@ function TestimonialCard({ t }) {
           >
             😼
           </span>
-          <span className="text-[#8c5a2a]">·</span>
-          <span className="text-[#8c5a2a]">{t.time}</span>
+          <span className="text-[#6b7480]">·</span>
+          <span className="text-[#6b7480]">{t.time}</span>
         </div>
-        <p className="text-[0.9rem] leading-[1.5] text-[#5c2e0a] line-clamp-3">
+        <p className="text-[0.9rem] leading-[1.5] text-[#a8b0c0] line-clamp-3">
           &ldquo;{t.quote}&rdquo;
         </p>
       </div>
@@ -103,11 +101,7 @@ export default function Testimonials() {
   return (
     <section
       ref={ref}
-      className="relative py-16 md:py-24 text-[#1a0f05] overflow-hidden border-y border-[rgba(124,45,18,0.1)]"
-      style={{
-        background:
-          'radial-gradient(1200px circle at 12% -10%, rgba(249,115,22,0.07), transparent 58%), radial-gradient(900px circle at 88% -12%, rgba(217,119,6,0.06), transparent 56%), #fff7ed',
-      }}
+      className="relative py-16 md:py-24 text-[#f1f3f9] overflow-hidden"
     >
       <div className="max-w-[860px] mx-auto px-6">
         <motion.div
@@ -117,28 +111,29 @@ export default function Testimonials() {
           transition={{ duration: 0.45 }}
         >
           <h2 className="font-display text-[1.4rem] font-semibold tracking-tight flex items-center gap-2.5">
-            <span className="text-[#f97316] font-bold" aria-hidden>
+            <span className="text-[#7fa9ff] font-bold" aria-hidden>
               ⟩
             </span>
             <span>What my friends say about Cash</span>
           </h2>
         </motion.div>
 
-        <div className="flex items-center gap-2 text-sm text-[#8c5a2a] mb-6 pl-[1.35rem]">
+        <div className="flex items-center gap-2 text-sm text-[#a8b0c0] mb-6 pl-[1.35rem]">
           <span className="relative flex w-1.5 h-1.5">
             <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-75 animate-ping" />
             <span className="relative w-1.5 h-1.5 rounded-full bg-[#10b981]" />
           </span>
-          <span>
-            (all these are Cash in a trench coat. still true.)
-          </span>
+          <span>(all these are Cash in a trench coat. still true.)</span>
         </div>
 
         <div
           className="testimonials-track -mx-6"
           aria-label="Social quotes about Cash"
         >
-          <div className="testimonials-marquee-track" style={{ animationDuration: '45s' }}>
+          <div
+            className="testimonials-marquee-track"
+            style={{ animationDuration: '45s' }}
+          >
             {rowA.map((t, i) => (
               <TestimonialCard key={`a-${t.handle}-${i}`} t={t} />
             ))}

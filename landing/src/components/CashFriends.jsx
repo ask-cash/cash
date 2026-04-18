@@ -168,7 +168,7 @@ function ChatWindow({ isInView }) {
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <span
-            className="material-symbols-outlined text-[16px] text-[#c2410c]"
+            className="material-symbols-outlined text-[16px] text-[#0069ff]"
             aria-hidden
             style={{
               fontVariationSettings:
@@ -181,7 +181,7 @@ function ChatWindow({ isInView }) {
             Join the waitlist to reply
           </span>
         </div>
-        <span className="text-[#c2410c] text-sm font-semibold shrink-0 inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
+        <span className="text-[#0069ff] text-sm font-semibold shrink-0 inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
           Continue
           <span
             aria-hidden
@@ -202,11 +202,7 @@ export default function CashFriends() {
     <section
       id="friends"
       ref={ref}
-      className="relative py-20 md:py-28 overflow-hidden text-[#1a0f05]"
-      style={{
-        background:
-          'radial-gradient(1100px circle at 10% 0%, rgba(249,115,22,0.07), transparent 55%), radial-gradient(900px circle at 90% 100%, rgba(217,119,6,0.06), transparent 55%), #fff7ed',
-      }}
+      className="relative py-20 md:py-28 overflow-hidden text-[#f1f3f9]"
     >
       <div className="max-w-[860px] mx-auto px-6">
         <motion.div
@@ -215,8 +211,8 @@ export default function CashFriends() {
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5 }}
         >
-          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#c2410c] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
-            <span className="text-[#f97316]" aria-hidden>
+          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#7fa9ff] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
+            <span className="text-[#7fa9ff]" aria-hidden>
               ⟩
             </span>
             DM from Cash
@@ -225,7 +221,7 @@ export default function CashFriends() {
             A message from your{' '}
             <span className="hero-title-gradient">cat.</span>
           </h2>
-          <p className="mt-4 text-[#5c2e0a] text-sm sm:text-base">
+          <p className="mt-4 text-[#a8b0c0] text-sm sm:text-base">
             She has thoughts.
           </p>
         </motion.div>
