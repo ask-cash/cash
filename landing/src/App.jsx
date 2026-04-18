@@ -5,7 +5,6 @@ import Features from './components/Features'
 import CashFriends from './components/CashFriends'
 import Integrations from './components/Integrations'
 import Platforms from './components/Platforms'
-import ProfileCard from './components/ProfileCard'
 import FinalCTA from './components/FinalCTA'
 import Footer from './components/Footer'
 import Stars from './components/Stars'
@@ -23,7 +22,6 @@ export default function App() {
           <CashFriends />
           <Integrations />
           <Platforms />
-          <ProfileCard />
           <FinalCTA />
         </main>
         <Footer />

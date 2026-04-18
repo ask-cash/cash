@@ -1,19 +1,20 @@
 import { motion } from 'framer-motion'
 import { useScrollReveal } from '../hooks/useScrollReveal'
+import CashMascotEmbed from './CashMascotEmbed'
 
-const VB_W = 180
-const VB_H = 100
+const VB_W = 200
+const VB_H = 130
 
 const HUB = {
-  cx: 34,
-  cy: 50,
-  w: 40,
-  h: 36,
+  cx: 100,
+  cy: 28,
+  w: 44,
+  h: 44,
 }
-const HUB_EXIT_X = HUB.cx + HUB.w / 2
-const HUB_EXIT_Y = HUB.cy
-const CTRL_X = 92
-const NODE_X = 130
+const HUB_EXIT_X = HUB.cx
+const HUB_EXIT_Y = HUB.cy + HUB.h / 2
+const NODE_Y = 108
+const CTRL_Y = (HUB_EXIT_Y + NODE_Y) / 2
 
 const integrations = [
   {
@@ -37,12 +38,15 @@ const integrations = [
 ]
 
 const N = integrations.length
-const Y_START = 6
-const Y_END = 94
-const nodeY = (i) => Y_START + ((Y_END - Y_START) * i) / (N - 1)
+const X_START = 10
+const X_END = 190
+const nodeX = (i) => X_START + ((X_END - X_START) * i) / (N - 1)
 
-function linePath(targetY) {
-  return `M ${HUB_EXIT_X},${HUB_EXIT_Y} C ${CTRL_X},${HUB_EXIT_Y} ${CTRL_X},${targetY} ${NODE_X},${targetY}`
+function linePath(targetX) {
+  const dy = NODE_Y - HUB_EXIT_Y
+  const cp1y = HUB_EXIT_Y + dy * 0.45
+  const cp2y = NODE_Y - dy * 0.35
+  return `M ${HUB_EXIT_X},${HUB_EXIT_Y} C ${HUB_EXIT_X},${cp1y} ${targetX},${cp2y} ${targetX},${NODE_Y}`
 }
 
 export default function Integrations() {
@@ -77,7 +81,7 @@ export default function Integrations() {
         </motion.div>
 
         <div
-          className="hidden md:block relative w-full max-w-[920px] mx-auto"
+          className="hidden md:block relative w-full max-w-[860px] mx-auto"
           style={{ aspectRatio: `${VB_W} / ${VB_H}` }}
         >
           <svg
@@ -90,14 +94,18 @@ export default function Integrations() {
               {integrations.map((_, i) => (
                 <clipPath key={`cp-${i}`} id={`rev-line-${i}`}>
                   <motion.rect
-                    x={HUB_EXIT_X}
-                    y={0}
-                    height={VB_H}
-                    initial={{ width: 0 }}
-                    animate={isInView ? { width: 100 } : { width: 0 }}
+                    x={0}
+                    y={HUB_EXIT_Y}
+                    width={VB_W}
+                    initial={{ height: 0 }}
+                    animate={
+                      isInView
+                        ? { height: VB_H - HUB_EXIT_Y }
+                        : { height: 0 }
+                    }
                     transition={{
                       duration: 0.75,
-                      delay: 0.4 + i * 0.14,
+                      delay: 0.4 + i * 0.1,
                       ease: [0.25, 0.4, 0.25, 1],
                     }}
                   />
@@ -107,10 +115,10 @@ export default function Integrations() {
             {integrations.map((it, i) => (
               <path
                 key={`line-${it.name}`}
-                d={linePath(nodeY(i))}
+                d={linePath(nodeX(i))}
                 stroke="#7fa9ff"
-                strokeWidth={0.6}
-                strokeOpacity={0.95}
+                strokeWidth={0.5}
+                strokeOpacity={0.9}
                 strokeDasharray="2.4 1.8"
                 strokeLinecap="round"
                 fill="none"
@@ -133,12 +141,13 @@ export default function Integrations() {
           >
             <div className="relative w-full h-full">
               <motion.span
-                className="absolute -inset-3 rounded-[28px]"
+                aria-hidden
+                className="absolute -inset-4 rounded-full pointer-events-none"
                 style={{
                   background:
-                    'radial-gradient(circle, rgba(249,115,22,0.35) 0%, transparent 70%)',
+                    'radial-gradient(circle, rgba(249,115,22,0.30) 0%, transparent 70%)',
                 }}
-                animate={{ scale: [1, 1.1, 1], opacity: [0.55, 0.25, 0.55] }}
+                animate={{ scale: [1, 1.1, 1], opacity: [0.5, 0.2, 0.5] }}
                 transition={{
                   duration: 3,
                   repeat: Infinity,
@@ -146,11 +155,7 @@ export default function Integrations() {
                 }}
               />
               <motion.div
-                className="relative w-full h-full rounded-[22px] flex items-center justify-center shadow-[0_24px_60px_rgba(249,115,22,0.55)] ring-[3px] ring-white/15"
-                style={{
-                  background:
-                    'linear-gradient(135deg, #fed7aa 0%, #fdba74 100%)',
-                }}
+                className="relative w-full h-full flex items-center justify-center"
                 animate={{ rotate: [0, -3, 3, 0] }}
                 transition={{
                   duration: 1.6,
@@ -159,21 +164,15 @@ export default function Integrations() {
                   ease: 'easeInOut',
                 }}
               >
-                <span
-                  className="leading-none"
-                  style={{ fontSize: 'clamp(2.4rem, 7.5vw, 4.5rem)' }}
-                  aria-hidden
-                >
-                  😼
-                </span>
-                <span className="absolute -bottom-1 -right-1 flex w-4 h-4">
+                <CashMascotEmbed
+                  className="w-full h-full"
+                  loading="eager"
+                />
+                <span className="absolute bottom-1 right-2 flex w-3.5 h-3.5">
                   <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-60 animate-ping" />
-                  <span className="relative w-4 h-4 rounded-full bg-[#10b981] ring-[3px] ring-[#06080f]" />
+                  <span className="relative w-3.5 h-3.5 rounded-full bg-[#10b981] ring-[3px] ring-[#06080f]" />
                 </span>
               </motion.div>
-              <p className="absolute left-1/2 -translate-x-1/2 -bottom-8 font-display font-bold text-[0.72rem] text-[#f1f3f9] uppercase tracking-[0.18em]">
-                Cash
-              </p>
             </div>
           </motion.div>
 
@@ -182,8 +181,8 @@ export default function Integrations() {
               key={it.name}
               className="absolute"
               style={{
-                left: `${(NODE_X / VB_W) * 100}%`,
-                top: `${(nodeY(i) / VB_H) * 100}%`,
+                left: `${(nodeX(i) / VB_W) * 100}%`,
+                top: `${(NODE_Y / VB_H) * 100}%`,
               }}
             >
               <motion.img
@@ -191,14 +190,14 @@ export default function Integrations() {
                 alt={it.name}
                 title={it.name}
                 loading="lazy"
-                className="-translate-y-1/2 ml-3 w-8 h-8 object-contain"
+                className="-translate-x-1/2 -translate-y-1/2 w-9 h-9 object-contain"
                 initial={{ opacity: 0, scale: 0.4 }}
                 animate={
                   isInView ? { opacity: 1, scale: 1 } : { opacity: 0 }
                 }
                 transition={{
                   duration: 0.45,
-                  delay: 0.4 + i * 0.14 + 0.5,
+                  delay: 0.4 + i * 0.1 + 0.5,
                   ease: [0.25, 1.25, 0.4, 1],
                 }}
               />
@@ -206,26 +205,45 @@ export default function Integrations() {
           ))}
         </div>
 
-        <motion.div
-          className="md:hidden flex flex-wrap justify-center gap-2.5"
-          initial={{ opacity: 0 }}
-          animate={isInView ? { opacity: 1 } : {}}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          {integrations.map((item, i) => (
-            <motion.img
-              key={item.name}
-              src={item.icon}
-              alt={item.name}
-              title={item.name}
-              loading="lazy"
-              className="w-8 h-8 object-contain"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={isInView ? { opacity: 1, scale: 1 } : {}}
-              transition={{ duration: 0.3, delay: 0.25 + i * 0.04 }}
+        <div className="md:hidden flex flex-col items-center gap-10">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={isInView ? { opacity: 1, scale: 1 } : {}}
+            transition={{ duration: 0.5 }}
+            className="relative"
+          >
+            <span
+              aria-hidden
+              className="absolute -inset-4 rounded-full pointer-events-none"
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(249,115,22,0.28) 0%, transparent 70%)',
+              }}
             />
-          ))}
-        </motion.div>
+            <CashMascotEmbed className="relative w-32 h-28" />
+          </motion.div>
+
+          <motion.div
+            className="flex flex-wrap justify-center gap-3"
+            initial={{ opacity: 0 }}
+            animate={isInView ? { opacity: 1 } : {}}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            {integrations.map((item, i) => (
+              <motion.img
+                key={item.name}
+                src={item.icon}
+                alt={item.name}
+                title={item.name}
+                loading="lazy"
+                className="w-9 h-9 object-contain"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={isInView ? { opacity: 1, scale: 1 } : {}}
+                transition={{ duration: 0.3, delay: 0.25 + i * 0.04 }}
+              />
+            ))}
+          </motion.div>
+        </div>
 
         <p className="mt-12 text-center text-[#6b7480] text-xs">
           More integrations coming. Cash demands access to your entire digital

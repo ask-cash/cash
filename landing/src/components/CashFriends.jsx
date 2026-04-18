@@ -65,19 +65,7 @@ function ChatWindow({ isInView }) {
               ease: 'easeInOut',
             }}
           >
-            <motion.span
-              className="text-[1.75rem] leading-none inline-block"
-              aria-hidden
-              animate={{ rotate: [0, 10, -10, 0] }}
-              transition={{
-                duration: 1.4,
-                repeat: Infinity,
-                repeatDelay: 2.5,
-                ease: 'easeInOut',
-              }}
-            >
-              😼
-            </motion.span>
+            <CashMascotEmbed className="w-10 h-9" />
           </motion.div>
           <span className="absolute -bottom-0.5 -right-0.5 flex w-3.5 h-3.5">
             <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-60 animate-ping" />
@@ -135,18 +123,7 @@ function ChatWindow({ isInView }) {
               className="imessage-bubble self-start max-w-[85%] bg-[#e9e9eb] rounded-[20px] px-[14px] py-[9px] text-[0.95rem] leading-[1.38] text-black"
             >
               {CASH_MESSAGE}{' '}
-              <motion.span
-                className="inline-block"
-                animate={{ rotate: [0, 18, -18, 0] }}
-                transition={{
-                  duration: 1.4,
-                  repeat: Infinity,
-                  repeatDelay: 2,
-                  ease: 'easeInOut',
-                }}
-              >
-                😼
-              </motion.span>
+              <CashMascotEmbed className="inline-block align-middle w-5 h-4" />
             </motion.div>
           )}
         </AnimatePresence>

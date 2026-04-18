@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { useScrollReveal } from '../hooks/useScrollReveal'
+import CashMascotEmbed from './CashMascotEmbed'
 
 const testimonials = [
   {
@@ -38,7 +39,7 @@ const testimonials = [
     time: '6h',
   },
   {
-    handle: 'claude_max_refund',
+    handle: 'okr_skeptic',
     quote:
       "It's like having a coworker who lives in Telegram, remembers everything, and thinks your OKRs are a cry for help.",
     avatar: 'https://cataas.com/cat/black?width=120&height=120&position=center',
@@ -74,11 +75,11 @@ function TestimonialCard({ t }) {
             @{t.handle}
           </span>
           <span
-            className="inline-flex items-center justify-center text-[0.7rem] leading-none"
+            className="inline-flex items-center justify-center leading-none"
             title="Cash-verified"
             aria-label="Cash-verified"
           >
-            😼
+            <CashMascotEmbed className="w-4 h-3.5" title="Cash-verified" />
           </span>
           <span className="text-[#6b7480]">·</span>
           <span className="text-[#6b7480]">{t.time}</span>

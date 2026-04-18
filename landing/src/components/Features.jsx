@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
 import { useScrollReveal } from '../hooks/useScrollReveal'
+import CashMascotEmbed from './CashMascotEmbed'
 
 const itemFade = {
   hidden: { opacity: 0, y: 8 },
@@ -458,7 +459,8 @@ function ChatDemo() {
           aria-hidden
           className="invisible max-w-[85%] rounded-[14px] rounded-bl-[4px] border border-transparent text-[0.78rem] px-2.5 py-1.5 leading-snug"
         >
-          done. Thu 1 PM. judged your calendar on the way. 😼
+          done. Thu 1 PM. judged your calendar on the way.{' '}
+          <span className="inline-block w-4 h-3.5 align-middle" />
         </div>
         <AnimatePresence mode="wait">
           {phase === 1 && (
@@ -483,18 +485,7 @@ function ChatDemo() {
               className="absolute top-0 left-0 max-w-[85%] rounded-[14px] rounded-bl-[4px] bg-white/10 border border-white/12 text-[#f1f3f9] text-[0.78rem] px-2.5 py-1.5 leading-snug backdrop-blur"
             >
               done. Thu 1 PM. judged your calendar on the way.{' '}
-              <motion.span
-                className="inline-block"
-                animate={{ rotate: [0, 18, -18, 0] }}
-                transition={{
-                  duration: 1.4,
-                  repeat: Infinity,
-                  repeatDelay: 2,
-                  ease: 'easeInOut',
-                }}
-              >
-                😼
-              </motion.span>
+              <CashMascotEmbed className="inline-block align-middle w-4 h-3.5" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -537,7 +528,7 @@ const features = [
   {
     icon: 'chat_bubble',
     title: 'Just ask',
-    desc: 'Talk to her like a friend. Claude AI under the hood — she understands context and sass.',
+    desc: 'Talk to her like a friend. She understands context, remembers everything, and brings the sass.',
     Demo: ChatDemo,
   },
 ]
