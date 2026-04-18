@@ -74,8 +74,8 @@ export default function Integrations() {
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5 }}
         >
-          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#7fa9ff] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
-            <span className="text-[#7fa9ff]" aria-hidden>
+          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#ffa0ac] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
+            <span className="text-[#ffa0ac]" aria-hidden>
               ⟩
             </span>
             Integrations
@@ -125,7 +125,7 @@ export default function Integrations() {
               <path
                 key={`line-${it.name}`}
                 d={linePath(nodeX(i))}
-                stroke="#7fa9ff"
+                stroke="#ffa0ac"
                 strokeWidth={0.5}
                 strokeOpacity={0.9}
                 strokeDasharray="2.4 1.8"
@@ -196,7 +196,7 @@ export default function Integrations() {
             >
               <motion.div
                 title={it.name}
-                className="-translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-md flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-colors duration-200 hover:border-[#4f8eff]/45 hover:bg-white/[0.08]"
+                className="-translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-md flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-colors duration-200 hover:border-[#ff6e80]/45 hover:bg-white/[0.08]"
                 initial={{ opacity: 0, scale: 0.4 }}
                 animate={
                   isInView ? { opacity: 1, scale: 1 } : { opacity: 0 }

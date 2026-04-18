@@ -18,7 +18,7 @@ export default function Footer() {
           <span>Cash</span>
         </div>
         <p className="mt-2 text-sm text-[#a8b0c0]">
-          Suhail&apos;s cat. Your introduction.
+          Suhail&apos;s cat. Making intros.
         </p>
 
         {/* Social */}
@@ -28,7 +28,7 @@ export default function Footer() {
               key={s.alt}
               href={s.href}
               aria-label={s.alt}
-              className="w-9 h-9 rounded-full border border-white/12 flex items-center justify-center hover:border-[#4f8eff]/45 hover:bg-white/[0.05] transition-all duration-200"
+              className="w-9 h-9 rounded-full border border-white/12 flex items-center justify-center hover:border-[#ff6e80]/45 hover:bg-white/[0.05] transition-all duration-200"
             >
               <img
                 src={s.icon}
@@ -49,7 +49,7 @@ export default function Footer() {
             Built by{' '}
             <a
               href="#"
-              className="text-[#f1f3f9] underline decoration-white/20 underline-offset-4 hover:decoration-[#4f8eff] transition-colors"
+              className="text-[#f1f3f9] underline decoration-white/20 underline-offset-4 hover:decoration-[#ff6e80] transition-colors"
             >
               Suhail
             </a>{' '}

@@ -59,10 +59,10 @@ export default function Stars() {
         className="absolute inset-0"
         style={{
           background:
-            'radial-gradient(900px circle at 18% 18%, rgba(79,142,255,0.14), transparent 55%),' +
+            'radial-gradient(900px circle at 18% 18%, rgba(255,110,128,0.14), transparent 55%),' +
             'radial-gradient(800px circle at 84% 78%, rgba(168,85,247,0.10), transparent 55%),' +
             'radial-gradient(700px circle at 60% 50%, rgba(249,115,22,0.06), transparent 55%),' +
-            'radial-gradient(1100px circle at 50% 110%, rgba(0,105,255,0.10), transparent 60%)',
+            'radial-gradient(1100px circle at 50% 110%, rgba(217,53,83,0.10), transparent 60%)',
         }}
       />
 
