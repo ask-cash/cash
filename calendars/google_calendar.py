@@ -3,9 +3,13 @@ google_calendar.py — Google Calendar integration.
 Handles fetching events, detecting conflicts, and creating/moving events.
 """
 
+import logging
 import os
 import datetime as dt
 from typing import Optional
+from services.user_profile import today as ist_today
+
+logger = logging.getLogger(__name__)
 
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -25,12 +29,15 @@ def get_calendar_service(
         creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
+            logger.info("Refreshing expired Google Calendar credentials")
             creds.refresh(Request())
         else:
+            logger.info("Starting Google Calendar OAuth flow")
             flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
             creds = flow.run_local_server(port=0)
         with open(token_path, "w") as f:
             f.write(creds.to_json())
+    logger.debug("Google Calendar service built successfully")
     return build("calendar", "v3", credentials=creds)
 
 
@@ -45,10 +52,11 @@ class GoogleCalendarManager:
     # ------------------------------------------------------------------
     def get_today_events(self, timezone: str = "Asia/Kolkata") -> list[dict]:
         """Get all events for today."""
-        return self.get_events_for_date(dt.date.today(), timezone)
+        return self.get_events_for_date(ist_today(), timezone)
 
     def get_events_for_date(self, date: dt.date, timezone: str = "Asia/Kolkata") -> list[dict]:
         """Get events for a specific date across all calendars."""
+        logger.info("Fetching Google Calendar events for date=%s", date)
         start = dt.datetime.combine(date, dt.time.min).isoformat() + "Z"
         end = dt.datetime.combine(date, dt.time.max).isoformat() + "Z"
 
@@ -58,6 +66,7 @@ class GoogleCalendarManager:
         for cal in calendar_list.get("items", []):
             cal_id = cal["id"]
             cal_name = cal.get("summary", cal_id)
+            logger.debug("Fetching events from calendar '%s' (%s)", cal_name, cal_id)
             events_result = (
                 self.service.events()
                 .list(
@@ -70,7 +79,9 @@ class GoogleCalendarManager:
                 )
                 .execute()
             )
-            for ev in events_result.get("items", []):
+            items = events_result.get("items", [])
+            logger.debug("Found %d event(s) in calendar '%s'", len(items), cal_name)
+            for ev in items:
                 ev["_calendar_name"] = cal_name
                 ev["_calendar_id"] = cal_id
                 all_events.append(ev)
@@ -80,10 +91,12 @@ class GoogleCalendarManager:
             return s.get("dateTime", s.get("date", ""))
 
         all_events.sort(key=sort_key)
+        logger.info("Total Google Calendar events fetched for %s: %d", date, len(all_events))
         return all_events
 
     def get_upcoming_events(self, hours: int = 2, timezone: str = "Asia/Kolkata") -> list[dict]:
         """Get events in the next N hours."""
+        logger.info("Fetching upcoming Google Calendar events for the next %d hour(s)", hours)
         now = dt.datetime.utcnow()
         end = now + dt.timedelta(hours=hours)
         events_result = (
@@ -97,13 +110,16 @@ class GoogleCalendarManager:
             )
             .execute()
         )
-        return events_result.get("items", [])
+        items = events_result.get("items", [])
+        logger.info("Found %d upcoming event(s) in the next %d hour(s)", len(items), hours)
+        return items
 
     # ------------------------------------------------------------------
     # Conflict Detection
     # ------------------------------------------------------------------
     def find_conflicts(self, events: list[dict]) -> list[tuple[dict, dict]]:
         """Find overlapping event pairs."""
+        logger.debug("Checking for conflicts among %d event(s)", len(events))
         conflicts = []
         for i in range(len(events)):
             for j in range(i + 1, len(events)):
@@ -113,7 +129,13 @@ class GoogleCalendarManager:
                 b_end = self._parse_event_time(events[j], "end")
                 if a_end and b_start and a_start and b_end:
                     if a_start < b_end and b_start < a_end:
+                        logger.warning(
+                            "Conflict detected: '%s' overlaps with '%s'",
+                            events[i].get("summary", "?"),
+                            events[j].get("summary", "?"),
+                        )
                         conflicts.append((events[i], events[j]))
+        logger.info("Conflict check complete: %d conflict(s) found", len(conflicts))
         return conflicts
 
     # ------------------------------------------------------------------
@@ -128,31 +150,42 @@ class GoogleCalendarManager:
         description: str = "",
     ) -> dict:
         """Create a new calendar event."""
+        logger.info("Creating Google Calendar event '%s' from %s to %s on calendar '%s'",
+                    title, start, end, calendar_id)
         event = {
             "summary": title,
             "start": {"dateTime": start.isoformat(), "timeZone": "Asia/Kolkata"},
             "end": {"dateTime": end.isoformat(), "timeZone": "Asia/Kolkata"},
             "description": description,
         }
-        return self.service.events().insert(calendarId=calendar_id, body=event).execute()
+        result = self.service.events().insert(calendarId=calendar_id, body=event).execute()
+        logger.info("Event created with id='%s'", result.get("id"))
+        return result
 
     def move_event(self, event_id: str, new_start: dt.datetime, duration_minutes: int,
                    calendar_id: str = "primary") -> dict:
         """Move an event to a new time, keeping its duration."""
+        logger.info("Moving Google Calendar event id='%s' to %s (duration=%d min) on calendar '%s'",
+                    event_id, new_start, duration_minutes, calendar_id)
         new_end = new_start + dt.timedelta(minutes=duration_minutes)
         body = {
             "start": {"dateTime": new_start.isoformat(), "timeZone": "Asia/Kolkata"},
             "end": {"dateTime": new_end.isoformat(), "timeZone": "Asia/Kolkata"},
         }
-        return (
+        result = (
             self.service.events()
             .patch(calendarId=calendar_id, eventId=event_id, body=body)
             .execute()
         )
+        logger.info("Event id='%s' moved successfully", event_id)
+        return result
 
     def delete_event(self, event_id: str, calendar_id: str = "primary"):
         """Delete a calendar event."""
+        logger.info("Deleting Google Calendar event id='%s' from calendar '%s'", event_id, calendar_id)
         self.service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
+        logger.info("Event id='%s' deleted successfully", event_id)
+
 
     # ------------------------------------------------------------------
     # Helpers

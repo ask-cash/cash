@@ -13,10 +13,13 @@ from services.task_tracker import initialize_daily_tasks, format_tasks, get_task
 from services.scheduler import resolve_conflicts, format_suggestions
 from services.ai_brain import generate_briefing
 from services.memory import log_message, get_active_decisions
+from services.gmail import GmailManager
+from services.email_classifier import classify_emails, is_email_seen, mark_email_seen
 
 logger = logging.getLogger(__name__)
 
 _cal: Optional[UnifiedCalendar] = None
+_gmail: Optional[GmailManager] = None
 
 
 def get_cal() -> UnifiedCalendar:
@@ -24,6 +27,17 @@ def get_cal() -> UnifiedCalendar:
     if _cal is None:
         _cal = UnifiedCalendar()
     return _cal
+
+
+def get_gmail() -> Optional[GmailManager]:
+    global _gmail
+    if _gmail is None:
+        try:
+            _gmail = GmailManager()
+        except Exception as e:
+            logger.warning(f"Gmail not available: {e}")
+            return None
+    return _gmail
 
 
 async def scheduled_morning_briefing(context: ContextTypes.DEFAULT_TYPE):
@@ -129,3 +143,46 @@ async def scheduled_evening_summary(context: ContextTypes.DEFAULT_TYPE):
     text += "\nGet some sleep. I'll be here, judging you silently. 🐾"
     await context.bot.send_message(chat_id=owner_id, text=text)
     log_message("assistant", "Evening summary sent", {"type": "scheduled_summary"})
+
+
+async def scheduled_email_check(context: ContextTypes.DEFAULT_TYPE):
+    """Periodic job: check for new important emails and notify."""
+    owner_id = context.bot_data.get("owner_id", 0)
+    if owner_id == 0:
+        return
+    try:
+        gmail = get_gmail()
+        if not gmail:
+            return
+
+        emails = gmail.fetch_unread_emails(max_results=10)
+        if not emails:
+            return
+
+        # Filter out already-seen emails
+        new_emails = [e for e in emails if not is_email_seen(e["id"])]
+        if not new_emails:
+            return
+
+        classified = classify_emails(new_emails)
+        important = [e for e in classified if e.get("classification") == "important"]
+
+        # Mark all checked emails as seen
+        for e in classified:
+            mark_email_seen(e["id"], e.get("classification", "low_priority"))
+
+        if not important:
+            return
+
+        # Notify about important emails
+        text = f"📬 *{len(important)} new important email{'s' if len(important) > 1 else ''}!*\n\n"
+        for e in important[:5]:
+            text += f"• *{e['from_name']}*: {e['subject'][:60]}\n"
+            text += f"  _{e.get('reason', '')}_\n"
+
+        text += "\nUse /emails for full triage. 🐾"
+        await context.bot.send_message(chat_id=owner_id, text=text)
+        log_message("assistant", f"Email alert: {len(important)} important", {"type": "email_alert"})
+
+    except Exception as e:
+        logger.error(f"Email check error: {e}")

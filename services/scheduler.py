@@ -4,7 +4,7 @@ Resolves overlaps between calendar events and your routines (gym, meals, etc).
 """
 
 import datetime as dt
-from services.user_profile import load_profile
+from services.user_profile import load_profile, today as ist_today
 
 
 def resolve_conflicts(events: list[dict], profile: dict = None) -> list[dict]:
@@ -23,7 +23,7 @@ def resolve_conflicts(events: list[dict], profile: dict = None) -> list[dict]:
     gym_commute = gym.get("commute_minutes", 15)
     gym_closes = gym.get("gym_closes_at", "22:00")
 
-    today = dt.date.today()
+    today = ist_today()
     gym_start = dt.datetime.combine(today, dt.time.fromisoformat(gym_start_str))
     gym_end = gym_start + dt.timedelta(minutes=gym_duration + gym_commute)
     gym_close_dt = dt.datetime.combine(today, dt.time.fromisoformat(gym_closes))
