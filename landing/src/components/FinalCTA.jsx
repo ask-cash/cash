@@ -13,16 +13,17 @@ export default function FinalCTA() {
         transition={{ duration: 0.55 }}
       >
         <p className="font-display text-[0.74rem] font-semibold text-[#7fa9ff] uppercase tracking-[0.28em] mb-5">
-          Waitlist
+          Adoption
         </p>
 
         <h2 className="font-display text-3xl md:text-5xl font-bold tracking-tight leading-[1.05]">
-          Join the waitlist.
+          Pick a pet.
         </h2>
 
         <p className="mt-5 text-[#a8b0c0] text-base md:text-[1.05rem] leading-relaxed">
-          Cash is still deciding which humans deserve her time. Get in line so
-          she can judge you next.
+          Cash is off the market (signed the contract in salmon ink). Her litter
+          isn&apos;t — hop on the list and she&apos;ll intro you. Or invent your
+          own weird little beast from scratch.
         </p>
 
         <form
@@ -51,7 +52,7 @@ export default function FinalCTA() {
         </form>
 
         <p className="mt-4 text-[#6b7480] text-xs">
-          No spam. Cash will still judge you, but only about productivity.
+          No spam. Your pet will handle the important judgment.
         </p>
       </motion.div>
     </section>

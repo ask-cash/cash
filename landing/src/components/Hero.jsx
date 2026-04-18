@@ -6,12 +6,12 @@ const HERO_GIF =
   'https://media0.giphy.com/media/v1.Y2lkPTc5MGI3NjExczh2dmN5d293NnNhaDlidmpnbG1kMm5uMW9rOTg1bTE5amNrZzN5YiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/JIX9t2j0ZTN9S/giphy.gif'
 
 const JUDGING = [
-  'your sleep schedule',
-  'that 47-tab browser',
-  'your "quick" side project',
-  'the 3pm you keep rescheduling',
-  'your OKRs',
-  'that Amazon cart',
+  "suhail's sleep schedule",
+  "suhail's 47 tabs",
+  "suhail's \"quick\" side project",
+  "suhail's 3pm (moved again)",
+  "suhail's OKRs",
+  "suhail's amazon cart",
 ]
 
 const fadeUp = {
@@ -90,7 +90,7 @@ export default function Hero() {
           <span className="inline-flex items-center rounded-full bg-[#4f8eff]/18 text-[#7fa9ff] px-2 py-0.5 text-[0.7rem] font-semibold tracking-wider uppercase">
             New
           </span>
-          <span>Cash partners with your calendar</span>
+          <span>Cash is making introductions</span>
           <span
             aria-hidden
             className="text-[#7fa9ff] transition-transform group-hover:translate-x-0.5"
@@ -130,9 +130,9 @@ export default function Hero() {
           variants={fadeUp}
           initial="hidden"
           animate="visible"
-          className="mt-5 font-display text-sm sm:text-base font-medium text-[#7fa9ff] uppercase tracking-[0.15em]"
+          className="mt-5 font-display text-sm sm:text-base font-medium text-[#7fa9ff] tracking-[0.02em]"
         >
-          The cat that actually runs your life
+          taken by suhail · making intros
         </motion.p>
 
         <motion.p
@@ -142,9 +142,10 @@ export default function Hero() {
           animate="visible"
           className="mt-6 text-sm sm:text-base text-[#a8b0c0] leading-[1.7] max-w-[780px] mx-auto"
         >
-          Judges your choices, manages your calendar, tracks your tasks, and
-          remembers everything you&apos;ve said. Born at 4:30 AM inside a MacBook
-          Pro — she&apos;s not leaving.
+          Cash only works for Suhail — there&apos;s a contract, mostly treats.
+          But she has a whole litter of clever little freaks looking for
+          humans. Adopt one of her friends. Or design your own weird pet from
+          scratch. Either way, she&apos;ll vouch for you.
         </motion.p>
 
         <motion.div
@@ -181,7 +182,7 @@ export default function Hero() {
             </motion.button>
           </form>
           <p className="mt-3 text-xs text-[#6b7480] text-center">
-            No spam. Cash will still judge you, but only about productivity.
+            No spam. Your future pet handles the important judgment.
           </p>
         </motion.div>
       </div>

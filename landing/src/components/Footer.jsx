@@ -18,7 +18,7 @@ export default function Footer() {
           <span>Cash</span>
         </div>
         <p className="mt-2 text-sm text-[#a8b0c0]">
-          The cat that actually runs your life.
+          Suhail&apos;s cat. Your introduction.
         </p>
 
         {/* Social */}

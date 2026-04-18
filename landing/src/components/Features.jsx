@@ -579,15 +579,15 @@ export default function Features() {
                 <span className="text-[#7fa9ff]" aria-hidden>
                   ⟩
                 </span>
-                She&apos;s a whole ops team
+                Every pet ships with
               </p>
               <h2 className="font-display font-bold text-3xl sm:text-4xl md:text-5xl tracking-tight leading-[1.05]">
-                Details that{' '}
-                <span className="hero-title-gradient">matter.</span>
+                Standard kitty{' '}
+                <span className="hero-title-gradient">toolkit.</span>
               </h2>
               <p className="mt-4 text-[#a8b0c0] text-sm sm:text-base max-w-sm">
-                Cash sweats the small stuff. Scroll through what she actually
-                does — she&apos;ll wait.
+                Cash trained her whole litter. Scroll through what your pet
+                can do — she&apos;ll wait.
               </p>
 
               <ul className="mt-8 space-y-2.5 hidden md:block">

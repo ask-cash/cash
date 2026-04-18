@@ -6,21 +6,21 @@ const testimonials = [
   {
     handle: 'sleep_deprived_dev',
     quote:
-      "Set up Cash yesterday. She already rescheduled my standup because I 'looked tired in Slack.' She's not wrong.",
+      "Adopted my pet yesterday. She already rescheduled my standup because I 'looked tired in Slack.' She's not wrong.",
     avatar: 'https://cataas.com/cat/cute?width=120&height=120&position=center',
     time: '14m',
   },
   {
     handle: 'calendar_hostage',
     quote:
-      "I asked for a reminder. She built a whole narrative arc about my procrastination. 10/10 would get judged again.",
+      "Asked my pet for a reminder. She built a whole narrative arc about my procrastination. 10/10 would get judged again.",
     avatar: 'https://cataas.com/cat/orange?width=120&height=120&position=center',
     time: '52m',
   },
   {
     handle: 'leg_day_skipper',
     quote:
-      "Cash has reminded me about leg day for 47 days straight. She added it to my calendar as 'optional trauma.'",
+      "My pet has reminded me about leg day for 47 days straight. She added it to my calendar as 'optional trauma.'",
     avatar: 'https://cataas.com/cat/kitten?width=120&height=120&position=center',
     time: '2h',
   },
@@ -34,7 +34,7 @@ const testimonials = [
   {
     handle: 'inbox_zero_lies',
     quote:
-      "Inbox zero lasted 11 minutes. Cash left a voice note pretending to be proud. It was sarcastic. I cried a little.",
+      "Inbox zero lasted 11 minutes. My pet left a voice note pretending to be proud. It was sarcastic. I cried a little.",
     avatar: 'https://cataas.com/cat/white?width=120&height=120&position=center',
     time: '6h',
   },
@@ -115,7 +115,7 @@ export default function Testimonials() {
             <span className="text-[#7fa9ff] font-bold" aria-hidden>
               ⟩
             </span>
-            <span>What my friends say about Cash</span>
+            <span>What humans say about their pets</span>
           </h2>
         </motion.div>
 
@@ -124,7 +124,7 @@ export default function Testimonials() {
             <span className="absolute inset-0 rounded-full bg-[#10b981] opacity-75 animate-ping" />
             <span className="relative w-1.5 h-1.5 rounded-full bg-[#10b981]" />
           </span>
-          <span>(all these are Cash in a trench coat. still true.)</span>
+          <span>(yes, all these pets are Cash in a trench coat. still true.)</span>
         </div>
 
         <div

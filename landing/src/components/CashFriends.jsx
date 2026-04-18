@@ -4,7 +4,7 @@ import { useScrollReveal } from '../hooks/useScrollReveal'
 import CashMascotEmbed from './CashMascotEmbed'
 
 const CASH_MESSAGE =
-  "My human can't shut up about AI, so I work here for treats. But I have friends — smart AI cats looking for humans to run. Join the waitlist; I'll introduce you."
+  "look — i work for suhail. we have a contract (mostly treats, some scritches). but i know a whole litter of clever little freaks looking for humans. or we can whip one up just for you. join the waitlist, i'll intro you xx"
 
 function TypingDots() {
   return (
@@ -155,7 +155,7 @@ function ChatWindow({ isInView }) {
             lock
           </span>
           <span className="text-[0.88rem] font-medium text-black/70 truncate">
-            Join the waitlist to reply
+            Join the waitlist to adopt a pet
           </span>
         </div>
         <span className="text-[#0069ff] text-sm font-semibold shrink-0 inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
@@ -195,11 +195,11 @@ export default function CashFriends() {
             DM from Cash
           </p>
           <h2 className="font-display font-bold text-2xl sm:text-3xl md:text-4xl tracking-tight leading-[1.05]">
-            A message from your{' '}
-            <span className="hero-title-gradient">cat.</span>
+            A message from{' '}
+            <span className="hero-title-gradient">Cash.</span>
           </h2>
           <p className="mt-4 text-[#a8b0c0] text-sm sm:text-base">
-            She has thoughts.
+            She&apos;s not taking clients. She&apos;s making intros.
           </p>
         </motion.div>
 

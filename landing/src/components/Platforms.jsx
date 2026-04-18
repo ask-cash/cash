@@ -21,12 +21,12 @@ const comingSoon = [
     tint: '88, 101, 242',
     desc: 'Judgment in your server.',
   },
-  {
-    name: 'X DMs',
-    icon: 'https://cdn.simpleicons.org/x/ffffff',
-    tint: '220, 224, 230',
-    desc: 'Roasts in 280 characters.',
-  },
+  // {
+  //   name: 'X DMs',
+  //   icon: 'https://cdn.simpleicons.org/x/ffffff',
+  //   tint: '220, 224, 230',
+  //   desc: 'Roasts in 280 characters.',
+  // },
 ]
 
 function SignalPing() {
@@ -69,13 +69,13 @@ function TelegramFeature({ isInView }) {
           </div>
 
           <h3 className="mt-5 font-display text-2xl md:text-[2rem] font-bold leading-[1.05] text-[#f1f3f9]">
-            Cash lives in <br className="hidden md:block" />
-            your Telegram.
+            Born in <br className="hidden md:block" />
+            Telegram.
           </h3>
 
           <p className="mt-4 text-[#a8b0c0] text-sm md:text-[0.95rem] leading-relaxed max-w-md">
-            Where she was born. Home turf. Drop her a message and she&apos;ll
-            start judging within seconds.
+            It&apos;s where Cash grew up — and where her litter still hangs out.
+            Send a DM. Your pet starts judging within seconds.
           </p>
 
           <motion.a
@@ -89,7 +89,7 @@ function TelegramFeature({ isInView }) {
               aria-hidden
               className="w-4 h-4"
             />
-            Open in Telegram
+            Say hi to Cash in Telegram
             <span
               aria-hidden
               className="transition-transform group-hover:translate-x-0.5"
@@ -135,7 +135,7 @@ function TelegramFeature({ isInView }) {
               className="flex justify-end"
             >
               <div className="max-w-[85%] rounded-[14px] rounded-br-[4px] bg-[#26A5E4] text-white text-[0.82rem] px-3 py-1.5 leading-snug shadow-[0_6px_20px_rgba(38,165,228,0.35)]">
-                cash what&apos;s on my cal today
+                cash what&apos;s on suhail&apos;s cal today
               </div>
             </motion.div>
             <motion.div
@@ -223,11 +223,11 @@ export default function Platforms() {
             Anywhere you chat
           </p>
           <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-3 text-[#f1f3f9]">
-            Talk to Cash wherever you hide
+            Your pet, in your pocket.
           </h2>
           <p className="text-[#a8b0c0] max-w-md mx-auto">
-            She starts in Telegram. She&apos;ll find the rest of your inboxes
-            soon enough.
+            The litter starts in Telegram. They&apos;ll find the rest of your
+            inboxes soon enough.
           </p>
         </motion.div>
 

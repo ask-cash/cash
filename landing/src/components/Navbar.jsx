@@ -38,7 +38,7 @@ export default function Navbar() {
                   '0 6px 24px rgba(79,142,255,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
               }}
             >
-              Join Waitlist
+              Adopt a pet
             </motion.a>
           </div>
         </motion.div>

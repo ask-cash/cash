@@ -19,22 +19,31 @@ const CTRL_Y = (HUB_EXIT_Y + NODE_Y) / 2
 const integrations = [
   {
     name: 'Google Calendar',
-    icon: 'https://cdn.simpleicons.org/googlecalendar/4285F4',
+    icon: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-calendar.svg',
   },
-  { name: 'Gmail', icon: 'https://cdn.simpleicons.org/gmail/EA4335' },
+  {
+    name: 'Gmail',
+    icon: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/gmail.svg',
+  },
   {
     name: 'Google Drive',
-    icon: 'https://cdn.simpleicons.org/googledrive/4285F4',
+    icon: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/google-drive.svg',
   },
-  { name: 'Notion', icon: 'https://cdn.simpleicons.org/notion/000000' },
-  { name: 'Slack', icon: 'https://api.iconify.design/logos/slack-icon.svg' },
-  { name: 'X / Twitter', icon: 'https://cdn.simpleicons.org/x/000000' },
-  { name: 'GitHub', icon: 'https://cdn.simpleicons.org/github/000000' },
+  { name: 'Notion', icon: 'https://cdn.simpleicons.org/notion/ffffff' },
+  {
+    name: 'Slack',
+    icon: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/slack.svg',
+  },
+  { name: 'X / Twitter', icon: 'https://cdn.simpleicons.org/x/ffffff' },
+  { name: 'GitHub', icon: 'https://cdn.simpleicons.org/github/ffffff' },
   {
     name: 'Outlook',
     icon: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/outlook.svg',
   },
-  { name: 'Spotify', icon: 'https://cdn.simpleicons.org/spotify/1DB954' },
+  {
+    name: 'Spotify',
+    icon: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/spotify.svg',
+  },
 ]
 
 const N = integrations.length
@@ -72,11 +81,11 @@ export default function Integrations() {
             Integrations
           </p>
           <h2 className="font-display font-bold text-2xl sm:text-3xl md:text-4xl tracking-tight leading-[1.05]">
-            Her paws in{' '}
+            Paws in{' '}
             <span className="hero-title-gradient">everything.</span>
           </h2>
           <p className="mt-4 text-[#a8b0c0] text-sm sm:text-base">
-            Cash hooks into the tools you pretend to be productive with.
+            Every pet plugs into the apps you pretend to be productive with.
           </p>
         </motion.div>
 
@@ -185,12 +194,9 @@ export default function Integrations() {
                 top: `${(NODE_Y / VB_H) * 100}%`,
               }}
             >
-              <motion.img
-                src={it.icon}
-                alt={it.name}
+              <motion.div
                 title={it.name}
-                loading="lazy"
-                className="-translate-x-1/2 -translate-y-1/2 w-9 h-9 object-contain"
+                className="-translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-md flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.35)] transition-colors duration-200 hover:border-[#4f8eff]/45 hover:bg-white/[0.08]"
                 initial={{ opacity: 0, scale: 0.4 }}
                 animate={
                   isInView ? { opacity: 1, scale: 1 } : { opacity: 0 }
@@ -200,7 +206,14 @@ export default function Integrations() {
                   delay: 0.4 + i * 0.1 + 0.5,
                   ease: [0.25, 1.25, 0.4, 1],
                 }}
-              />
+              >
+                <img
+                  src={it.icon}
+                  alt={it.name}
+                  loading="lazy"
+                  className="w-6 h-6 object-contain"
+                />
+              </motion.div>
             </div>
           ))}
         </div>
@@ -230,24 +243,27 @@ export default function Integrations() {
             transition={{ duration: 0.5, delay: 0.2 }}
           >
             {integrations.map((item, i) => (
-              <motion.img
+              <motion.div
                 key={item.name}
-                src={item.icon}
-                alt={item.name}
                 title={item.name}
-                loading="lazy"
-                className="w-9 h-9 object-contain"
+                className="w-12 h-12 rounded-xl bg-white/[0.05] border border-white/10 backdrop-blur-md flex items-center justify-center shadow-[0_4px_14px_rgba(0,0,0,0.3)]"
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={isInView ? { opacity: 1, scale: 1 } : {}}
                 transition={{ duration: 0.3, delay: 0.25 + i * 0.04 }}
-              />
+              >
+                <img
+                  src={item.icon}
+                  alt={item.name}
+                  loading="lazy"
+                  className="w-6 h-6 object-contain"
+                />
+              </motion.div>
             ))}
           </motion.div>
         </div>
 
         <p className="mt-12 text-center text-[#6b7480] text-xs">
-          More integrations coming. Cash demands access to your entire digital
-          life.
+          More coming. Pets need access to everything. That&apos;s the deal.
         </p>
       </div>
     </section>
