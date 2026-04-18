@@ -145,7 +145,7 @@ function ChatWindow({ isInView }) {
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <span
-            className="material-symbols-outlined text-[16px] text-[#0069ff]"
+            className="material-symbols-outlined text-[16px] text-[#d93553]"
             aria-hidden
             style={{
               fontVariationSettings:
@@ -158,7 +158,7 @@ function ChatWindow({ isInView }) {
             Join the waitlist to adopt a pet
           </span>
         </div>
-        <span className="text-[#0069ff] text-sm font-semibold shrink-0 inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
+        <span className="text-[#d93553] text-sm font-semibold shrink-0 inline-flex items-center gap-1 group-hover:gap-1.5 transition-all">
           Continue
           <span
             aria-hidden
@@ -188,8 +188,8 @@ export default function CashFriends() {
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5 }}
         >
-          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#7fa9ff] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
-            <span className="text-[#7fa9ff]" aria-hidden>
+          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#ffa0ac] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
+            <span className="text-[#ffa0ac]" aria-hidden>
               ⟩
             </span>
             DM from Cash

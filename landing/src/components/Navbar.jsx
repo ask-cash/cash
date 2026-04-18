@@ -33,9 +33,9 @@ export default function Navbar() {
               whileTap={{ scale: 0.98 }}
               className="pointer-events-auto font-display text-sm font-semibold text-white px-5 py-2.5 rounded-full"
               style={{
-                background: 'linear-gradient(135deg, #4f8eff 0%, #0050cc 100%)',
+                background: 'linear-gradient(135deg, #ff6e80 0%, #c72e4a 100%)',
                 boxShadow:
-                  '0 6px 24px rgba(79,142,255,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
+                  '0 6px 24px rgba(255,110,128,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
               }}
             >
               Adopt a pet

@@ -73,27 +73,27 @@ export default function Hero() {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              'radial-gradient(900px circle at 18% -10%, rgba(79,142,255,0.18), transparent 55%), radial-gradient(800px circle at 82% -12%, rgba(249,115,22,0.14), transparent 55%)',
+              'radial-gradient(900px circle at 18% -10%, rgba(255,110,128,0.18), transparent 55%), radial-gradient(800px circle at 82% -12%, rgba(249,115,22,0.14), transparent 55%)',
           }}
         />
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col justify-center max-w-[860px] w-full mx-auto px-6 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-16 md:pb-24 text-center [&_h1]:drop-shadow-[0_2px_30px_rgba(79,142,255,0.35)]">
+      <div className="relative z-10 flex-1 flex flex-col justify-center max-w-[860px] w-full mx-auto px-6 pt-[calc(3rem+env(safe-area-inset-top,0px))] pb-16 md:pb-24 text-center [&_h1]:drop-shadow-[0_2px_30px_rgba(255,110,128,0.35)]">
         <motion.a
           custom={0}
           variants={fadeUp}
           initial="hidden"
           animate="visible"
           href="#waitlist"
-          className="self-center inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] backdrop-blur-md px-3.5 py-1.5 text-sm text-[#a8b0c0] hover:border-[#4f8eff]/55 hover:text-white transition-all mb-8 group"
+          className="self-center inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] backdrop-blur-md px-3.5 py-1.5 text-sm text-[#a8b0c0] hover:border-[#ff6e80]/55 hover:text-white transition-all mb-8 group"
         >
-          <span className="inline-flex items-center rounded-full bg-[#4f8eff]/18 text-[#7fa9ff] px-2 py-0.5 text-[0.7rem] font-semibold tracking-wider uppercase">
+          <span className="inline-flex items-center rounded-full bg-[#ff6e80]/18 text-[#ffa0ac] px-2 py-0.5 text-[0.7rem] font-semibold tracking-wider uppercase">
             New
           </span>
           <span>Cash is making introductions</span>
           <span
             aria-hidden
-            className="text-[#7fa9ff] transition-transform group-hover:translate-x-0.5"
+            className="text-[#ffa0ac] transition-transform group-hover:translate-x-0.5"
           >
             →
           </span>
@@ -130,7 +130,7 @@ export default function Hero() {
           variants={fadeUp}
           initial="hidden"
           animate="visible"
-          className="mt-5 font-display text-sm sm:text-base font-medium text-[#7fa9ff] tracking-[0.02em]"
+          className="mt-5 font-display text-sm sm:text-base font-medium text-[#ffa0ac] tracking-[0.02em]"
         >
           taken by suhail · making intros
         </motion.p>
@@ -161,7 +161,7 @@ export default function Hero() {
             onSubmit={(e) => e.preventDefault()}
           >
             <input
-              className="flex-1 min-w-0 rounded-xl border border-white/12 bg-white/[0.05] backdrop-blur-md px-[18px] py-[14px] text-[0.95rem] text-white placeholder:text-white/40 outline-none transition-all focus:border-[#4f8eff] focus:ring-[3px] focus:ring-[#4f8eff]/25"
+              className="flex-1 min-w-0 rounded-xl border border-white/12 bg-white/[0.05] backdrop-blur-md px-[18px] py-[14px] text-[0.95rem] text-white placeholder:text-white/40 outline-none transition-all focus:border-[#ff6e80] focus:ring-[3px] focus:ring-[#ff6e80]/25"
               placeholder="you@domain.com"
               type="email"
               autoComplete="email"
@@ -173,9 +173,9 @@ export default function Hero() {
               className="shrink-0 rounded-xl px-6 py-[14px] font-display text-[0.95rem] font-semibold text-white cursor-pointer transition-all"
               style={{
                 background:
-                  'linear-gradient(135deg, #4f8eff 0%, #0050cc 100%)',
+                  'linear-gradient(135deg, #ff6e80 0%, #c72e4a 100%)',
                 boxShadow:
-                  '0 4px 24px rgba(79,142,255,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
+                  '0 4px 24px rgba(255,110,128,0.45), inset 0 1px 0 rgba(255,255,255,0.18)',
               }}
             >
               Join waitlist

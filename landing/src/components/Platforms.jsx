@@ -56,7 +56,7 @@ function TelegramFeature({ isInView }) {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(700px circle at 15% 0%, rgba(38,165,228,0.22), transparent 55%), radial-gradient(500px circle at 100% 100%, rgba(79,142,255,0.14), transparent 55%)',
+            'radial-gradient(700px circle at 15% 0%, rgba(38,165,228,0.22), transparent 55%), radial-gradient(500px circle at 100% 100%, rgba(255,110,128,0.14), transparent 55%)',
         }}
       />
 
@@ -216,8 +216,8 @@ export default function Platforms() {
           animate={isInView ? { opacity: 1, y: 0 } : {}}
           transition={{ duration: 0.5 }}
         >
-          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#7fa9ff] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
-            <span className="text-[#7fa9ff]" aria-hidden>
+          <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#ffa0ac] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
+            <span className="text-[#ffa0ac]" aria-hidden>
               ⟩
             </span>
             Anywhere you chat

@@ -32,10 +32,10 @@ function MemoryDemo() {
     <DemoShell>
       <motion.div
         variants={itemFade}
-        className="flex items-center gap-2 text-[0.62rem] font-display font-semibold uppercase tracking-[0.14em] text-[#7fa9ff]"
+        className="flex items-center gap-2 text-[0.62rem] font-display font-semibold uppercase tracking-[0.14em] text-[#ffa0ac]"
       >
         <motion.span
-          className="w-1 h-1 rounded-full bg-[#4f8eff]"
+          className="w-1 h-1 rounded-full bg-[#ff6e80]"
           animate={{ opacity: [1, 0.3, 1], scale: [1, 1.6, 1] }}
           transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
         />
@@ -59,7 +59,7 @@ function MemoryDemo() {
 
 function CalendarDemo() {
   const rows = [
-    { time: '09:00', title: 'Standup', tag: 'Work', color: '#4f8eff' },
+    { time: '09:00', title: 'Standup', tag: 'Work', color: '#ff6e80' },
     { time: '11:30', title: '1:1 w/ Alex', tag: 'Personal', color: '#10b981' },
     { time: '14:00', title: 'Dentist', tag: 'Family', color: '#c4b5fd' },
   ]
@@ -103,7 +103,7 @@ function ScheduleDemo() {
     <DemoShell>
       <motion.div
         variants={itemFade}
-        className="flex items-center gap-1.5 text-[0.62rem] font-display font-semibold uppercase tracking-[0.14em] text-[#7fa9ff]"
+        className="flex items-center gap-1.5 text-[0.62rem] font-display font-semibold uppercase tracking-[0.14em] text-[#ffa0ac]"
       >
         <motion.span
           className="material-symbols-outlined text-[13px]"
@@ -142,7 +142,7 @@ function ScheduleDemo() {
           />
         </span>
         <motion.span
-          className="text-[#7fa9ff] inline-block font-semibold"
+          className="text-[#ffa0ac] inline-block font-semibold"
           animate={{ opacity: [0, 0, 1, 1, 0], x: [-10, -10, 0, 0, -4] }}
           transition={{
             duration: CYCLE,
@@ -209,7 +209,7 @@ function HabitsDemo() {
         <motion.span
           className="text-[0.6rem] font-semibold uppercase tracking-wider"
           animate={{
-            color: ['#a8b0c0', '#a8b0c0', '#7fa9ff', '#7fa9ff', '#a8b0c0'],
+            color: ['#a8b0c0', '#a8b0c0', '#ffa0ac', '#ffa0ac', '#a8b0c0'],
             scale: [1, 1, 1.12, 1.12, 1],
           }}
           transition={{
@@ -233,8 +233,8 @@ function HabitsDemo() {
                 backgroundColor: [
                   'rgba(255,255,255,0.10)',
                   'rgba(255,255,255,0.10)',
-                  '#4f8eff',
-                  '#4f8eff',
+                  '#ff6e80',
+                  '#ff6e80',
                   'rgba(255,255,255,0.10)',
                 ],
               }}
@@ -253,7 +253,7 @@ function HabitsDemo() {
         className="mt-1.5 text-[0.65rem] text-[#6b7480]"
       >
         streak:{' '}
-        <span className="tabular-nums font-semibold text-[#7fa9ff]">
+        <span className="tabular-nums font-semibold text-[#ffa0ac]">
           {streak}
         </span>
         /{BARS} · case: still zipped
@@ -279,16 +279,16 @@ function TaskRow({ it, delayFrac }) {
           backgroundColor: [
             'rgba(0,0,0,0)',
             'rgba(0,0,0,0)',
-            '#4f8eff',
-            '#4f8eff',
+            '#ff6e80',
+            '#ff6e80',
             'rgba(0,0,0,0)',
             'rgba(0,0,0,0)',
           ],
           borderColor: [
             'rgba(255,255,255,0.32)',
             'rgba(255,255,255,0.32)',
-            '#4f8eff',
-            '#4f8eff',
+            '#ff6e80',
+            '#ff6e80',
             'rgba(255,255,255,0.32)',
             'rgba(255,255,255,0.32)',
           ],
@@ -362,7 +362,7 @@ function TaskRow({ it, delayFrac }) {
       <motion.span
         className="text-[0.6rem] font-semibold tabular-nums shrink-0"
         animate={{
-          color: ['#7fa9ff', '#7fa9ff', '#6b7480', '#6b7480', '#7fa9ff'],
+          color: ['#ffa0ac', '#ffa0ac', '#6b7480', '#6b7480', '#ffa0ac'],
         }}
         transition={{
           duration: CYCLE,
@@ -450,7 +450,7 @@ function ChatDemo() {
   return (
     <DemoShell className="space-y-1.5">
       <motion.div variants={itemFade} className="flex justify-end">
-        <div className="max-w-[80%] rounded-[14px] rounded-br-[4px] bg-[#4f8eff] text-white text-[0.78rem] px-2.5 py-1.5 leading-snug">
+        <div className="max-w-[80%] rounded-[14px] rounded-br-[4px] bg-[#ff6e80] text-white text-[0.78rem] px-2.5 py-1.5 leading-snug">
           book lunch w/ Ben thu
         </div>
       </motion.div>
@@ -575,8 +575,8 @@ export default function Features() {
               animate={isInView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 0.5 }}
             >
-              <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#7fa9ff] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
-                <span className="text-[#7fa9ff]" aria-hidden>
+              <p className="font-display text-[0.78rem] sm:text-[0.82rem] font-medium text-[#ffa0ac] uppercase tracking-[0.22em] mb-4 inline-flex items-center gap-2">
+                <span className="text-[#ffa0ac]" aria-hidden>
                   ⟩
                 </span>
                 Every pet ships with
@@ -600,13 +600,13 @@ export default function Features() {
                         style={{ background: 'rgba(255,255,255,0.14)' }}
                       >
                         <motion.span
-                          className="absolute inset-y-0 left-0 rounded-full bg-[#4f8eff]"
+                          className="absolute inset-y-0 left-0 rounded-full bg-[#ff6e80]"
                           initial={false}
                           animate={{ width: active ? '100%' : '0%' }}
                           transition={{ duration: 0.4, ease: 'easeOut' }}
                         />
                       </span>
-                      <span className="font-mono text-[0.62rem] text-[#7fa9ff]/55 w-5 tabular-nums">
+                      <span className="font-mono text-[0.62rem] text-[#ffa0ac]/55 w-5 tabular-nums">
                         {String(i + 1).padStart(2, '0')}
                       </span>
                       <motion.span
@@ -641,10 +641,10 @@ export default function Features() {
                   whileHover={{ y: -4 }}
                   animate={{
                     borderColor: active
-                      ? 'rgba(79,142,255,0.55)'
+                      ? 'rgba(255,110,128,0.55)'
                       : 'rgba(255,255,255,0.10)',
                     boxShadow: active
-                      ? '0 24px 60px -18px rgba(79,142,255,0.45)'
+                      ? '0 24px 60px -18px rgba(255,110,128,0.45)'
                       : '0 8px 24px rgba(0,0,0,0.30)',
                     scale: active ? 1.015 : 1,
                   }}
@@ -665,7 +665,7 @@ export default function Features() {
 
                   <div className="flex items-center gap-2.5 mb-4">
                     <motion.span
-                      className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#4f8eff]/12 border border-[#4f8eff]/25 text-[#7fa9ff]"
+                      className="flex items-center justify-center w-8 h-8 rounded-lg bg-[#ff6e80]/12 border border-[#ff6e80]/25 text-[#ffa0ac]"
                       aria-hidden
                       animate={{ rotate: active ? [0, -6, 6, 0] : 0 }}
                       transition={{ duration: 0.6 }}

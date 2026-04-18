@@ -67,7 +67,7 @@ function Avatar({ avatar, handle }) {
 
 function TestimonialCard({ t }) {
   return (
-    <div className="testimonial-card group/card flex items-start gap-3 shrink-0 min-w-[18rem] max-w-[22rem] sm:min-w-[20rem] sm:max-w-[25rem] rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md shadow-[0_8px_28px_rgba(0,0,0,0.30)] transition-all duration-300 hover:border-[#4f8eff]/45 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(79,142,255,0.22)]">
+    <div className="testimonial-card group/card flex items-start gap-3 shrink-0 min-w-[18rem] max-w-[22rem] sm:min-w-[20rem] sm:max-w-[25rem] rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur-md shadow-[0_8px_28px_rgba(0,0,0,0.30)] transition-all duration-300 hover:border-[#ff6e80]/45 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_rgba(255,110,128,0.22)]">
       <Avatar avatar={t.avatar} handle={t.handle} />
       <div className="flex flex-col gap-1.5 min-w-0 flex-1">
         <div className="flex items-center gap-1.5 text-[0.78rem]">
@@ -112,7 +112,7 @@ export default function Testimonials() {
           transition={{ duration: 0.45 }}
         >
           <h2 className="font-display text-[1.4rem] font-semibold tracking-tight flex items-center gap-2.5">
-            <span className="text-[#7fa9ff] font-bold" aria-hidden>
+            <span className="text-[#ffa0ac] font-bold" aria-hidden>
               ⟩
             </span>
             <span>What humans say about their pets</span>
