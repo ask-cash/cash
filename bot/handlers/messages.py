@@ -206,10 +206,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if result:
                     reply = reply or f"📅 Created '{title}' at {params.get('start_time')} on {event_date.strftime('%A, %b %d')} ({target_cal.capitalize()} Calendar)."
                 else:
-                    reply = f"😿 Failed to create '{title}' on {target_cal.capitalize()} Calendar. The calendar may not be connected."
+                    reply = reply or (
+                        f"😿 Failed to create '{title}' on {target_cal.capitalize()} "
+                        "Calendar. The calendar may not be connected."
+                    )
             except Exception as e:
                 logger.error("Failed to create event '%s': %s", title, e)
-                reply = f"😿 Failed to create '{title}' on {target_cal.capitalize()} Calendar: {e}"
+                reply = (
+                    reply
+                    or f"😿 Failed to create '{title}' on {target_cal.capitalize()} "
+                    f"Calendar: {e}"
+                )
 
         elif action == "delete_event":
             cal = get_cal()
