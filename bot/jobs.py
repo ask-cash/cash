@@ -29,6 +29,13 @@ def get_cal() -> UnifiedCalendar:
     return _cal
 
 
+def reset_cal() -> UnifiedCalendar:
+    """Force a fresh UnifiedCalendar — call after OAuth re-auth."""
+    global _cal
+    _cal = UnifiedCalendar()
+    return _cal
+
+
 def get_gmail() -> Optional[GmailManager]:
     global _gmail
     if _gmail is None:
@@ -38,6 +45,13 @@ def get_gmail() -> Optional[GmailManager]:
             logger.warning(f"Gmail not available: {e}")
             return None
     return _gmail
+
+
+def reset_gmail() -> Optional[GmailManager]:
+    """Force a fresh GmailManager — call after OAuth re-auth."""
+    global _gmail
+    _gmail = None
+    return get_gmail()
 
 
 async def scheduled_morning_briefing(context: ContextTypes.DEFAULT_TYPE):

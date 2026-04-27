@@ -77,13 +77,18 @@ class UnifiedCalendar:
         return self.get_events_for_date(ist_today() + dt.timedelta(days=1), timezone)
 
     def create_event(self, title: str, start: dt.datetime, end: dt.datetime,
-                     calendar: str = "google", description: str = "") -> Optional[dict]:
-        """Create event on specified calendar ('google' or 'outlook')."""
+                     calendar: str = "google", description: str = "",
+                     attachments: Optional[list[dict]] = None) -> Optional[dict]:
+        """Create event on specified calendar ('google' or 'outlook').
+
+        `attachments` is only honoured by the Google backend today.
+        """
         logger.info("Creating event '%s' on %s calendar from %s to %s", title, calendar, start, end)
         if calendar == "outlook" and self.outlook:
             return self.outlook.create_event(title, start, end, description)
         elif self.google:
-            return self.google.create_event(title, start, end, description=description)
+            return self.google.create_event(title, start, end, description=description,
+                                            attachments=attachments)
         logger.warning("No calendar available to create event '%s'", title)
         return None
 

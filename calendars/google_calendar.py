@@ -16,7 +16,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
-SCOPES = ["https://www.googleapis.com/auth/calendar"]
+SCOPES = [
+    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/drive.file",  # upload + attach files the app creates
+]
 
 
 def get_calendar_service(
@@ -148,8 +151,13 @@ class GoogleCalendarManager:
         end: dt.datetime,
         calendar_id: str = "primary",
         description: str = "",
+        attachments: Optional[list[dict]] = None,
     ) -> dict:
-        """Create a new calendar event."""
+        """Create a new calendar event.
+
+        `attachments` should be a list of dicts shaped like Google Calendar's
+        attachment schema: {"fileUrl": "...", "title": "...", "mimeType": "..."}.
+        """
         logger.info("Creating Google Calendar event '%s' from %s to %s on calendar '%s'",
                     title, start, end, calendar_id)
         event = {
@@ -158,7 +166,17 @@ class GoogleCalendarManager:
             "end": {"dateTime": end.isoformat(), "timeZone": "Asia/Kolkata"},
             "description": description,
         }
-        result = self.service.events().insert(calendarId=calendar_id, body=event).execute()
+        if attachments:
+            event["attachments"] = attachments
+        result = (
+            self.service.events()
+            .insert(
+                calendarId=calendar_id,
+                body=event,
+                supportsAttachments=bool(attachments),
+            )
+            .execute()
+        )
         logger.info("Event created with id='%s'", result.get("id"))
         return result
 

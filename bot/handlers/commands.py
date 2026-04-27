@@ -3,6 +3,7 @@ commands.py — All Telegram slash command handlers.
 """
 
 import logging
+import os
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -20,7 +21,10 @@ from services.email_classifier import (
     is_email_seen,
     mark_email_seen,
 )
-from bot.jobs import get_cal, get_gmail
+from bot.jobs import get_cal, get_gmail, reset_cal, reset_gmail
+from services import oauth_server
+from calendars.google_calendar import SCOPES as GOOGLE_CAL_SCOPES
+from services.gmail import GMAIL_SCOPES, GMAIL_TOKEN_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -334,3 +338,121 @@ async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"\nEdit .env to change defaults. Or tell me things and I'll remember!"
     )
     await update.message.reply_text(text)
+
+
+async def _start_google_oauth(update: Update, scopes: list[str], token_path: str, label: str):
+    """Shared entry point for any Google connector."""
+    chat_id = update.effective_chat.id
+    try:
+        url = oauth_server.create_auth_url(chat_id, scopes, token_path, label)
+    except FileNotFoundError:
+        await update.message.reply_text(
+            "😿 Missing credentials.json — drop your Google OAuth client file in the project root."
+        )
+        return
+    except RuntimeError as e:
+        await update.message.reply_text(f"😿 {e}")
+        return
+    except Exception as e:
+        logger.error("create_auth_url for %s failed: %s", label, e)
+        await update.message.reply_text(f"😿 Couldn't start {label} OAuth: {e}")
+        return
+
+    await update.message.reply_text(
+        f"🔌 Tap to connect {label}:\n\n"
+        f"{url}\n\n"
+        "Once you approve, I'll confirm here.",
+        disable_web_page_preview=True,
+    )
+
+
+async def cmd_connect_google(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Connect Google Calendar + Drive."""
+    token_path = os.getenv("GOOGLE_TOKEN_PATH", "token.json")
+    await _start_google_oauth(update, GOOGLE_CAL_SCOPES, token_path, "Google Calendar")
+
+
+async def cmd_connect_gmail(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Connect Gmail."""
+    await _start_google_oauth(update, GMAIL_SCOPES, GMAIL_TOKEN_PATH, "Gmail")
+
+
+async def cmd_connect_outlook(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Kick off Outlook device-code flow; deliver code + verification URL via Telegram."""
+    import asyncio
+    import threading
+    from calendars.outlook_calendar import OutlookCalendarManager, SCOPES as OUTLOOK_SCOPES
+
+    chat_id = update.effective_chat.id
+
+    try:
+        outlook = OutlookCalendarManager()
+    except Exception as e:
+        await update.message.reply_text(f"😿 Outlook init failed: {e}")
+        return
+
+    if not outlook.enabled:
+        await update.message.reply_text(
+            "😿 Outlook not configured. Set OUTLOOK_CLIENT_ID and OUTLOOK_CLIENT_SECRET in .env."
+        )
+        return
+
+    flow = outlook._app.initiate_device_flow(scopes=OUTLOOK_SCOPES)
+    if "user_code" not in flow:
+        await update.message.reply_text(f"😿 Couldn't start Outlook device flow: {flow.get('error_description','unknown error')}")
+        return
+
+    await update.message.reply_text(
+        "🔌 Connect Outlook:\n\n"
+        f"1. Open: {flow['verification_uri']}\n"
+        f"2. Enter this code: `{flow['user_code']}`\n\n"
+        "I'll confirm here once you're done.",
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+    )
+
+    loop = asyncio.get_running_loop()
+    app = context.application
+
+    def _wait_for_token():
+        try:
+            result = outlook._app.acquire_token_by_device_flow(flow)
+            if "access_token" in result:
+                outlook._save_cache()
+                from bot.jobs import reset_cal
+                reset_cal()
+                asyncio.run_coroutine_threadsafe(
+                    app.bot.send_message(chat_id=chat_id, text="✅ Outlook reconnected. Purrs all round."),
+                    loop,
+                )
+            else:
+                err = result.get("error_description", "unknown error")
+                asyncio.run_coroutine_threadsafe(
+                    app.bot.send_message(chat_id=chat_id, text=f"😿 Outlook OAuth failed: {err}"),
+                    loop,
+                )
+        except Exception as e:
+            logger.error("Outlook device flow error: %s", e)
+            asyncio.run_coroutine_threadsafe(
+                app.bot.send_message(chat_id=chat_id, text=f"😿 Outlook OAuth crashed: {e}"),
+                loop,
+            )
+
+    threading.Thread(target=_wait_for_token, name="outlook-device-flow", daemon=True).start()
+
+
+async def on_google_connected(chat_id: int, label: str):
+    """Callback fired by the OAuth server after any Google token is written."""
+    from telegram.ext import Application  # local import to avoid cycles
+    app: Application = on_google_connected._app  # type: ignore[attr-defined]
+    try:
+        if label == "Gmail":
+            reset_gmail()
+        else:
+            reset_cal()
+        await app.bot.send_message(
+            chat_id=chat_id,
+            text=f"✅ {label} reconnected. Purrs all round.",
+        )
+    except Exception as e:
+        logger.error("on_google_connected failed: %s", e)

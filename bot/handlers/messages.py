@@ -3,6 +3,7 @@ messages.py — Natural language message handler with AI brain + memory.
 """
 
 import logging
+import os
 import re
 import datetime as dt
 from telegram import Update
@@ -11,7 +12,9 @@ from telegram.ext import ContextTypes
 from services.user_profile import load_profile, today as ist_today
 from services.task_tracker import initialize_daily_tasks, format_tasks, add_task, mark_done
 from services.scheduler import resolve_conflicts, format_suggestions
-from services.ai_brain import interpret_message
+from services.ai_brain import interpret_message, answer_about_file
+from services.files import find_by_ref
+from services.drive import upload_and_share, shorten_url
 from services.memory import (
     log_message,
     store_fact,
@@ -190,28 +193,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif action == "create_event":
             cal = get_cal()
-<<<<<<< Updated upstream
-            date_str = (params.get("date") or "today").strip().lower()
-            event_date = _resolve_date(date_str)
-            start_time = dt.time.fromisoformat(params.get("start_time", "09:00"))
-            start = dt.datetime.combine(event_date, start_time)
-            duration = params.get("duration_minutes", 60)
-            end = start + dt.timedelta(minutes=duration)
-            target_cal = params.get("calendar", "google")
-            cal.create_event(params.get("title", "New Event"), start, end, calendar=target_cal)
-            reply = reply or f"📅 Created: {params.get('title')} at {params.get('start_time')} on {event_date.strftime('%A, %b %d')} ({target_cal})"
-=======
             title = params.get("title", "New Event")
             target_cal = params.get("calendar", "google")
             try:
-                today = dt.date.today()
+                date_str = (params.get("date") or "today").strip().lower()
+                event_date = _resolve_date(date_str)
                 start_time = dt.time.fromisoformat(params.get("start_time", "09:00"))
-                start = dt.datetime.combine(today, start_time)
+                start = dt.datetime.combine(event_date, start_time)
                 duration = params.get("duration_minutes", 60)
                 end = start + dt.timedelta(minutes=duration)
                 result = cal.create_event(title, start, end, calendar=target_cal)
                 if result:
-                    reply = f"📅 Created '{title}' at {params.get('start_time')} on {target_cal.capitalize()} Calendar."
+                    reply = reply or f"📅 Created '{title}' at {params.get('start_time')} on {event_date.strftime('%A, %b %d')} ({target_cal.capitalize()} Calendar)."
                 else:
                     reply = f"😿 Failed to create '{title}' on {target_cal.capitalize()} Calendar. The calendar may not be connected."
             except Exception as e:
@@ -223,17 +216,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             event_title = params.get("event_title", "")
             event_time = params.get("event_time", "")
             date_param = params.get("date", "today")
-            if date_param == "tomorrow":
-                target_date = dt.date.today() + dt.timedelta(days=1)
-            elif date_param and date_param not in ("today", ""):
-                try:
-                    target_date = dt.date.fromisoformat(date_param)
-                except ValueError:
-                    target_date = dt.date.today()
-            else:
-                target_date = dt.date.today()
+            target_date = _resolve_date((date_param or "today").strip().lower())
 
-            # If AI didn't extract event_time, try extracting from user message
             if not event_time:
                 event_time = _extract_time_from_text(user_msg)
                 if event_time:
@@ -256,7 +240,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 desc = f"'{event_title}'" if event_title else f"at {event_time}"
                 reply = f"😿 Could not find an event matching {desc} on {target_date}. No event was deleted."
->>>>>>> Stashed changes
 
         elif action == "move_event":
             cal = get_cal()
@@ -352,6 +335,136 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         elif action == "show_email_prefs":
             reply = get_preferences_summary()
+
+        elif action == "summarize_file":
+            record = find_by_ref(params.get("file_ref", ""))
+            if not record:
+                reply = "😿 I don't have any uploaded file to work with — send me one first."
+            else:
+                await update.message.reply_text(f"📄 Reading '{record['name']}'...")
+                question = params.get("question") or user_msg
+                try:
+                    reply = answer_about_file(record, question)
+                except Exception as e:
+                    logger.error("answer_about_file failed for '%s': %s", record.get("name"), e)
+                    reply = f"😿 Couldn't read '{record['name']}': {e}"
+
+        elif action == "send_file":
+            record = find_by_ref(params.get("file_ref", ""))
+            if not record:
+                reply = "😿 I don't have any uploaded file to send — upload one first."
+            else:
+                path = record.get("path", "")
+                if not path or not os.path.exists(path):
+                    reply = f"😿 The file '{record['name']}' is missing on disk."
+                else:
+                    try:
+                        with open(path, "rb") as f:
+                            await update.message.reply_document(
+                                document=f,
+                                filename=record.get("name"),
+                                caption=reply or f"📎 Here's '{record['name']}'",
+                            )
+                        log_message("assistant", f"[sent file: {record['name']}]")
+                        return
+                    except Exception as e:
+                        logger.error("Failed to send file '%s': %s", record.get("name"), e)
+                        reply = f"😿 Couldn't send '{record['name']}': {e}"
+
+        elif action == "upload_to_drive":
+            record = find_by_ref(params.get("file_ref", ""))
+            if not record:
+                reply = "😿 No uploaded file to put on Drive — send me one first."
+            else:
+                await update.message.reply_text(f"☁️ Uploading '{record['name']}' to Drive...")
+                drive_file = None
+                error_msg = ""
+                try:
+                    drive_file = upload_and_share(
+                        record.get("path", ""),
+                        record.get("name", "upload"),
+                        record.get("mime_type", ""),
+                    )
+                except Exception as e:
+                    logger.error("upload_to_drive failed: %s", e)
+                    error_msg = str(e)
+
+                if drive_file and drive_file.get("webViewLink"):
+                    short = shorten_url(drive_file["webViewLink"])
+                    link_line = (
+                        f"☁️ '{drive_file.get('name', record['name'])}' is on Drive.\n"
+                        f"🔗 {short}"
+                    )
+                    reply = f"{reply}\n\n{link_line}" if reply else link_line
+                else:
+                    detail = f": {error_msg}" if error_msg else ". Is Google connected?"
+                    reply = f"😿 Couldn't upload '{record['name']}' to Drive{detail}"
+
+        elif action == "attach_file_to_event":
+            record = find_by_ref(params.get("file_ref", ""))
+            if not record:
+                reply = "😿 No uploaded file to attach — send me one first."
+            else:
+                cal = get_cal()
+                title = params.get("title", f"Event for {record['name']}")
+                target_cal = params.get("calendar", "google")
+                try:
+                    date_str = (params.get("date") or "today").strip().lower()
+                    event_date = _resolve_date(date_str)
+                    start_time = dt.time.fromisoformat(params.get("start_time", "09:00"))
+                    start = dt.datetime.combine(event_date, start_time)
+                    duration = params.get("duration_minutes", 60)
+                    end = start + dt.timedelta(minutes=duration)
+
+                    drive_file = None
+                    if target_cal == "google":
+                        await update.message.reply_text(f"☁️ Uploading '{record['name']}' to Drive...")
+                        drive_file = upload_and_share(
+                            record.get("path", ""),
+                            record.get("name", "upload"),
+                            record.get("mime_type", ""),
+                        )
+
+                    short_link = ""
+                    if drive_file and drive_file.get("webViewLink"):
+                        short_link = shorten_url(drive_file["webViewLink"])
+
+                    description_lines = [f"📎 {record['name']}"]
+                    if short_link:
+                        description_lines.append(f"Drive link: {short_link}")
+                    else:
+                        description_lines.append(f"Local path: {record.get('path', '')}")
+                    if record.get("caption"):
+                        description_lines.append(f"Caption: {record['caption']}")
+                    description = "\n".join(description_lines)
+
+                    attachments = None
+                    if drive_file and drive_file.get("webViewLink"):
+                        attachments = [{
+                            "fileUrl": drive_file["webViewLink"],
+                            "title": drive_file.get("name", record["name"]),
+                            "mimeType": drive_file.get("mimeType") or record.get("mime_type", ""),
+                        }]
+
+                    result = cal.create_event(
+                        title, start, end,
+                        calendar=target_cal,
+                        description=description,
+                        attachments=attachments,
+                    )
+                    if result:
+                        link_line = f"\n🔗 {short_link}" if short_link else ""
+                        confirm = (
+                            f"📅 Created '{title}' at {params.get('start_time', '09:00')} on "
+                            f"{event_date.strftime('%A, %b %d')} ({target_cal.capitalize()} Calendar) "
+                            f"with '{record['name']}' attached.{link_line}"
+                        )
+                        reply = f"{reply}\n\n{confirm}" if reply else confirm
+                    else:
+                        reply = f"😿 Couldn't create the event on {target_cal.capitalize()} Calendar."
+                except Exception as e:
+                    logger.error("attach_file_to_event failed: %s", e)
+                    reply = f"😿 Couldn't attach '{record['name']}' to the event: {e}"
 
         final_reply = reply or "👍"
         await update.message.reply_text(final_reply)
