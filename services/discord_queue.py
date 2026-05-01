@@ -39,6 +39,8 @@ class PendingReply:
     fire_at: str      # ISO8601 UTC
     status: str = "pending"  # pending | cancelled | sent | skipped
     cancel_reason: Optional[str] = None
+    mentioner_username: str = ""        # Discord @handle; default for back-compat
+    mentioner_person_id: str = ""       # canonical identity (Step 4); back-compat default
 
 
 class DiscordQueue:

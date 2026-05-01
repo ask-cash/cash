@@ -19,8 +19,10 @@ import os
 
 import discord
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from discord import app_commands
 from dotenv import load_dotenv
 
+from bot.handlers.discord_commands import register as register_slash_commands
 from bot.handlers.discord_messages import (
     DiscordContext,
     handle_discord_message,
@@ -95,6 +97,7 @@ def main() -> None:
     # work even for messages not in cache.
 
     client = discord.Client(intents=intents)
+    tree = app_commands.CommandTree(client)
     queue = DiscordQueue()
     queue.load()
 
@@ -109,6 +112,8 @@ def main() -> None:
         proxy_min_minutes=proxy_min,
         proxy_max_minutes=proxy_max,
     )
+
+    register_slash_commands(tree, suhail_id=suhail_id)
 
     @client.event
     async def on_ready():
@@ -133,6 +138,19 @@ def main() -> None:
             logger.info("[boot] AsyncIOScheduler started (proxy delay %d–%d min)",
                         proxy_min, proxy_max)
             await _replay_pending(ctx)
+
+        # Sync slash commands. Guild-scoped sync is instant; global takes ~1h.
+        # We always have allowed_guilds in prod; fall back to global if empty.
+        try:
+            if allowed_guilds:
+                for gid in allowed_guilds:
+                    await tree.sync(guild=discord.Object(id=gid))
+                logger.info("[boot] slash commands synced to %d guild(s)", len(allowed_guilds))
+            else:
+                await tree.sync()
+                logger.info("[boot] slash commands synced globally (may take up to 1h to propagate)")
+        except Exception:
+            logger.exception("[boot] failed to sync slash commands — they may not appear")
 
     @client.event
     async def on_message(message: discord.Message):

@@ -200,3 +200,39 @@ async def scheduled_email_check(context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Email check error: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Step 7 — directive lifecycle + per-person summary maintenance
+# ---------------------------------------------------------------------------
+
+async def scheduled_directive_expiry(context: ContextTypes.DEFAULT_TYPE):
+    """Daily: revoke any directives whose expires_at has passed.
+
+    Idempotent. Logs the count revoked. Cheap (single SQL UPDATE), safe to
+    run more often than once a day if needed.
+    """
+    import asyncio
+    from services.directives import store as directives_store
+    try:
+        count = await asyncio.to_thread(directives_store.expire_due)
+        if count:
+            logger.info("[jobs] expired %d directive(s)", count)
+    except Exception:
+        logger.exception("[jobs] directive expiry failed")
+
+
+async def scheduled_summary_rollup(context: ContextTypes.DEFAULT_TYPE):
+    """Daily: rebuild stale per-person summaries.
+
+    Only people whose conversation count has grown by ≥ REBUILD_THRESHOLD_MESSAGES
+    since their last summary are touched — the others are skipped, so this
+    stays cheap as the people table grows.
+    """
+    import asyncio
+    from services.identity import summaries
+    try:
+        rebuilt = await asyncio.to_thread(summaries.rebuild_stale)
+        logger.info("[jobs] summary rollup: rebuilt %d people", rebuilt)
+    except Exception:
+        logger.exception("[jobs] summary rollup failed")

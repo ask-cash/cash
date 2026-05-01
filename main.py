@@ -41,16 +41,24 @@ from bot.handlers.commands import (
     on_google_connected,
     handle_email_feedback,
 )
+from bot.handlers.directives_commands import (
+    cmd_directives,
+    cmd_forget,
+    cmd_revoke,
+    cmd_unignore,
+)
 from bot.handlers.messages import handle_message
 from bot.handlers.files import handle_file
 from bot.jobs import get_cal, get_gmail
 from services import oauth_server
 from bot.jobs import (
-    scheduled_morning_briefing,
-    scheduled_trading_reminder,
-    scheduled_meeting_check,
-    scheduled_evening_summary,
+    scheduled_directive_expiry,
     scheduled_email_check,
+    scheduled_evening_summary,
+    scheduled_meeting_check,
+    scheduled_morning_briefing,
+    scheduled_summary_rollup,
+    scheduled_trading_reminder,
 )
 
 load_dotenv()
@@ -147,6 +155,12 @@ def main():
     app.add_handler(CommandHandler("connect_outlook", owner_only(cmd_connect_outlook)))
     app.add_handler(CallbackQueryHandler(handle_email_feedback, pattern=r"^email_fb:"))
 
+    # Directive management (Step 6)
+    app.add_handler(CommandHandler("directives", owner_only(cmd_directives)))
+    app.add_handler(CommandHandler("unignore",   owner_only(cmd_unignore)))
+    app.add_handler(CommandHandler("forget",     owner_only(cmd_forget)))
+    app.add_handler(CommandHandler("revoke",     owner_only(cmd_revoke)))
+
     # Free text → Claude AI with memory
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, owner_only(handle_message)))
 
@@ -190,6 +204,18 @@ def main():
         interval=email_check_interval,
         first=30,
         name="email_check",
+    )
+
+    # Directive lifecycle (Step 7) — runs early morning local time.
+    job_queue.run_daily(
+        scheduled_directive_expiry,
+        time=dt.time(3, 0),
+        name="directive_expiry",
+    )
+    job_queue.run_daily(
+        scheduled_summary_rollup,
+        time=dt.time(3, 30),
+        name="summary_rollup",
     )
 
     logger.info("🚀 Bot is running with memory + multi-calendar!")

@@ -2,6 +2,7 @@
 messages.py — Natural language message handler with AI brain + memory.
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -12,9 +13,10 @@ from telegram.ext import ContextTypes
 from services.user_profile import load_profile, today as ist_today
 from services.task_tracker import initialize_daily_tasks, format_tasks, add_task, mark_done
 from services.scheduler import resolve_conflicts, format_suggestions
-from services.ai_brain import interpret_message, answer_about_file
-from services.files import find_by_ref
-from services.drive import upload_and_share, shorten_url
+from services.ai_brain import interpret_message
+from services.directives import parser as directives_parser
+from services.directives import store as directives_store
+from services.identity import people as identity_people
 from services.memory import (
     log_message,
     store_fact,
@@ -119,13 +121,166 @@ def process_memory_ops(ops: list[dict]):
             logger.error(f"Memory op error: {e}")
 
 
+async def _resolve_telegram_author(update: Update) -> "str | None":
+    """Best-effort identity resolve for Telegram authors. Returns person_id or None."""
+    try:
+        u = update.effective_user
+        if u is None:
+            return None
+        return await asyncio.to_thread(
+            identity_people.resolve,
+            platform="telegram",
+            platform_user_id=str(u.id),
+            display_name=u.full_name,
+            handle=u.username,
+        )
+    except Exception:
+        logger.exception("[identity] resolve failed for telegram update")
+        return None
+
+
+async def _try_handle_as_directive(update: Update, user_msg: str) -> bool:
+    """Parse and act on instruction-shaped messages from Suhail.
+
+    Returns True if the message was handled as a directive (caller should NOT
+    fall through to ai_brain). Returns False to let normal chat dispatch run.
+
+    Authority: this helper is only called from handle_message, which is wrapped
+    by owner_only — so we can trust the sender is Suhail.
+    """
+    if not directives_parser.looks_like_instruction(user_msg):
+        return False
+
+    try:
+        proposal = await asyncio.to_thread(directives_parser.parse, user_msg)
+    except Exception:
+        logger.exception("[directives] parser raised for: %r", user_msg[:120])
+        return False
+    if proposal is None:
+        return False
+
+    # Resolve target_hint → person_id (if any).
+    target_person_id = None
+    target_name = "(scope-only)"
+    if proposal.target_hint:
+        platform_filter = proposal.scope_platform if proposal.scope_platform != "*" else None
+        candidates = await asyncio.to_thread(
+            identity_people.find_by_hint, proposal.target_hint, platform=platform_filter,
+        )
+        if not candidates:
+            await update.message.reply_text(
+                f"🐾 I don't know anyone called '{proposal.target_hint}' yet — "
+                f"they need to interact with me at least once before I can "
+                f"{proposal.action} them. Try again after they've shown up."
+            )
+            return True
+        if len(candidates) > 1:
+            lines = "\n".join(
+                f"  • {p.canonical_name}  ({p.person_id})"
+                for p in candidates[:5]
+            )
+            await update.message.reply_text(
+                f"🐾 Multiple people match '{proposal.target_hint}':\n{lines}\n\n"
+                f"Try again with the exact handle or paste the person_id."
+            )
+            return True
+        target_person_id = candidates[0].person_id
+        target_name = candidates[0].canonical_name or proposal.target_hint
+
+    # `unignore` is a runtime-only pseudo-action: revoke active ignore directives.
+    if proposal.action == "unignore":
+        if not target_person_id:
+            await update.message.reply_text(
+                "🐾 Need a target to unignore. Try 'unignore @alice'."
+            )
+            return True
+        active = await asyncio.to_thread(
+            directives_store.list_active_for_person, target_person_id,
+        )
+        revoked = 0
+        for d in active:
+            if d.action == "ignore":
+                if directives_store.revoke(d.directive_id):
+                    revoked += 1
+        if revoked:
+            await update.message.reply_text(
+                f"🐾 Revoked {revoked} ignore directive(s) for {target_name}. "
+                f"I'll respond to them again."
+            )
+        else:
+            await update.message.reply_text(
+                f"🐾 No active ignore directives found for {target_name} — "
+                f"nothing to revoke."
+            )
+        return True
+
+    # Create the new directive.
+    try:
+        directive_id = await asyncio.to_thread(
+            directives_store.create,
+            issued_by="suhail",
+            action=proposal.action,
+            target_person_id=target_person_id,
+            scope_platform=proposal.scope_platform,
+            scope_workspace=proposal.scope_workspace,
+            scope_channel=proposal.scope_channel,
+            payload=proposal.payload,
+            expires_at=proposal.expires_at,
+            source_text=proposal.source_text or user_msg,
+        )
+    except Exception:
+        logger.exception("[directives] create failed for proposal=%r", proposal)
+        await update.message.reply_text(
+            "😿 Something went wrong storing that directive. Check the logs."
+        )
+        return True
+
+    expires_phrase = ""
+    if proposal.expires_at:
+        # Render local for readability (parser returns ISO UTC).
+        try:
+            expires_dt = dt.datetime.fromisoformat(proposal.expires_at)
+            expires_phrase = f" until {expires_dt.strftime('%Y-%m-%d %H:%M %Z') or expires_dt.isoformat()}"
+        except ValueError:
+            expires_phrase = f" until {proposal.expires_at}"
+
+    scope_phrase = ""
+    if proposal.scope_platform != "*":
+        scope_phrase += f" on {proposal.scope_platform}"
+    if proposal.scope_channel != "*":
+        scope_phrase += f" in #{proposal.scope_channel}"
+
+    await update.message.reply_text(
+        f"🐾 Got it — {proposal.action} for {target_name}{scope_phrase}{expires_phrase}.\n"
+        f"Directive {directive_id}."
+    )
+    logger.info(
+        "[directives] issued via Telegram: %s action=%s target=%s",
+        directive_id, proposal.action, target_person_id,
+    )
+    return True
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_msg = update.message.text
     print(f"User message: {update}")
     if not user_msg:
         return
 
-    log_message("user", user_msg)
+    person_id = await _resolve_telegram_author(update)
+
+    log_message(
+        "user", user_msg,
+        metadata={"surface": "telegram", "person_id": person_id} if person_id else None,
+    )
+
+    # Step 5: try to interpret as a structured directive before falling through to chat.
+    if await _try_handle_as_directive(update, user_msg):
+        log_message(
+            "assistant", "[handled as directive]",
+            metadata={"surface": "telegram", "person_id": person_id, "outcome": "directive"} if person_id else None,
+        )
+        return
 
     try:
         result = interpret_message(user_msg)
@@ -475,7 +630,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         final_reply = reply or "👍"
         await update.message.reply_text(final_reply)
-        log_message("assistant", final_reply)
+        log_message(
+            "assistant", final_reply,
+            metadata={"surface": "telegram", "person_id": person_id} if person_id else None,
+        )
 
     except Exception as e:
         logger.error(f"Message handling error: {e}")
