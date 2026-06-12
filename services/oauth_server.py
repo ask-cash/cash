@@ -48,12 +48,21 @@ def configure(
     _config["creds_path"] = creds_path
 
 
-def create_auth_url(chat_id: int, scopes: list[str], token_path: str, label: str) -> str:
+def create_auth_url(
+    chat_id: int,
+    scopes: list[str],
+    token_path: str,
+    label: str,
+    tenant_id: str = "",
+    secret_name: str = "",
+) -> str:
     """Start a fresh Flow and return the URL the user must visit.
 
     - `scopes` is the list of Google OAuth scopes this connector needs.
-    - `token_path` is where the resulting credentials JSON will be written.
-    - `label` is a human name used in the Telegram confirmation ("Gmail", ...).
+    - `token_path` is the legacy on-disk fallback for the credentials JSON.
+    - `label` is a human name used in the confirmation ("Gmail", ...).
+    - `tenant_id` / `secret_name` route the resulting token into the per-tenant
+      encrypted vault when set (production); otherwise it falls back to file.
     """
     if not _config["redirect_uri"]:
         raise RuntimeError("OAuth server not configured — set OAUTH_REDIRECT_URI")
@@ -74,6 +83,8 @@ def create_auth_url(chat_id: int, scopes: list[str], token_path: str, label: str
             "chat_id": chat_id,
             "token_path": token_path,
             "label": label,
+            "tenant_id": tenant_id,
+            "secret_name": secret_name,
         }
     return auth_url
 
@@ -118,6 +129,8 @@ class _OAuthHandler(BaseHTTPRequestHandler):
         chat_id: int = entry["chat_id"]
         token_path: str = entry["token_path"]
         label: str = entry["label"]
+        tenant_id: str = entry.get("tenant_id", "")
+        secret_name: str = entry.get("secret_name", "")
 
         try:
             flow.fetch_token(code=code)
@@ -128,11 +141,18 @@ class _OAuthHandler(BaseHTTPRequestHandler):
 
         creds = flow.credentials
         try:
-            with open(token_path, "w") as f:
-                f.write(creds.to_json())
+            from services.google_auth import save_token_json
+            from services.tenancy import tenant_context
+
+            if tenant_id and secret_name:
+                with tenant_context(tenant_id):
+                    save_token_json(secret_name, creds.to_json(), token_path)
+            else:
+                with open(token_path, "w") as f:
+                    f.write(creds.to_json())
         except Exception as e:
-            logger.error("Writing %s failed: %s", token_path, e)
-            self._respond(500, f"<h1>Could not write {token_path}</h1><p>{e}</p>")
+            logger.error("Persisting token for %s failed: %s", label, e)
+            self._respond(500, f"<h1>Could not persist token</h1><p>{e}</p>")
             return
 
         logger.info("%s OAuth complete for chat_id=%s", label, chat_id)

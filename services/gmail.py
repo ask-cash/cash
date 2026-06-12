@@ -10,10 +10,9 @@ import logging
 from typing import Optional
 from email.utils import parseaddr
 
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+
+from services.google_auth import load_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -23,25 +22,22 @@ GMAIL_SCOPES = [
 ]
 
 GMAIL_TOKEN_PATH = os.getenv("GMAIL_TOKEN_PATH", "gmail_token.json")
+GMAIL_TOKEN_SECRET = "gmail_token"
 
 
 def get_gmail_service(
     creds_path: str = "credentials.json",
     token_path: str = None,
 ):
-    """Build and return an authorized Gmail API service."""
+    """Build an authorized Gmail API service for the active tenant.
+
+    Credentials come from the per-tenant secret vault (file fallback locally).
+    Raises RuntimeError if the tenant hasn't connected Gmail yet.
+    """
     token_path = token_path or GMAIL_TOKEN_PATH
-    creds = None
-    if os.path.exists(token_path):
-        creds = Credentials.from_authorized_user_file(token_path, GMAIL_SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(creds_path, GMAIL_SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open(token_path, "w") as f:
-            f.write(creds.to_json())
+    creds = load_credentials(GMAIL_TOKEN_SECRET, GMAIL_SCOPES, token_path)
+    if creds is None or not creds.valid:
+        raise RuntimeError("Gmail not connected — run /connect_gmail")
     return build("gmail", "v1", credentials=creds)
 
 

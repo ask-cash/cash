@@ -340,11 +340,16 @@ async def cmd_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text)
 
 
-async def _start_google_oauth(update: Update, scopes: list[str], token_path: str, label: str):
+async def _start_google_oauth(update: Update, scopes: list[str], token_path: str, label: str, secret_name: str = ""):
     """Shared entry point for any Google connector."""
+    from services.tenancy import current_tenant_id
+
     chat_id = update.effective_chat.id
     try:
-        url = oauth_server.create_auth_url(chat_id, scopes, token_path, label)
+        url = oauth_server.create_auth_url(
+            chat_id, scopes, token_path, label,
+            tenant_id=current_tenant_id(), secret_name=secret_name,
+        )
     except FileNotFoundError:
         await update.message.reply_text(
             "😿 Missing credentials.json — drop your Google OAuth client file in the project root."
@@ -369,12 +374,12 @@ async def _start_google_oauth(update: Update, scopes: list[str], token_path: str
 async def cmd_connect_google(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Connect Google Calendar + Drive."""
     token_path = os.getenv("GOOGLE_TOKEN_PATH", "token.json")
-    await _start_google_oauth(update, GOOGLE_CAL_SCOPES, token_path, "Google Calendar")
+    await _start_google_oauth(update, GOOGLE_CAL_SCOPES, token_path, "Google Calendar", secret_name="google_token")
 
 
 async def cmd_connect_gmail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Connect Gmail."""
-    await _start_google_oauth(update, GMAIL_SCOPES, GMAIL_TOKEN_PATH, "Gmail")
+    await _start_google_oauth(update, GMAIL_SCOPES, GMAIL_TOKEN_PATH, "Gmail", secret_name="gmail_token")
 
 
 async def cmd_connect_outlook(update: Update, context: ContextTypes.DEFAULT_TYPE):

@@ -10,26 +10,21 @@ import os
 from typing import Optional
 
 import requests
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-from calendars.google_calendar import SCOPES
+from calendars.google_calendar import SCOPES, GOOGLE_TOKEN_SECRET
+from services.google_auth import load_credentials
 
 logger = logging.getLogger(__name__)
 
 
 def _get_drive_service():
-    """Build a Drive service from the same token.json the calendar uses."""
+    """Build a Drive service from the same per-tenant Google token the calendar uses."""
     token_path = os.getenv("GOOGLE_TOKEN_PATH", "token.json")
-    if not os.path.exists(token_path):
-        raise RuntimeError("No token.json — run /connect_google first")
-    creds = Credentials.from_authorized_user_file(token_path, SCOPES)
-    if creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        with open(token_path, "w") as f:
-            f.write(creds.to_json())
+    creds = load_credentials(GOOGLE_TOKEN_SECRET, SCOPES, token_path)
+    if creds is None:
+        raise RuntimeError("Google not connected — run /connect_google first")
     return build("drive", "v3", credentials=creds)
 
 

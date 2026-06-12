@@ -13,7 +13,6 @@ activity are skipped entirely. Idempotent — safe to run repeatedly.
 """
 
 import datetime as dt
-import json
 import logging
 import os
 from dataclasses import dataclass
@@ -21,7 +20,11 @@ from typing import Optional
 
 import anthropic
 
-from services.identity.history import MEMORY_PATH, format_for_prompt, recent_for_person
+from services.identity.history import (
+    conversation_counts_by_person,
+    format_for_prompt,
+    recent_for_person,
+)
 from services.identity.people import get_person
 from services.identity.store import connect
 
@@ -78,26 +81,8 @@ def get_summary_md(person_id: str) -> str:
 
 
 def _conversation_counts_by_person() -> dict[str, int]:
-    """Single-scan tally of how many JSONL log entries each person has."""
-    counts: dict[str, int] = {}
-    if not os.path.exists(MEMORY_PATH):
-        return counts
-    try:
-        with open(MEMORY_PATH, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                pid = (entry.get("metadata") or {}).get("person_id")
-                if pid:
-                    counts[pid] = counts.get(pid, 0) + 1
-    except Exception:
-        logger.exception("[summaries] failed scanning %s", MEMORY_PATH)
-    return counts
+    """Tally of how many conversation entries each person has (tenant-scoped)."""
+    return conversation_counts_by_person()
 
 
 def build_for_person(person_id: str) -> Optional[str]:
@@ -154,7 +139,7 @@ def build_for_person(person_id: str) -> Optional[str]:
             """
             INSERT INTO person_summaries (person_id, summary_md, last_built_at, source_message_count)
             VALUES (?, ?, ?, ?)
-            ON CONFLICT(person_id) DO UPDATE SET
+            ON CONFLICT(tenant_id, person_id) DO UPDATE SET
                 summary_md           = excluded.summary_md,
                 last_built_at        = excluded.last_built_at,
                 source_message_count = excluded.source_message_count

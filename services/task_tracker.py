@@ -1,35 +1,28 @@
 """
 task_tracker.py — Daily task list with persistence.
 Tracks what's done, what's pending, and rolls over unfinished tasks.
+
+Tasks are stored per-day as tenant-scoped JSON documents via
+services.state_store (namespace "tasks", key = ISO date).
 """
 
-import json
-import os
 import datetime as dt
 from typing import Optional
+
+from services import state_store
 from services.user_profile import now as ist_now, today as ist_today
 
-TASKS_DIR = "user_data/tasks"
-
-
-def _today_path() -> str:
-    os.makedirs(TASKS_DIR, exist_ok=True)
-    return os.path.join(TASKS_DIR, f"{ist_today().isoformat()}.json")
+NAMESPACE = "tasks"
 
 
 def _load_tasks(date: Optional[dt.date] = None) -> list[dict]:
-    path = os.path.join(TASKS_DIR, f"{(date or ist_today()).isoformat()}.json")
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    return []
+    key = (date or ist_today()).isoformat()
+    return state_store.read_json(NAMESPACE, key, default=[])
 
 
 def _save_tasks(tasks: list[dict], date: Optional[dt.date] = None):
-    os.makedirs(TASKS_DIR, exist_ok=True)
-    path = os.path.join(TASKS_DIR, f"{(date or ist_today()).isoformat()}.json")
-    with open(path, "w") as f:
-        json.dump(tasks, f, indent=2)
+    key = (date or ist_today()).isoformat()
+    state_store.write_json(NAMESPACE, key, tasks)
 
 
 def initialize_daily_tasks(default_tasks: list[dict]) -> list[dict]:

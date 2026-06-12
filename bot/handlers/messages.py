@@ -27,6 +27,9 @@ from services.memory import (
     search_conversations,
 )
 from services.email_classifier import classify_emails, get_preferences_summary, mark_email_seen
+from services.files import find_by_ref, local_path_for
+from services.drive import upload_and_share, shorten_url
+from services.ai_brain import answer_about_file
 from bot.jobs import get_cal, get_gmail
 
 logger = logging.getLogger(__name__)
@@ -516,9 +519,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not record:
                 reply = "😿 I don't have any uploaded file to send — upload one first."
             else:
-                path = record.get("path", "")
+                path = local_path_for(record)
                 if not path or not os.path.exists(path):
-                    reply = f"😿 The file '{record['name']}' is missing on disk."
+                    reply = f"😿 The file '{record['name']}' is missing from storage."
                 else:
                     try:
                         with open(path, "rb") as f:
@@ -543,7 +546,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 error_msg = ""
                 try:
                     drive_file = upload_and_share(
-                        record.get("path", ""),
+                        local_path_for(record) or "",
                         record.get("name", "upload"),
                         record.get("mime_type", ""),
                     )
@@ -582,7 +585,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if target_cal == "google":
                         await update.message.reply_text(f"☁️ Uploading '{record['name']}' to Drive...")
                         drive_file = upload_and_share(
-                            record.get("path", ""),
+                            local_path_for(record) or "",
                             record.get("name", "upload"),
                             record.get("mime_type", ""),
                         )
@@ -595,7 +598,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if short_link:
                         description_lines.append(f"Drive link: {short_link}")
                     else:
-                        description_lines.append(f"Local path: {record.get('path', '')}")
+                        description_lines.append(f"Storage key: {record.get('storage_key', '')}")
                     if record.get("caption"):
                         description_lines.append(f"Caption: {record['caption']}")
                     description = "\n".join(description_lines)

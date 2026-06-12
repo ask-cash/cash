@@ -86,9 +86,11 @@ def _audit(
     if extra:
         entry.update(extra)
     try:
-        os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
-        with open(AUDIT_LOG_PATH, "a") as f:
-            f.write(json.dumps(entry) + "\n")
+        # Tenant-scoped audit trail (services.state_store: Postgres in prod,
+        # per-tenant file locally).
+        from services import state_store
+
+        state_store.append_event("discord", "proxy_log", entry)
     except Exception:
         logger.exception("[responder] failed to write audit log")
 

@@ -1,41 +1,33 @@
 """
 files.py — Persistent storage for user-uploaded files.
 
-Stores uploaded files under user_data/uploads/ and maintains an index in
-user_data/files.json so Cash can recall them in later conversations.
+File bytes live in object storage (services.storage: S3 in prod, local disk in
+dev); the searchable index is a tenant-scoped JSON document in
+services.state_store. Both are isolated per tenant so uploads never leak
+across accounts.
 """
 
 import base64
-import json
 import os
 import uuid
 import datetime as dt
 from typing import Optional
 
+from services import state_store, storage
 from services.user_profile import now as ist_now
 
+# Back-compat: a couple of handlers import this constant.
 UPLOADS_DIR = "user_data/uploads"
-INDEX_PATH = "user_data/files.json"
-
-
-def _ensure_dir():
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
+NAMESPACE = "files"
+INDEX_KEY = "index"
 
 
 def _load_index() -> list[dict]:
-    if not os.path.exists(INDEX_PATH):
-        return []
-    try:
-        with open(INDEX_PATH, "r") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return []
+    return state_store.read_json(NAMESPACE, INDEX_KEY, default=[])
 
 
 def _save_index(index: list[dict]):
-    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
-    with open(INDEX_PATH, "w") as f:
-        json.dump(index, f, indent=2)
+    state_store.write_json(NAMESPACE, INDEX_KEY, index)
 
 
 def save_file(
@@ -46,13 +38,17 @@ def save_file(
     caption: str = "",
     size_bytes: int = 0,
 ) -> dict:
-    """Register an uploaded file in the index and return its record."""
-    _ensure_dir()
+    """Upload the file to object storage, register it in the index, return its record."""
+    file_id = uuid.uuid4().hex[:12]
+    safe_name = os.path.basename(original_name) or "upload"
+    key = storage.tenant_key(f"{file_id}_{safe_name}")
+    storage.put_file(local_path, key, content_type=mime_type)
+
     record = {
-        "id": uuid.uuid4().hex[:12],
+        "id": file_id,
         "telegram_file_id": telegram_file_id,
         "name": original_name,
-        "path": local_path,
+        "storage_key": key,
         "mime_type": mime_type,
         "caption": caption,
         "size_bytes": size_bytes,
@@ -97,50 +93,70 @@ def find_by_ref(ref: str) -> Optional[dict]:
     return None
 
 
+def local_path_for(record: dict) -> Optional[str]:
+    """Materialize a record's bytes to a local filesystem path (or None)."""
+    key = record.get("storage_key")
+    if not key:
+        # Legacy records may carry a literal local path.
+        legacy = record.get("path")
+        return legacy if legacy and os.path.exists(legacy) else None
+    suffix = os.path.splitext(record.get("name", ""))[1]
+    return storage.local_path_for(key, suffix=suffix)
+
+
+def get_bytes(record: dict) -> Optional[bytes]:
+    key = record.get("storage_key")
+    if key:
+        return storage.get_bytes(key)
+    legacy = record.get("path")
+    if legacy and os.path.exists(legacy):
+        with open(legacy, "rb") as f:
+            return f.read()
+    return None
+
+
 def build_claude_content_block(record: dict) -> Optional[dict]:
     """Build a Claude-compatible content block for a stored file.
 
     - PDFs become a document block (base64).
     - Images become an image block (base64).
     - Text-like files become a plain-text block with the file contents inline.
-    - Anything else returns None (caller should fall back to a filename-only mention).
+    - Anything else returns None (caller falls back to a filename-only mention).
     """
-    path = record.get("path", "")
     mime = (record.get("mime_type") or "").lower()
-    if not path or not os.path.exists(path):
+    name = record.get("name", "")
+    data = get_bytes(record)
+    if data is None:
         return None
 
-    if mime == "application/pdf" or path.lower().endswith(".pdf"):
-        with open(path, "rb") as f:
-            data = base64.standard_b64encode(f.read()).decode("utf-8")
+    if mime == "application/pdf" or name.lower().endswith(".pdf"):
+        encoded = base64.standard_b64encode(data).decode("utf-8")
         return {
             "type": "document",
-            "source": {"type": "base64", "media_type": "application/pdf", "data": data},
+            "source": {"type": "base64", "media_type": "application/pdf", "data": encoded},
         }
 
     if mime.startswith("image/"):
-        with open(path, "rb") as f:
-            data = base64.standard_b64encode(f.read()).decode("utf-8")
+        encoded = base64.standard_b64encode(data).decode("utf-8")
         return {
             "type": "image",
-            "source": {"type": "base64", "media_type": mime, "data": data},
+            "source": {"type": "base64", "media_type": mime, "data": encoded},
         }
 
-    if mime.startswith("text/") or mime in {"application/json", "application/xml"} or _looks_like_text(path):
+    if mime.startswith("text/") or mime in {"application/json", "application/xml"} or _looks_like_text(name):
         try:
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
-                text = f.read()
-        except OSError:
+            text = data.decode("utf-8", errors="replace")
+        except Exception:
             return None
         # Cap to ~200k chars to stay well under token limits.
         text = text[:200_000]
-        return {"type": "text", "text": f"File: {record.get('name')}\n\n{text}"}
+        return {"type": "text", "text": f"File: {name}\n\n{text}"}
 
     return None
 
 
-def _looks_like_text(path: str) -> bool:
-    ext = os.path.splitext(path)[1].lower().lstrip(".")
+def _looks_like_text(name: str) -> bool:
+    ext = os.path.splitext(name)[1].lower().lstrip(".")
     return ext in {
         "txt", "md", "csv", "tsv", "log", "json", "yaml", "yml", "xml",
         "py", "js", "ts", "tsx", "jsx", "html", "css", "sh", "sql", "toml", "ini",

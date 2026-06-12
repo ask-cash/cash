@@ -10,54 +10,39 @@ import json
 import logging
 import datetime as dt
 import anthropic
+from services import state_store
 from services.user_profile import now as ist_now
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-PREFS_DIR = "user_data/memory"
-PREFS_PATH = os.path.join(PREFS_DIR, "email_preferences.json")
-SEEN_PATH = os.path.join(PREFS_DIR, "email_seen.json")
-
-
-def _ensure_dir():
-    os.makedirs(PREFS_DIR, exist_ok=True)
+NAMESPACE = "email"
+PREFS_KEY = "preferences"
+SEEN_KEY = "seen"
 
 
 def _load_preferences() -> dict:
-    """Load email classification preferences and feedback history."""
-    _ensure_dir()
-    if os.path.exists(PREFS_PATH):
-        with open(PREFS_PATH) as f:
-            return json.load(f)
-    return {
+    """Load email classification preferences and feedback history (tenant-scoped)."""
+    return state_store.read_json(NAMESPACE, PREFS_KEY, default={
         "important_senders": [],
         "spam_senders": [],
         "important_keywords": [],
         "spam_keywords": [],
         "feedback_log": [],
-    }
+    })
 
 
 def _save_preferences(prefs: dict):
-    _ensure_dir()
-    with open(PREFS_PATH, "w") as f:
-        json.dump(prefs, f, indent=2)
+    state_store.write_json(NAMESPACE, PREFS_KEY, prefs)
 
 
 def _load_seen() -> dict:
-    """Load set of already-seen email IDs with their classification."""
-    _ensure_dir()
-    if os.path.exists(SEEN_PATH):
-        with open(SEEN_PATH) as f:
-            return json.load(f)
-    return {}
+    """Load set of already-seen email IDs with their classification (tenant-scoped)."""
+    return state_store.read_json(NAMESPACE, SEEN_KEY, default={})
 
 
 def _save_seen(seen: dict):
-    _ensure_dir()
-    with open(SEEN_PATH, "w") as f:
-        json.dump(seen, f, indent=2)
+    state_store.write_json(NAMESPACE, SEEN_KEY, seen)
 
 
 def is_email_seen(email_id: str) -> bool:

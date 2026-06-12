@@ -11,35 +11,31 @@ from services.user_profile import today as ist_today
 
 logger = logging.getLogger(__name__)
 
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
+
+from services.google_auth import load_credentials
 
 SCOPES = [
     "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/drive.file",  # upload + attach files the app creates
 ]
 
+GOOGLE_TOKEN_SECRET = "google_token"
+
 
 def get_calendar_service(
     creds_path: str = "credentials.json",
     token_path: str = "token.json",
 ):
-    """Build and return an authorized Google Calendar API service."""
-    creds = None
-    if os.path.exists(token_path):
-        creds = Credentials.from_authorized_user_file(token_path, SCOPES)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            logger.info("Refreshing expired Google Calendar credentials")
-            creds.refresh(Request())
-        else:
-            logger.info("Starting Google Calendar OAuth flow")
-            flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open(token_path, "w") as f:
-            f.write(creds.to_json())
+    """Build an authorized Google Calendar API service for the active tenant.
+
+    Credentials come from the per-tenant secret vault (file fallback locally).
+    Raises RuntimeError if the tenant hasn't connected Google yet — connecting
+    is handled by the gateway OAuth flow / scripts/auth_google.py.
+    """
+    creds = load_credentials(GOOGLE_TOKEN_SECRET, SCOPES, token_path)
+    if creds is None or not creds.valid:
+        raise RuntimeError("Google Calendar not connected — run /connect_google")
     logger.debug("Google Calendar service built successfully")
     return build("calendar", "v3", credentials=creds)
 

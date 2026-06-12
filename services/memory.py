@@ -2,24 +2,21 @@
 memory.py — Persistent long-term memory for the bot.
 Remembers things you said days/weeks ago and can recall them.
 
-Storage structure (user_data/memory/):
-  conversations.jsonl   — every message exchanged (append-only log)
-  facts.json            — extracted facts about the user ("I like X", "my friend Y")
-  decisions.json        — things user said they want to do ("today I want to...", "this week...")
-  trading_journal.json  — trade log entries
+State is tenant-scoped and persisted through services.state_store (Postgres in
+prod, local files in dev) rather than raw user_data/*.json files:
+  conversations  — append-only event stream of every message
+  facts          — extracted facts about the user
+  decisions      — things the user said they want to do
+  trading_journal — trade log entries
 """
 
-import json
-import os
 import datetime as dt
 from typing import Optional
+
+from services import state_store
 from services.user_profile import now as ist_now, today as ist_today
 
-MEMORY_DIR = "user_data/memory"
-
-
-def _ensure_dir():
-    os.makedirs(MEMORY_DIR, exist_ok=True)
+NAMESPACE = "memory"
 
 
 # =====================================================================
@@ -28,7 +25,6 @@ def _ensure_dir():
 
 def log_message(role: str, text: str, metadata: dict = None):
     """Log every single message (user or bot) with timestamp."""
-    _ensure_dir()
     entry = {
         "timestamp": ist_now().isoformat(),
         "date": ist_today().isoformat(),
@@ -36,31 +32,16 @@ def log_message(role: str, text: str, metadata: dict = None):
         "text": text,
         "metadata": metadata or {},
     }
-    with open(os.path.join(MEMORY_DIR, "conversations.jsonl"), "a") as f:
-        f.write(json.dumps(entry) + "\n")
+    state_store.append_event(NAMESPACE, "conversations", entry)
 
 
 def get_recent_conversations(days: int = 7, limit: int = 100) -> list[dict]:
     """Get recent conversation entries from the last N days."""
-    _ensure_dir()
-    path = os.path.join(MEMORY_DIR, "conversations.jsonl")
-    if not os.path.exists(path):
-        return []
-
     cutoff = (ist_today() - dt.timedelta(days=days)).isoformat()
-    entries = []
-    with open(path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-                if entry.get("date", "") >= cutoff:
-                    entries.append(entry)
-            except json.JSONDecodeError:
-                continue
-
+    entries = [
+        e for e in state_store.read_events(NAMESPACE, "conversations")
+        if e.get("date", "") >= cutoff
+    ]
     return entries[-limit:]
 
 
@@ -76,18 +57,11 @@ def search_conversations(query: str, days: int = 30) -> list[dict]:
 # =====================================================================
 
 def _load_facts() -> list[dict]:
-    _ensure_dir()
-    path = os.path.join(MEMORY_DIR, "facts.json")
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    return []
+    return state_store.read_json(NAMESPACE, "facts", default=[])
 
 
 def _save_facts(facts: list[dict]):
-    _ensure_dir()
-    with open(os.path.join(MEMORY_DIR, "facts.json"), "w") as f:
-        json.dump(facts, f, indent=2)
+    state_store.write_json(NAMESPACE, "facts", facts)
 
 
 def store_fact(fact: str, category: str = "general", source_message: str = ""):
@@ -122,18 +96,11 @@ def search_facts(query: str) -> list[dict]:
 # =====================================================================
 
 def _load_decisions() -> list[dict]:
-    _ensure_dir()
-    path = os.path.join(MEMORY_DIR, "decisions.json")
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
-    return []
+    return state_store.read_json(NAMESPACE, "decisions", default=[])
 
 
 def _save_decisions(decisions: list[dict]):
-    _ensure_dir()
-    with open(os.path.join(MEMORY_DIR, "decisions.json"), "w") as f:
-        json.dump(decisions, f, indent=2)
+    state_store.write_json(NAMESPACE, "decisions", decisions)
 
 
 def store_decision(decision: str, scope: str = "today", expires: str = None):
@@ -198,29 +165,18 @@ def fulfill_decision(decision_text: str) -> Optional[dict]:
 
 def log_trade(entry: dict):
     """Log a trade to the trading journal."""
-    _ensure_dir()
-    path = os.path.join(MEMORY_DIR, "trading_journal.json")
-    journal = []
-    if os.path.exists(path):
-        with open(path) as f:
-            journal = json.load(f)
     entry["timestamp"] = ist_now().isoformat()
     entry["date"] = ist_today().isoformat()
-    journal.append(entry)
-    with open(path, "w") as f:
-        json.dump(journal, f, indent=2)
+    state_store.append_event(NAMESPACE, "trading_journal", entry)
 
 
 def get_recent_trades(days: int = 7) -> list[dict]:
     """Get trades from the last N days."""
-    _ensure_dir()
-    path = os.path.join(MEMORY_DIR, "trading_journal.json")
-    if not os.path.exists(path):
-        return []
-    with open(path) as f:
-        journal = json.load(f)
     cutoff = (ist_today() - dt.timedelta(days=days)).isoformat()
-    return [t for t in journal if t.get("date", "") >= cutoff]
+    return [
+        t for t in state_store.read_events(NAMESPACE, "trading_journal")
+        if t.get("date", "") >= cutoff
+    ]
 
 
 # =====================================================================
