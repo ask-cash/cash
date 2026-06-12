@@ -1,21 +1,33 @@
 """
 history.py — Per-person conversation reader.
 
-For Step 4 we read user_data/memory/conversations.jsonl filtered by
-metadata.person_id (stamped by handlers since Step 2). When a SQL
-`conversations` table lands (Step 7's territory), this module's interface
-stays the same; only the implementation moves over.
+Reads the tenant-scoped conversation event stream (services.state_store,
+namespace "memory", key "conversations") filtered by metadata.person_id
+(stamped by handlers). In Postgres this is the `event_log` table under RLS;
+locally it is a per-tenant JSONL file.
 """
 
 import datetime as dt
-import json
 import logging
 import os
-from typing import Optional
+
+from services import state_store
+from services.memory import NAMESPACE as MEMORY_NAMESPACE
 
 logger = logging.getLogger(__name__)
 
+# Back-compat constant; the actual source is now state_store events.
 MEMORY_PATH = os.path.join("user_data", "memory", "conversations.jsonl")
+
+CONVERSATIONS_KEY = "conversations"
+
+
+def _all_conversations() -> list[dict]:
+    try:
+        return state_store.read_events(MEMORY_NAMESPACE, CONVERSATIONS_KEY)
+    except Exception:
+        logger.exception("[history] failed reading conversation events")
+        return []
 
 
 def recent_for_person(
@@ -26,38 +38,33 @@ def recent_for_person(
 ) -> list[dict]:
     """Return up to `limit` most-recent log entries for this person, oldest-first.
 
-    Empty list on missing person_id, missing log file, or read error — never
-    raises. Each entry carries the original log dict (timestamp, role, text,
-    metadata, ...) so callers can format as they like.
+    Empty list on missing person_id or read error — never raises.
     """
-    if not person_id or not os.path.exists(MEMORY_PATH):
+    if not person_id:
         return []
 
     cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).isoformat()
     matches: list[dict] = []
-
-    try:
-        with open(MEMORY_PATH, "r") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                md = entry.get("metadata") or {}
-                if md.get("person_id") != person_id:
-                    continue
-                ts = entry.get("timestamp", "")
-                if ts and ts < cutoff:
-                    continue
-                matches.append(entry)
-    except Exception:
-        logger.exception("[history] failed reading %s", MEMORY_PATH)
-        return []
+    for entry in _all_conversations():
+        md = entry.get("metadata") or {}
+        if md.get("person_id") != person_id:
+            continue
+        ts = entry.get("timestamp", "")
+        if ts and ts < cutoff:
+            continue
+        matches.append(entry)
 
     return matches[-limit:]
+
+
+def conversation_counts_by_person() -> dict[str, int]:
+    """Tally how many conversation entries each person has (tenant-scoped)."""
+    counts: dict[str, int] = {}
+    for entry in _all_conversations():
+        pid = (entry.get("metadata") or {}).get("person_id")
+        if pid:
+            counts[pid] = counts.get(pid, 0) + 1
+    return counts
 
 
 def format_for_prompt(entries: list[dict], *, max_chars: int = 200) -> str:

@@ -1,0 +1,108 @@
+# Local end-to-end stack mirroring the K8s topology:
+# gateway + worker + connector against Postgres, Redis, and minio (S3).
+#
+#   docker compose up --build
+#
+# Then onboard a tenant:
+#   curl -XPOST localhost:8080/admin/tenants -H "X-Admin-Token: dev-admin" \
+#        -H 'content-type: application/json' \
+#        -d '{"display_name":"Suhail","telegram_bot_token":"<token>","owner_telegram_id":123}'
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://cash:cash@postgres:5432/cash
+  REDIS_URL: redis://redis:6379/0
+  STORAGE_BACKEND: s3
+  S3_BUCKET: cash-uploads
+  S3_ENDPOINT_URL: http://minio:9000
+  S3_REGION: us-east-1
+  AWS_ACCESS_KEY_ID: minioadmin
+  AWS_SECRET_ACCESS_KEY: minioadmin
+  SECRETS_BACKEND: db
+  # Dev-only Fernet key. Generate prod keys with:
+  #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+  SECRETS_ENCRYPTION_KEY: 3aQ9o5b2Yk0r8mUu2t6w9z$$Bg7Hh2Kk5Nn8Qq1Ss4Vv=
+  ENFORCE_TENANT: "true"
+  TELEGRAM_WEBHOOK_SECRET: dev-webhook-secret
+  ADMIN_API_TOKEN: dev-admin
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  LOG_LEVEL: INFO
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cash
+      POSTGRES_PASSWORD: cash
+      POSTGRES_DB: cash
+    ports: ["5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cash"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    volumes:
+      - miniodata:/data
+
+  createbucket:
+    image: minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin) do sleep 1; done;
+      /usr/bin/mc mb -p local/cash-uploads;
+      exit 0;
+      "
+
+  gateway:
+    build: .
+    command: ["gateway"]
+    environment:
+      <<: *app-env
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  worker:
+    build: .
+    command: ["worker"]
+    environment:
+      <<: *app-env
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  connector:
+    build: .
+    command: ["discord-connector"]
+    environment:
+      <<: *app-env
+      CONNECTOR_SHARD_INDEX: "0"
+      CONNECTOR_SHARD_TOTAL: "1"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+volumes:
+  pgdata:
+  miniodata:

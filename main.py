@@ -9,46 +9,10 @@ import datetime as dt
 
 from dotenv import load_dotenv
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CallbackQueryHandler,
-    CommandHandler,
-    MessageHandler,
-    ContextTypes,
-    filters,
-)
+from telegram.ext import Application
 
 from services.user_profile import load_profile
-from bot.handlers.commands import (
-    cmd_start,
-    cmd_briefing,
-    cmd_tasks,
-    cmd_done,
-    cmd_add,
-    cmd_schedule,
-    cmd_conflicts,
-    cmd_rules,
-    cmd_decisions,
-    cmd_memory,
-    cmd_calendars,
-    cmd_settings,
-    cmd_emails,
-    cmd_email_detail,
-    cmd_email_prefs,
-    cmd_connect_google,
-    cmd_connect_gmail,
-    cmd_connect_outlook,
-    on_google_connected,
-    handle_email_feedback,
-)
-from bot.handlers.directives_commands import (
-    cmd_directives,
-    cmd_forget,
-    cmd_revoke,
-    cmd_unignore,
-)
-from bot.handlers.messages import handle_message
-from bot.handlers.files import handle_file
+from bot.handlers.commands import on_google_connected
 from bot.jobs import get_cal, get_gmail
 from services import oauth_server
 from bot.jobs import (
@@ -67,15 +31,6 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OWNER_ID = int(os.getenv("YOUR_TELEGRAM_USER_ID", "0"))
-
-
-def owner_only(func):
-    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if update.effective_user.id != OWNER_ID and OWNER_ID != 0:
-            await update.message.reply_text("⛔ This bot is private.")
-            return
-        return await func(update, context)
-    return wrapper
 
 
 async def _post_init(app: Application):
@@ -131,41 +86,9 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).post_init(_post_init).build()
 
-    # Pass owner_id to jobs via bot_data
-    app.bot_data["owner_id"] = OWNER_ID
-
-    # Wrap handlers with owner_only guard
-    app.add_handler(CommandHandler("start", owner_only(cmd_start)))
-    app.add_handler(CommandHandler("briefing", owner_only(cmd_briefing)))
-    app.add_handler(CommandHandler("tasks", owner_only(cmd_tasks)))
-    app.add_handler(CommandHandler("done", owner_only(cmd_done)))
-    app.add_handler(CommandHandler("add", owner_only(cmd_add)))
-    app.add_handler(CommandHandler("schedule", owner_only(cmd_schedule)))
-    app.add_handler(CommandHandler("conflicts", owner_only(cmd_conflicts)))
-    app.add_handler(CommandHandler("rules", owner_only(cmd_rules)))
-    app.add_handler(CommandHandler("decisions", owner_only(cmd_decisions)))
-    app.add_handler(CommandHandler("memory", owner_only(cmd_memory)))
-    app.add_handler(CommandHandler("calendars", owner_only(cmd_calendars)))
-    app.add_handler(CommandHandler("settings", owner_only(cmd_settings)))
-    app.add_handler(CommandHandler("emails", owner_only(cmd_emails)))
-    app.add_handler(CommandHandler("email_detail", owner_only(cmd_email_detail)))
-    app.add_handler(CommandHandler("email_prefs", owner_only(cmd_email_prefs)))
-    app.add_handler(CommandHandler("connect_google", owner_only(cmd_connect_google)))
-    app.add_handler(CommandHandler("connect_gmail", owner_only(cmd_connect_gmail)))
-    app.add_handler(CommandHandler("connect_outlook", owner_only(cmd_connect_outlook)))
-    app.add_handler(CallbackQueryHandler(handle_email_feedback, pattern=r"^email_fb:"))
-
-    # Directive management (Step 6)
-    app.add_handler(CommandHandler("directives", owner_only(cmd_directives)))
-    app.add_handler(CommandHandler("unignore",   owner_only(cmd_unignore)))
-    app.add_handler(CommandHandler("forget",     owner_only(cmd_forget)))
-    app.add_handler(CommandHandler("revoke",     owner_only(cmd_revoke)))
-
-    # Free text → Claude AI with memory
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, owner_only(handle_message)))
-
-    # File uploads (documents + photos) → persisted for later summarise/attach/send
-    app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, owner_only(handle_file)))
+    # Register the shared handler set (same wiring the multi-tenant worker uses).
+    from bot.app_factory import register_handlers
+    register_handlers(app, owner_id=OWNER_ID)
 
     # Scheduled jobs
     profile = load_profile()

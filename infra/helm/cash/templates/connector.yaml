@@ -1,0 +1,67 @@
+# StatefulSet so each Discord connector pod has a stable ordinal
+# (cash-connector-0, -1, ...). The pod derives CONNECTOR_SHARD_INDEX from its
+# name via POD_NAME, giving each pod a deterministic slice of tenants' bots.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "cash.name" . }}-connector
+  labels:
+    {{- include "cash.labels" . | nindent 4 }}
+    app.kubernetes.io/component: connector
+spec:
+  serviceName: {{ include "cash.name" . }}-connector
+  replicas: {{ .Values.connector.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "cash.name" . }}
+      app.kubernetes.io/component: connector
+  template:
+    metadata:
+      labels:
+        {{- include "cash.labels" . | nindent 8 }}
+        app.kubernetes.io/component: connector
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: connector
+          image: {{ include "cash.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["discord-connector"]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          envFrom:
+            {{- include "cash.envFrom" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.connector.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cash.name" . }}-connector
+  labels:
+    {{- include "cash.labels" . | nindent 4 }}
+    app.kubernetes.io/component: connector
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: {{ include "cash.name" . }}
+    app.kubernetes.io/component: connector
+  ports:
+    - name: metrics
+      port: 9000
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "cash.name" . }}-connector
+  labels:
+    {{- include "cash.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "cash.name" . }}
+      app.kubernetes.io/component: connector

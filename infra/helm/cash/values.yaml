@@ -1,0 +1,104 @@
+image:
+  repository: ghcr.io/alg0-labs/cash
+  tag: latest
+  pullPolicy: IfNotPresent
+
+redis:
+  # Point at your Redis service. With `helm install cash-redis bitnami/redis`
+  # the master service is `cash-redis-master`.
+  url: "redis://cash-redis-master:6379/0"
+
+# Non-secret configuration -> rendered into a ConfigMap.
+config:
+  STORAGE_BACKEND: s3
+  S3_BUCKET: cash-uploads
+  S3_REGION: us-central1
+  SECRETS_BACKEND: db
+  ENFORCE_TENANT: "true"
+  QUEUE_NAME: "cash:jobs"
+  PUBLIC_BASE_URL: "https://api.cash.example.com"
+  LOG_LEVEL: INFO
+  LOG_JSON: "true"
+  METRICS_ENABLED: "true"
+
+# Secrets are pulled from a cloud secret manager via External Secrets Operator
+# (preferred) or, for quick installs, set createSecret=true and fill values.
+externalSecrets:
+  enabled: true
+  secretStoreRef: gcp-secret-store          # ClusterSecretStore name
+  remoteKeys:
+    DATABASE_URL: cash-database-url
+    SECRETS_ENCRYPTION_KEY: cash-secrets-encryption-key
+    ANTHROPIC_API_KEY: cash-anthropic-api-key
+    TELEGRAM_WEBHOOK_SECRET: cash-telegram-webhook-secret
+    ADMIN_API_TOKEN: cash-admin-api-token
+
+createSecret: false
+secretValues: {}   # used only when createSecret=true (NOT for production)
+
+gateway:
+  replicas: 2
+  port: 8080
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits:   {cpu: 500m, memory: 512Mi}
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+worker:
+  replicas: 2
+  resources:
+    requests: {cpu: 250m, memory: 512Mi}
+    limits:   {cpu: "1",  memory: 1Gi}
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+connector:
+  replicas: 1            # also sets CONNECTOR_SHARD_TOTAL
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits:   {cpu: 500m, memory: 512Mi}
+
+ingress:
+  enabled: true
+  className: nginx
+  host: api.cash.example.com
+  tls:
+    enabled: true
+    secretName: cash-api-tls
+    clusterIssuer: letsencrypt-prod
+
+serviceMonitor:
+  enabled: true        # requires Prometheus Operator CRDs
+
+cron:
+  # K8s cron schedules (UTC). Adjust to your tenants' timezone reality.
+  jobs:
+    - name: morning-briefing
+      schedule: "0 1 * * *"     # 06:30 IST-ish
+      arg: morning_briefing
+    - name: trading-reminder
+      schedule: "15 3 * * 1-5"
+      arg: trading_reminder
+    - name: evening-summary
+      schedule: "30 17 * * *"
+      arg: evening_summary
+    - name: email-check
+      schedule: "*/30 * * * *"
+      arg: email_check
+    - name: directive-expiry
+      schedule: "30 21 * * *"
+      arg: directive_expiry
+    - name: summary-rollup
+      schedule: "0 22 * * *"
+      arg: summary_rollup
+
+serviceAccount:
+  name: cash
+  annotations: {}        # e.g. iam.gke.io/gcp-service-account for Workload Identity
