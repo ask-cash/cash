@@ -55,7 +55,7 @@ export const QUESTIONS: Question[] = [
     type: 'text',
     q: 'Great. What should Cash call you?',
     sub: 'Your name, so the welcome feels less robotic.',
-    placeholder: 'Jordan Mehta',
+    placeholder: 'Suhail',
   },
   {
     id: 'email',

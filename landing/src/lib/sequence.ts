@@ -2,6 +2,11 @@
 // action, then a finale clones the live hero scene so the logos emerge from the
 // exact scattered positions.
 import { logoSrc } from '../data/integrations'
+import { runChatOn } from './phoneChat'
+
+// Below this width the scroll-driven sequence is replaced with a single static
+// iPhone mockup — phones don't have the scroll runway and the hijack feels janky.
+const MOBILE_QUERY = '(max-width: 760px)'
 
 interface Step {
   key?: string
@@ -20,7 +25,7 @@ const STEPS: Step[] = [
   { key: 'Google Calendar', app: 'Calendar', t: 'Meeting rescheduled', s: 'Afternoon sync → 4:15 PM. Every invite updated automatically.' },
   { key: 'Coinbase', app: 'Coinbase', t: 'Portfolio summarized', s: '+2.4% today across BTC, ETH and SOL — with a morning brief.' },
   { key: 'TradingView', app: 'TradingView', t: 'Market alert created', s: '“Ping me if BTC drops 3%.” Watching it for you, around the clock.' },
-  { key: 'Gmail', app: 'Gmail', t: 'Email draft prepared', s: 'Reply to Priya drafted and waiting for your one-tap approval.' },
+  { key: 'Gmail', app: 'Gmail', t: 'Email draft prepared', s: 'Reply to Suhail drafted and waiting for your one-tap approval.' },
   { imessage: true, bubbles: ['Done — pushed it to 4:15 ✅', 'Anything else before your 5pm?'] },
 ]
 
@@ -41,6 +46,31 @@ export function initSequence() {
   const heroScene = document.getElementById('heroScene')
   const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
   const SEGS = STEPS.length + 1
+
+  // Mobile: drop the scroll choreography and just show a static iPhone mockup.
+  if (window.matchMedia(MOBILE_QUERY).matches) {
+    buildStaticPhone()
+    return
+  }
+
+  function buildStaticPhone() {
+    seq!.classList.add('seq-static')
+    const stage = seq!.querySelector<HTMLElement>('.stage')
+    const heroPhone = heroScene?.querySelector('.hero-phone')
+    if (!stage || !heroPhone) return
+    const wrap = document.createElement('div')
+    wrap.className = 'seq-static-phone'
+    const clone = heroPhone.cloneNode(true) as HTMLElement
+    clone.removeAttribute('id')
+    const chat = clone.querySelector<HTMLElement>('.hp-chat')
+    if (chat) {
+      chat.removeAttribute('id')
+      chat.innerHTML = ''
+    }
+    wrap.appendChild(clone)
+    stage.appendChild(wrap)
+    if (chat) runChatOn(chat)
+  }
 
   let scatterClone: HTMLElement | null = null
   function buildScatter() {
@@ -121,7 +151,7 @@ export function initSequence() {
       { me: false, x: 'Done. Moved it to 4:15 and looped in the team.' },
       { me: true, x: 'Perfect — thanks' },
       { typing: true },
-      { me: false, x: 'Also drafted your reply to Priya. Want me to send it?' },
+      { me: false, x: 'Also drafted your reply to Suhail. Want me to send it?' },
     ]
     let i = 0
     ;(function tick() {
