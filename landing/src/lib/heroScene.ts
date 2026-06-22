@@ -1,27 +1,7 @@
 // Hero scene: scattered integration logos that emerge from the phone, a looping
 // iMessage-style chat, pointer parallax, and edge action toasts.
 import { INTEGR } from '../data/integrations'
-
-interface ChatStep {
-  t: 'me' | 'cash' | 'typing' | 'act'
-  x?: string
-  src?: string
-  tt?: string
-  ss?: string
-}
-
-const CHAT: ChatStep[] = [
-  { t: 'me', x: 'Reschedule my afternoon sync' },
-  { t: 'typing' },
-  { t: 'cash', x: 'Done. Moved it to 4:15 and looped in the team.' },
-  { t: 'act', src: '/assets/logos/google-calendar.png', tt: 'Rescheduled meeting', ss: 'Now 4:15 PM · invites updated' },
-  { t: 'act', src: '/assets/logos/slack.svg', tt: 'Replied in Slack', ss: '#team · "moved to 4:15, thanks!"' },
-  { t: 'me', x: 'How are my markets looking?' },
-  { t: 'typing' },
-  { t: 'act', src: '/assets/logos/coinbase.png', tt: 'Crypto portfolio summarized', ss: '+2.4% today · BTC, ETH, SOL' },
-  { t: 'act', src: '/assets/logos/tradingview.svg', tt: 'Market alert created', ss: 'Ping me if BTC drops 3%' },
-  { t: 'act', src: '/assets/logos/gmail.svg', tt: 'Email draft prepared', ss: 'Reply to Priya · ready to review' },
-]
+import { runChatOn } from './phoneChat'
 
 const TOASTS = [
   { src: '/assets/logos/google-calendar.png' },
@@ -35,7 +15,7 @@ const TOAST_META = [
   { app: 'Slack', title: 'Replied in #team', msg: '“moved to 4:15, thanks!”' },
   { app: 'Coinbase', title: 'Portfolio summarized', msg: '+2.4% today · BTC, ETH, SOL' },
   { app: 'TradingView', title: 'Market alert created', msg: 'Ping me if BTC drops 3%' },
-  { app: 'Gmail', title: 'Draft prepared', msg: 'Reply to Priya · ready to review' },
+  { app: 'Gmail', title: 'Draft prepared', msg: 'Reply to Suhail · ready to review' },
 ]
 const ANCHORS = [
   { fx: 0.16, fy: 0.23 },
@@ -109,60 +89,6 @@ export function initHeroScene() {
         .join('') + '<span class="hlmore">&amp; more</span>'
   }
 
-  // ---- phone chat loop ----
-  function chatNode(step: ChatStep): HTMLElement {
-    if (step.t === 'me' || step.t === 'cash') {
-      const d = document.createElement('div')
-      d.className = 'cmsg ' + (step.t === 'me' ? 'me' : 'cash')
-      d.textContent = step.x ?? ''
-      return d
-    }
-    if (step.t === 'typing') {
-      const d = document.createElement('div')
-      d.className = 'ctyping'
-      d.innerHTML = '<i></i><i></i><i></i>'
-      return d
-    }
-    const d = document.createElement('div')
-    d.className = 'cact'
-    d.innerHTML = `<span class="ci"><img src="${step.src}" alt="" /></span><span class="ct">${step.tt}<small>${step.ss}</small></span><span class="cok">✓</span>`
-    return d
-  }
-  function runChat() {
-    if (!hpChat) return
-    let i = 0
-    const tick = () => {
-      const step = CHAT[i]
-      while (hpChat.children.length > 4) hpChat.removeChild(hpChat.firstChild!)
-      const node = chatNode(step)
-      hpChat.appendChild(node)
-      if (step.t === 'me') {
-        const dv = document.createElement('div')
-        dv.className = 'cdelivered'
-        dv.innerHTML = 'Delivered'
-        hpChat.appendChild(dv)
-      }
-      const wasTyping = step.t === 'typing'
-      i = (i + 1) % CHAT.length
-      if (i === 0) {
-        setTimeout(() => {
-          hpChat.innerHTML = ''
-          tick()
-        }, 2600)
-        return
-      }
-      if (wasTyping) {
-        setTimeout(() => {
-          if (node.parentNode) node.remove()
-          tick()
-        }, 1100)
-      } else {
-        setTimeout(tick, step.t === 'me' ? 900 : 1300)
-      }
-    }
-    tick()
-  }
-
   // ---- action toasts ----
   let toastEls: (HTMLElement & { _i?: number })[] = []
   function placeToasts() {
@@ -209,7 +135,7 @@ export function initHeroScene() {
   buildScene()
   buildHeroLogos()
   buildToasts()
-  runChat()
+  if (hpChat) runChatOn(hpChat)
 
   let st: ReturnType<typeof setTimeout>
   window.addEventListener('resize', () => {
