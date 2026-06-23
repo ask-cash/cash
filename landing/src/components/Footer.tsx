@@ -1,9 +1,9 @@
 import CashMark from './CashMark'
 
 // Contact / social links. Update these to the real destinations.
-const X_URL = 'https://x.com/'
-const GITHUB_URL = 'https://github.com/'
-const EMAIL = 'hello@cash.ai'
+const X_URL = 'https://x.com/suhaillahmadd'
+const GITHUB_URL = 'https://github.com/Alg0-labs/assistant-cash'
+const EMAIL = 'me@whysuhail.xyz'
 
 export default function Footer() {
   return (
