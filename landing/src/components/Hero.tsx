@@ -14,9 +14,9 @@ export default function Hero() {
       </div>
       <div className="wrap">
         <div className="hero-top">
-          <div className="pill-badge reveal in">
+          {/* <div className="pill-badge reveal in">
             <span className="tag">BETA</span> Now onboarding founders &amp; operators
-          </div>
+          </div> */}
           <h1 className="reveal in d1">
             One intelligence to run
             <br />
