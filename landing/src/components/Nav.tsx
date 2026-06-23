@@ -11,7 +11,7 @@ export default function Nav() {
           Cash
         </a>
         <nav className="nav-links" id="navLinks" aria-label="Primary">
-          <a href="#seq">Integrations</a>
+          <a href="#intmarq">Integrations</a>
           <a href="#ethos">Use Cases</a>
         </nav>
         <div className="nav-actions">

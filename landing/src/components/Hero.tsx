@@ -33,13 +33,6 @@ export default function Hero() {
           </div>
           <div className="hero-logos reveal" id="heroLogos" />
           <div className="hero-meta reveal in d4">
-            <span>
-              <b>2,400+</b> on the waitlist
-            </span>
-            <span className="d" />
-            <span>Live on Telegram</span>
-            <span className="d" />
-            <span>No credit card</span>
           </div>
         </div>
 

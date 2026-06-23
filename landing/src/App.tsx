@@ -41,10 +41,10 @@ export default function App() {
       <Nav />
       <main id="top">
         <Hero />
+        <Marquee />
         <Sequence />
         <Ethos />
         <Compare />
-        <Marquee />
       </main>
       <Footer />
       <WaitlistModal />
