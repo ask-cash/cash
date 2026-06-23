@@ -1217,7 +1217,17 @@ footer .wrap{ width:100%; }
 .cmark .ic svg{ width:12px; height:12px; }
 .compare .c-note{ text-align:center; margin-top:26px; font-size:13px; color:var(--ink-3); }
 @media(max-width:860px){
-  .ctable{ overflow-x:auto; } .crow{ grid-template-columns:160px repeat(4,200px); min-width:920px; }
+  .compare{ padding:84px 0 92px; }
+  .ctable{ overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:16px; }
+  .crow{ grid-template-columns:128px repeat(4,164px); min-width:max-content; }
+  .crow > div{ padding:14px 14px; font-size:12.5px; }
+  .crow-head > div{ padding:16px 14px; }
+  /* pin the row-label column while the competitor columns scroll sideways */
+  .crow .rlabel,
+  .crow-head > div:first-child{
+    position:sticky; left:0; z-index:3;
+    background:var(--surface); box-shadow:1px 0 0 var(--line);
+  }
 }
 
 .tf-overlay{ position:fixed; inset:0; z-index:300; background:var(--bg); display:none; flex-direction:column; opacity:0; transition:opacity .3s var(--ease); }
@@ -1280,3 +1290,20 @@ footer .wrap{ width:100%; }
 /* waitlist "saving" spinner */
 @keyframes tfspin{ to{ transform:rotate(360deg); } }
 .tf-spin{ animation:tfspin .9s linear infinite; transform-origin:center; }
+
+/* mobile: #seq is a single static iPhone mockup (no scroll choreography) */
+@media (max-width:760px){
+  #seq.seq-static{ height:auto !important; }
+  #seq.seq-static .stage{
+    position:static; height:auto; min-height:0; overflow:visible;
+    display:flex; flex-direction:column; align-items:center;
+    padding:6px 20px 78px;
+  }
+  #seq.seq-static .seq-eyebrow{ position:static; transform:none; margin:0 0 36px; }
+  #seq.seq-static .card,
+  #seq.seq-static .finale,
+  #seq.seq-static .seq-scatter,
+  #seq.seq-static .scue{ display:none !important; }
+  #seq .seq-static-phone{ display:flex; justify-content:center; width:100%; }
+  #seq .seq-static-phone .hero-phone{ opacity:1; transform:none; }
+}
