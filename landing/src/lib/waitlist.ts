@@ -76,6 +76,12 @@ export function initWaitlist() {
         str(Q.id) +
         '" autocomplete="' +
         (Q.type === 'email' ? 'email' : Q.id === 'name' ? 'name' : 'off') +
+        '" inputmode="' +
+        (Q.type === 'email' ? 'email' : 'text') +
+        // give the mobile keyboard a real action key (Go/Next) instead of a
+        // bare return — there is no desktop "Enter" affordance on a phone
+        '" enterkeyhint="' +
+        (i === QS.length - 1 ? 'go' : 'next') +
         '"></div>'
       h +=
         '<div class="tf-err" id="tfErr"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> <span></span></div>'

@@ -1281,7 +1281,19 @@ footer .wrap{ width:100%; }
 .tf-success .big{ font-size:clamp(30px,5vw,46px); font-weight:600; letter-spacing:-.03em; color:var(--ink); }
 .tf-success p{ font-size:17px; color:var(--ink-2); margin-top:15px; line-height:1.5; }
 .tf-success .rr{ margin-top:26px; display:inline-flex; gap:9px; align-items:center; font-size:13px; color:var(--ink-3); background:var(--surface-2); border:1px solid var(--line); padding:10px 16px; border-radius:999px; }
-@media(max-width:600px){ .tf-stage{ padding:76px 20px 96px; } }
+@media(max-width:600px){
+  /* anchor the question to the top so it doesn't jump between steps or when the
+     on-screen keyboard opens */
+  .tf-stage{ align-items:flex-start; justify-content:center; padding:84px 20px 40px; }
+  .tf-q{ font-size:26px; }
+  .tf-input{ margin-top:24px; }
+  .tf-input input{ font-size:18px; }
+  .tf-actions{ margin-top:24px; gap:12px; }
+  /* a single, obvious tap target replaces the "press Enter" affordance */
+  .tf-ok{ width:100%; justify-content:center; padding:16px 24px; font-size:16px; }
+  .tf-ok .arr{ display:none; }
+  .tf-keyhint{ display:none; }
+}
 
 /* footer social icon links (X · GitHub · email) */
 .foot-meta .soc a{ display:inline-flex; align-items:center; }
