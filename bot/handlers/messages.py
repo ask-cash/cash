@@ -32,7 +32,7 @@ from services.memory import (
     search_conversations,
 )
 from services.email_classifier import classify_emails, get_preferences_summary, mark_email_seen
-from services.files import find_by_ref, local_path_for
+from services.files import find_by_ref, local_path_for, set_drive_link
 from services.drive import upload_and_share, shorten_url
 from services.ai_brain import answer_about_file
 from bot.jobs import get_cal, get_gmail
@@ -708,6 +708,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             record = find_by_ref(params.get("file_ref", ""))
             if not record:
                 reply = "😿 No uploaded file to put on Drive — send me one first."
+            elif record.get("drive_web_link"):
+                # Already on Drive — return the saved link, do NOT re-upload.
+                existing = record.get("drive_short_link") or record["drive_web_link"]
+                link_line = (
+                    f"☁️ '{record['name']}' is already on your Drive.\n"
+                    f"🔗 {existing}"
+                )
+                reply = f"{reply}\n\n{link_line}" if reply else link_line
             else:
                 await update.message.reply_text(f"☁️ Uploading '{record['name']}' to Drive...")
                 drive_file = None
@@ -724,6 +732,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
                 if drive_file and drive_file.get("webViewLink"):
                     short = shorten_url(drive_file["webViewLink"])
+                    # Remember the link so future asks reuse it instead of re-uploading.
+                    set_drive_link(
+                        record["id"],
+                        drive_file_id=drive_file.get("id", ""),
+                        web_view_link=drive_file["webViewLink"],
+                        short_url=short,
+                    )
                     link_line = (
                         f"☁️ '{drive_file.get('name', record['name'])}' is on Drive.\n"
                         f"🔗 {short}"
@@ -750,17 +765,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     end = start + dt.timedelta(minutes=duration)
 
                     drive_file = None
-                    if target_cal == "google":
-                        await update.message.reply_text(f"☁️ Uploading '{record['name']}' to Drive...")
-                        drive_file = upload_and_share(
-                            local_path_for(record) or "",
-                            record.get("name", "upload"),
-                            record.get("mime_type", ""),
-                        )
-
                     short_link = ""
-                    if drive_file and drive_file.get("webViewLink"):
-                        short_link = shorten_url(drive_file["webViewLink"])
+                    if target_cal == "google":
+                        if record.get("drive_web_link"):
+                            # Already on Drive — reuse the saved link, don't re-upload.
+                            drive_file = {
+                                "id": record.get("drive_file_id", ""),
+                                "name": record.get("name", "upload"),
+                                "mimeType": record.get("mime_type", ""),
+                                "webViewLink": record["drive_web_link"],
+                            }
+                            short_link = record.get("drive_short_link") or shorten_url(record["drive_web_link"])
+                        else:
+                            await update.message.reply_text(f"☁️ Uploading '{record['name']}' to Drive...")
+                            drive_file = upload_and_share(
+                                local_path_for(record) or "",
+                                record.get("name", "upload"),
+                                record.get("mime_type", ""),
+                            )
+                            if drive_file and drive_file.get("webViewLink"):
+                                short_link = shorten_url(drive_file["webViewLink"])
+                                set_drive_link(
+                                    record["id"],
+                                    drive_file_id=drive_file.get("id", ""),
+                                    web_view_link=drive_file["webViewLink"],
+                                    short_url=short_link,
+                                )
 
                     description_lines = [f"📎 {record['name']}"]
                     if short_link:
