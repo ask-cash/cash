@@ -7,10 +7,15 @@ import logging
 import os
 import re
 import datetime as dt
+from types import SimpleNamespace
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from services.user_profile import load_profile, today as ist_today
+from services.onboarding import assistant as onboarding_assistant
+from services.onboarding import profiles as onboarding_profiles
+from services.onboarding import runtime as onboarding_runtime
+
+from services.user_profile import load_profile, today as ist_today, now as ist_now, get_tz
 from services.task_tracker import initialize_daily_tasks, format_tasks, add_task, mark_done
 from services.scheduler import resolve_conflicts, format_suggestions
 from services.ai_brain import interpret_message
@@ -31,6 +36,9 @@ from services.files import find_by_ref, local_path_for
 from services.drive import upload_and_share, shorten_url
 from services.ai_brain import answer_about_file
 from bot.jobs import get_cal, get_gmail
+from services import reminders
+from services.tenancy import tenant_context
+from services.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +51,33 @@ DAY_NAMES = {
     "saturday": 5, "sat": 5,
     "sunday": 6, "sun": 6,
 }
+
+
+async def _fire_reminder(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """JobQueue callback: deliver a reminder, then clear it from the store."""
+    data = context.job.data or {}
+    try:
+        await context.bot.send_message(
+            chat_id=data["chat_id"], text=f"⏰ Reminder: {data.get('text', '')}"
+        )
+    except Exception:
+        logger.exception("Failed to deliver reminder %s", data.get("id"))
+    # Clear it under its own tenant context (the JobQueue callback does not
+    # inherit the poller's tenant contextvar).
+    try:
+        with tenant_context(data.get("tenant_id") or settings.default_tenant_id):
+            reminders.remove(data.get("id"))
+    except Exception:
+        logger.exception("Failed to clear reminder %s", data.get("id"))
+
+
+def schedule_reminder_job(job_queue, rec: dict) -> None:
+    """Schedule a persisted reminder on the JobQueue. Idempotent by job name."""
+    when = dt.datetime.fromisoformat(rec["when"])
+    name = f"reminder:{rec['id']}"
+    for job in job_queue.get_jobs_by_name(name):
+        job.schedule_removal()
+    job_queue.run_once(_fire_reminder, when=when, data=rec, name=name)
 
 
 def _resolve_date(date_str: str) -> dt.date:
@@ -172,7 +207,7 @@ async def _try_handle_as_directive(update: Update, user_msg: str) -> bool:
         )
         if not candidates:
             await update.message.reply_text(
-                f"🐾 I don't know anyone called '{proposal.target_hint}' yet — "
+                f"I don't know anyone called '{proposal.target_hint}' yet — "
                 f"they need to interact with me at least once before I can "
                 f"{proposal.action} them. Try again after they've shown up."
             )
@@ -183,7 +218,7 @@ async def _try_handle_as_directive(update: Update, user_msg: str) -> bool:
                 for p in candidates[:5]
             )
             await update.message.reply_text(
-                f"🐾 Multiple people match '{proposal.target_hint}':\n{lines}\n\n"
+                f"Multiple people match '{proposal.target_hint}':\n{lines}\n\n"
                 f"Try again with the exact handle or paste the person_id."
             )
             return True
@@ -194,7 +229,7 @@ async def _try_handle_as_directive(update: Update, user_msg: str) -> bool:
     if proposal.action == "unignore":
         if not target_person_id:
             await update.message.reply_text(
-                "🐾 Need a target to unignore. Try 'unignore @alice'."
+                "Need a target to unignore. Try 'unignore @alice'."
             )
             return True
         active = await asyncio.to_thread(
@@ -207,12 +242,12 @@ async def _try_handle_as_directive(update: Update, user_msg: str) -> bool:
                     revoked += 1
         if revoked:
             await update.message.reply_text(
-                f"🐾 Revoked {revoked} ignore directive(s) for {target_name}. "
+                f"Revoked {revoked} ignore directive(s) for {target_name}. "
                 f"I'll respond to them again."
             )
         else:
             await update.message.reply_text(
-                f"🐾 No active ignore directives found for {target_name} — "
+                f"No active ignore directives found for {target_name} — "
                 f"nothing to revoke."
             )
         return True
@@ -254,7 +289,7 @@ async def _try_handle_as_directive(update: Update, user_msg: str) -> bool:
         scope_phrase += f" in #{proposal.scope_channel}"
 
     await update.message.reply_text(
-        f"🐾 Got it — {proposal.action} for {target_name}{scope_phrase}{expires_phrase}.\n"
+        f"Got it — {proposal.action} for {target_name}{scope_phrase}{expires_phrase}.\n"
         f"Directive {directive_id}."
     )
     logger.info(
@@ -262,6 +297,58 @@ async def _try_handle_as_directive(update: Update, user_msg: str) -> bool:
         directive_id, proposal.action, target_person_id,
     )
     return True
+
+
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Top-level text dispatcher: owner -> private assistant, others -> onboarding.
+
+    Replaces the old owner-only gate on the message handler so Cash can serve
+    new customers. The owner still gets the full private assistant
+    (handle_message); everyone else is recognised, onboarded if new, or given a
+    scoped customer assistant if already active. Owner data is never exposed to
+    non-owners (active customers go through services.onboarding.assistant).
+    """
+    msg = update.message
+    if msg is None or not msg.text:
+        return
+
+    owner_id = int(context.bot_data.get("owner_id", 0) or 0)
+    uid = update.effective_user.id if update.effective_user else 0
+    # owner_id == 0 means "no owner configured" -> legacy single-user dev mode,
+    # treat the sender as the owner (onboarding effectively off).
+    is_owner = owner_id == 0 or uid == owner_id
+
+    if is_owner:
+        await handle_message(update, context)
+        return
+
+    # Non-owner path: onboarding / customer assistant.
+    person_id = await _resolve_telegram_author(update)
+    chat = update.effective_chat
+    is_direct = getattr(chat, "type", "private") == "private"
+
+    log_message(
+        "user", msg.text,
+        metadata={"surface": "telegram", "person_id": person_id} if person_id else None,
+    )
+
+    ev = SimpleNamespace(text=msg.text, is_owner=False, is_direct=is_direct)
+    rr = await asyncio.to_thread(onboarding_runtime.route, ev, person_id)
+    if rr.handled:
+        await msg.reply_text(rr.reply)
+        log_message("assistant", rr.reply,
+                    metadata={"surface": "telegram", "person_id": person_id, "outcome": "onboarding"} if person_id else None)
+        return
+
+    # Active customer -> scoped assistant (never the owner's private brain).
+    profile = await asyncio.to_thread(onboarding_profiles.get_profile, person_id)
+    if profile is None:
+        await msg.reply_text("One sec — let me get you set up.")
+        return
+    reply = await asyncio.to_thread(onboarding_assistant.customer_reply, profile, person_id, msg.text)
+    await msg.reply_text(reply)
+    log_message("assistant", reply,
+                metadata={"surface": "telegram", "person_id": person_id, "outcome": "customer-assistant"} if person_id else None)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -361,20 +448,101 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 duration = params.get("duration_minutes", 60)
                 end = start + dt.timedelta(minutes=duration)
                 result = cal.create_event(title, start, end, calendar=target_cal)
+                # The actual calendar result is authoritative — NOT the LLM's
+                # pre-written `reply`, which is generated before the action runs
+                # and would otherwise claim success even when nothing was created.
                 if result:
-                    reply = reply or f"📅 Created '{title}' at {params.get('start_time')} on {event_date.strftime('%A, %b %d')} ({target_cal.capitalize()} Calendar)."
+                    reply = f"📅 Created '{title}' at {params.get('start_time')} on {event_date.strftime('%A, %b %d')} ({target_cal.capitalize()} Calendar)."
                 else:
-                    reply = reply or (
-                        f"😿 Failed to create '{title}' on {target_cal.capitalize()} "
-                        "Calendar. The calendar may not be connected."
+                    reply = (
+                        f"😿 I couldn't create '{title}' — your {target_cal.capitalize()} "
+                        "Calendar isn't connected yet. Send /connect_google to link it, "
+                        "then I'll add it for you."
                     )
             except Exception as e:
                 logger.error("Failed to create event '%s': %s", title, e)
                 reply = (
-                    reply
-                    or f"😿 Failed to create '{title}' on {target_cal.capitalize()} "
-                    f"Calendar: {e}"
+                    f"😿 I couldn't create '{title}' on {target_cal.capitalize()} "
+                    f"Calendar — {e}"
                 )
+
+        elif action == "create_recurring_events":
+            cal = get_cal()
+            target_cal = params.get("calendar", "google")
+            template = (params.get("title_template") or params.get("title") or "Event").strip()
+            try:
+                first_date = _resolve_date((params.get("start_date") or params.get("date") or "today").strip().lower())
+                start_time = dt.time.fromisoformat(params.get("start_time", "09:00"))
+                duration = int(params.get("duration_minutes", 60))
+                interval = max(1, int(params.get("interval_days", 7)))
+                count = max(1, min(int(params.get("count", 1)), 60))  # cap to avoid runaway batches
+
+                created: list[tuple[str, dt.date]] = []
+                failed: list[tuple[str, dt.date, str]] = []
+                for i in range(count):
+                    event_date = first_date + dt.timedelta(days=interval * i)
+                    title = template.format(n=i + 1) if "{n}" in template else template
+                    start = dt.datetime.combine(event_date, start_time)
+                    end = start + dt.timedelta(minutes=duration)
+                    try:
+                        result = cal.create_event(title, start, end, calendar=target_cal)
+                        if result:
+                            created.append((title, event_date))
+                        else:
+                            failed.append((title, event_date, "calendar not connected"))
+                    except Exception as e:
+                        logger.error("Failed to create recurring event '%s': %s", title, e)
+                        failed.append((title, event_date, str(e)))
+
+                # The action result is authoritative — never the LLM's pre-written reply.
+                lines = [
+                    f"📅 Created {len(created)} of {count} events on "
+                    f"{target_cal.capitalize()} Calendar:"
+                ]
+                lines += [f"✅ {t} — {d.strftime('%a, %b %d, %Y')}" for t, d in created]
+                if failed:
+                    lines.append(f"\n⚠️ {len(failed)} couldn't be created:")
+                    lines += [f"❌ {t} — {d.strftime('%b %d')}: {err}" for t, d, err in failed]
+                reply = "\n".join(lines)
+            except Exception as e:
+                logger.error("create_recurring_events failed: %s", e)
+                reply = f"😿 I couldn't set up that recurring series — {e}"
+
+        elif action == "set_reminder":
+            text = (params.get("text") or "your reminder").strip()
+            try:
+                r_date = _resolve_date((params.get("date") or "today").strip().lower())
+                r_time = dt.time.fromisoformat(params.get("time", "09:00"))
+                when_dt = dt.datetime.combine(r_date, r_time, tzinfo=get_tz())
+                if when_dt <= ist_now():
+                    reply = (
+                        f"⚠️ {when_dt.strftime('%b %d at %I:%M %p')} is already past — "
+                        "give me a future time and I'll ping you."
+                    )
+                else:
+                    rec = reminders.add(text, when_dt.isoformat(), update.effective_chat.id)
+                    schedule_reminder_job(context.job_queue, rec)
+                    reply = (
+                        f"⏰ Done — I'll ping you at "
+                        f"{when_dt.strftime('%I:%M %p on %b %d')}: \"{text}\""
+                    )
+            except Exception as e:
+                logger.error("set_reminder failed: %s", e)
+                reply = f"😿 I couldn't set that reminder — {e}"
+
+        elif action == "show_reminders":
+            pending = reminders.list_pending()
+            if not pending:
+                reply = "You have no reminders set."
+            else:
+                lines = ["⏰ Your reminders:"]
+                for r in pending:
+                    try:
+                        when_str = dt.datetime.fromisoformat(r["when"]).strftime("%b %d, %I:%M %p")
+                    except Exception:
+                        when_str = r.get("when", "?")
+                    lines.append(f"• {when_str} — {r.get('text', '')}")
+                reply = "\n".join(lines)
 
         elif action == "delete_event":
             cal = get_cal()

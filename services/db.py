@@ -45,6 +45,24 @@ def _now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def from_row(cls, row):
+    """Build a dataclass instance from a DB row, dropping columns the dataclass
+    doesn't declare.
+
+    The physical tables carry an internal ``tenant_id`` column (for RLS) that
+    the application-layer dataclasses (Person, Directive, PlatformIdentity,
+    PersonSummary) deliberately don't model. ``cls(**dict(row))`` would raise on
+    that extra key for any freshly-created schema; this helper keeps the read
+    path tenant-transparent. Works for both sqlite3.Row and the Postgres row
+    wrapper (both expose ``.keys()`` and item access).
+    """
+    import dataclasses
+
+    field_names = {f.name for f in dataclasses.fields(cls)}
+    data = {k: row[k] for k in row.keys() if k in field_names}
+    return cls(**data)
+
+
 # ---------------------------------------------------------------------------
 # Schema. Forward-only, idempotent. Two dialects share the same logical model.
 # ---------------------------------------------------------------------------
@@ -404,10 +422,21 @@ def _bootstrap_sqlite() -> None:
     logger.info("[db] SQLite schema ready at %s", settings.sqlite_path)
 
 
+# Arbitrary constant identifying the bootstrap DDL critical section. All roles
+# use the same key so only one runs schema/RLS DDL at a time.
+_BOOTSTRAP_LOCK_KEY = 911_002_001
+
+
 def _bootstrap_postgres() -> None:
     pool = _get_pool()
     with pool.connection() as conn:
         with conn.cursor() as cur:
+            # Serialize bootstrap across processes. When several roles
+            # (gateway/worker/connector/telegram) start at once, running the
+            # RLS DDL (ALTER TABLE ... ENABLE RLS / CREATE POLICY on the same
+            # tables) concurrently deadlocks. A transaction-scoped advisory lock
+            # makes the others wait, then run the idempotent DDL as a no-op.
+            cur.execute("SELECT pg_advisory_xact_lock(%s)", (_BOOTSTRAP_LOCK_KEY,))
             for stmt in _split_statements(_PG_SCHEMA):
                 cur.execute(stmt)
             for stmt in _pg_rls_statements():

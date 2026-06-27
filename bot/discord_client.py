@@ -119,7 +119,7 @@ def main() -> None:
     async def on_ready():
         bot_id = client.user.id if client.user else None
         logger.info(
-            "🐾 Cash connected to Discord as %s (id=%s) in %d guilds",
+            "Cash connected to Discord as %s (id=%s) in %d guilds",
             client.user, bot_id, len(client.guilds),
         )
         if bot_id and bot_id != cash_id:

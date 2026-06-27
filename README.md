@@ -163,3 +163,27 @@ Cash is not a generic assistant. She is a cat.
 - **Catchphrase when Suhail slacks:** *"I did NOT wake up at 4:30 AM for this."*
 
 Her tone is warm and caring but she will absolutely call you out. She remembers everything, and she's not shy about bringing it up.
+
+---
+
+## Multi-Platform Architecture
+
+Cash works across Discord, Telegram, and (via adapters) Slack and Teams, with
+per-person memory and enforceable directives ("ignore X", "auto-reply to Y").
+
+- Design: [`docs/architecture/cash-multi-platform-architecture.md`](docs/architecture/cash-multi-platform-architecture.md)
+- Adapter & composer layer: [`docs/architecture/cash-platform-adapters.md`](docs/architecture/cash-platform-adapters.md)
+- **Adding a new platform** = one adapter file + one composer style module; the
+  schema and rules don't change.
+
+## Tests
+
+```bash
+./venv/bin/python -m unittest discover -s tests -v
+```
+
+No network, no API key, no real DB touched. See [`docs/testing.md`](docs/testing.md).
+
+> **Note (privacy/v1):** Encryption at rest is out of scope for v1 — the SQLite
+> file at `user_data/cash.db` is unencrypted. Don't forget this before
+> onboarding company (Slack/Teams) data.

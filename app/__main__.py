@@ -5,6 +5,7 @@ Roles:
   gateway            -> uvicorn server for app.gateway:app
   worker             -> queue consumer (app.worker)
   discord-connector  -> Discord gateway pool (app.discord_connector)
+  telegram-poller    -> long-poll Telegram from .env (no webhook; app.telegram_poller)
   cron <job_name>    -> fan out a scheduled job to all tenants (app.cron)
 """
 
@@ -40,6 +41,10 @@ def main() -> None:
         from app.discord_connector import main as connector_main
 
         connector_main()
+    elif role == "telegram-poller":
+        from app.telegram_poller import main as poller_main
+
+        poller_main()
     elif role == "cron":
         if len(sys.argv) < 3:
             print("usage: python -m app cron <job_name>")

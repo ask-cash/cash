@@ -63,13 +63,13 @@ async def _resolve_discord_user_to_person(
     )
     if pi is None:
         return None, (
-            f"🐾 No record for {user.mention} yet — they need to interact "
+            f"No record for {user.mention} yet — they need to interact "
             f"with me at least once before I can act on them."
         )
     person = await asyncio.to_thread(identity_people.get_person, pi.person_id)
     if person is None:
         # Shouldn't happen (FK), but be defensive.
-        return None, "🐾 Identity row exists but person record is missing — please report this."
+        return None, "Identity row exists but person record is missing — please report this."
     return person, None
 
 
@@ -89,9 +89,9 @@ def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
             return
         actives = await asyncio.to_thread(directives_store.list_active)
         if not actives:
-            await interaction.response.send_message("🐾 No active directives.", ephemeral=True)
+            await interaction.response.send_message("No active directives.", ephemeral=True)
             return
-        body = "🐾 **Active directives**\n" + "\n".join(
+        body = "**Active directives**\n" + "\n".join(
             _format_directive_line(d) for d in actives[:25]
         )
         if len(actives) > 25:
@@ -122,10 +122,10 @@ def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
                 if directives_store.revoke(d.directive_id):
                     revoked += 1
         msg = (
-            f"🐾 Revoked {revoked} ignore directive(s) for **{target.canonical_name}**. "
+            f"Revoked {revoked} ignore directive(s) for **{target.canonical_name}**. "
             f"I'll respond to them again."
             if revoked
-            else f"🐾 No active ignore directives for **{target.canonical_name}**."
+            else f"No active ignore directives for **{target.canonical_name}**."
         )
         await interaction.response.send_message(msg, ephemeral=True)
 
@@ -151,9 +151,9 @@ def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
                 if directives_store.revoke(d.directive_id):
                     revoked += 1
         msg = (
-            f"🐾 Revoked {revoked} directive(s) targeting **{target.canonical_name}**."
+            f"Revoked {revoked} directive(s) targeting **{target.canonical_name}**."
             if revoked
-            else f"🐾 No active directives targeting **{target.canonical_name}**."
+            else f"No active directives targeting **{target.canonical_name}**."
         )
         await interaction.response.send_message(msg, ephemeral=True)
 

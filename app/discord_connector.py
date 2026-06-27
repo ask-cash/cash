@@ -66,11 +66,28 @@ def _guild_allowlist(tenant_id: str) -> set[int]:
     return out
 
 
+def _env_int(name: str) -> int:
+    raw = os.getenv(name, "")
+    return int(raw) if raw.strip().isdigit() else 0
+
+
+def _env_guild_allowlist() -> set[int]:
+    out: set[int] = set()
+    for part in os.getenv("DISCORD_ALLOWED_GUILD_IDS", "").split(","):
+        part = part.strip()
+        if part.isdigit():
+            out.add(int(part))
+    return out
+
+
 async def _run_tenant_client(tenant_id: str, token: str, scheduler: AsyncIOScheduler) -> None:
     with tenant_context(tenant_id):
-        cash_id = _int_secret(tenant_id, "discord_cash_user_id")
-        owner_id = _int_secret(tenant_id, "discord_owner_user_id")
-        allowed_guilds = _guild_allowlist(tenant_id)
+        # Per-tenant vault values win; fall back to .env so a single-tenant local
+        # run works straight from .env (DISCORD_CASH_USER_ID / *_SUHAIL_USER_ID /
+        # *_ALLOWED_GUILD_IDS) with no DB onboarding required.
+        cash_id = _int_secret(tenant_id, "discord_cash_user_id") or _env_int("DISCORD_CASH_USER_ID")
+        owner_id = _int_secret(tenant_id, "discord_owner_user_id") or _env_int("DISCORD_SUHAIL_USER_ID")
+        allowed_guilds = _guild_allowlist(tenant_id) or _env_guild_allowlist()
 
     intents = discord.Intents.default()
     intents.message_content = True
@@ -151,7 +168,20 @@ async def run() -> None:
     scheduler.start()
 
     tasks = []
+
+    # Env-based single-tenant bootstrap: if DISCORD_BOT_TOKEN is set, run that
+    # bot for the default tenant straight from .env — no DB onboarding needed.
+    # This is the local "take the bot from .env" path; the env bot is
+    # authoritative for the default tenant (any DB row for it is skipped).
+    env_token = os.getenv("DISCORD_BOT_TOKEN", "").strip()
+    env_tenant = settings.default_tenant_id
+    if env_token and _owns(env_tenant, all_ids + [env_tenant]):
+        logger.info("[%s] starting discord bot from .env (DISCORD_BOT_TOKEN)", env_tenant)
+        tasks.append(asyncio.create_task(_run_tenant_client(env_tenant, env_token, scheduler)))
+
     for bot in mine:
+        if env_token and bot.tenant_id == env_tenant:
+            continue  # env bot already covers the default tenant
         with system_context():
             token = tenant_registry.get_bot_token(bot.tenant_id, "discord")
         if not token:

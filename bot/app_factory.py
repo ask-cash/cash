@@ -32,7 +32,7 @@ from bot.handlers.commands import (
 from bot.handlers.directives_commands import (
     cmd_directives, cmd_forget, cmd_revoke, cmd_unignore,
 )
-from bot.handlers.messages import handle_message
+from bot.handlers.messages import handle_text_message
 from bot.handlers.files import handle_file
 
 
@@ -79,7 +79,9 @@ def register_handlers(app: Application, owner_id: int = 0) -> None:
     app.add_handler(CommandHandler("forget", guard(cmd_forget)))
     app.add_handler(CommandHandler("revoke", guard(cmd_revoke)))
 
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, guard(handle_message)))
+    # NOT owner-guarded: handle_text_message authenticates internally so the
+    # owner gets the private assistant while new users enter onboarding.
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
     app.add_handler(MessageHandler(filters.Document.ALL | filters.PHOTO, guard(handle_file)))
 
 

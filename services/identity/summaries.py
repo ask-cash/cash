@@ -26,6 +26,7 @@ from services.identity.history import (
     recent_for_person,
 )
 from services.identity.people import get_person
+from services.db import from_row
 from services.identity.store import connect
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,7 @@ def get_summary_row(person_id: str) -> Optional[PersonSummary]:
         row = conn.execute(
             "SELECT * FROM person_summaries WHERE person_id = ?", (person_id,),
         ).fetchone()
-    return PersonSummary(**dict(row)) if row else None
+    return from_row(PersonSummary, row) if row else None
 
 
 def get_summary_md(person_id: str) -> str:

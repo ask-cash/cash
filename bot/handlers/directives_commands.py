@@ -63,10 +63,10 @@ def _resolve_hint_to_one(hint: str) -> tuple[Optional[object], Optional[str]]:
     """Resolve a hint to (person, error_message). One of the two is None."""
     candidates = identity_people.find_by_hint(hint)
     if not candidates:
-        return None, f"🐾 No one matches '{hint}'."
+        return None, f"No one matches '{hint}'."
     if len(candidates) > 1:
         names = "\n".join(f"  • {p.canonical_name} ({p.person_id})" for p in candidates[:5])
-        return None, f"🐾 Multiple match '{hint}':\n{names}\n\nRetry with the exact handle or paste the person_id."
+        return None, f"Multiple match '{hint}':\n{names}\n\nRetry with the exact handle or paste the person_id."
     return candidates[0], None
 
 
@@ -77,10 +77,10 @@ def _resolve_hint_to_one(hint: str) -> tuple[Optional[object], Optional[str]]:
 async def cmd_directives(update: Update, context: ContextTypes.DEFAULT_TYPE):
     actives = await asyncio.to_thread(directives_store.list_active)
     if not actives:
-        await update.message.reply_text("🐾 No active directives.")
+        await update.message.reply_text("No active directives.")
         return
 
-    lines = ["🐾 *Active directives:*"]
+    lines = ["*Active directives:*"]
     for d in actives[:MAX_DIRECTIVES_LISTED]:
         lines.append(_format_directive_line(d))
     if len(actives) > MAX_DIRECTIVES_LISTED:
@@ -107,10 +107,10 @@ async def cmd_revoke(update: Update, context: ContextTypes.DEFAULT_TYPE):
     directive_id = args[0].strip()
     revoked = await asyncio.to_thread(directives_store.revoke, directive_id)
     if revoked:
-        await update.message.reply_text(f"🐾 Revoked `{directive_id}`.", parse_mode="Markdown")
+        await update.message.reply_text(f"Revoked `{directive_id}`.", parse_mode="Markdown")
     else:
         await update.message.reply_text(
-            f"🐾 No active directive with id `{directive_id}` — already revoked, expired, or not found.",
+            f"No active directive with id `{directive_id}` — already revoked, expired, or not found.",
             parse_mode="Markdown",
         )
 
@@ -139,13 +139,13 @@ async def cmd_unignore(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 revoked += 1
     if revoked:
         await update.message.reply_text(
-            f"🐾 Revoked {revoked} ignore directive(s) for *{target.canonical_name}*. "
+            f"Revoked {revoked} ignore directive(s) for *{target.canonical_name}*. "
             f"I'll respond to them again.",
             parse_mode="Markdown",
         )
     else:
         await update.message.reply_text(
-            f"🐾 No active ignore directives for *{target.canonical_name}*.",
+            f"No active ignore directives for *{target.canonical_name}*.",
             parse_mode="Markdown",
         )
 
@@ -178,12 +178,12 @@ async def cmd_forget(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 revoked += 1
     if revoked:
         await update.message.reply_text(
-            f"🐾 Revoked {revoked} directive(s) targeting *{target.canonical_name}*. "
+            f"Revoked {revoked} directive(s) targeting *{target.canonical_name}*. "
             f"They start with a clean slate.",
             parse_mode="Markdown",
         )
     else:
         await update.message.reply_text(
-            f"🐾 No active directives targeting *{target.canonical_name}*.",
+            f"No active directives targeting *{target.canonical_name}*.",
             parse_mode="Markdown",
         )
