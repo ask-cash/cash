@@ -1,14 +1,25 @@
 """
-user_profile.py — Loads ALL your defaults from .env so you configure once.
-No separate JSON to maintain. Everything lives in environment variables.
+user_profile.py — The owner's profile (name, timezone, routines, rules).
+
+Source of truth is the DATABASE, per tenant: the `tenants` record (name +
+timezone) plus a per-tenant ``profile/owner`` document in the kv store for the
+richer fields. ``.env`` provides only the bootstrap defaults used when the DB
+has nothing yet, so a fresh deployment still works before onboarding writes a
+profile. Precedence (low → high): env defaults < tenant record < profile doc.
 """
 
 import os
+import logging
 import datetime as dt
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+_PROFILE_NS = "profile"
+_PROFILE_KEY = "owner"
 
 
 def get_tz() -> ZoneInfo:
@@ -32,8 +43,17 @@ def _split(val: str, sep: str = ",") -> list[str]:
     return [x.strip() for x in val.split(sep) if x.strip()]
 
 
-def load_profile() -> dict:
-    """Build the full profile dict from environment variables."""
+def _merge(base: dict, override: dict) -> None:
+    """Deep-merge ``override`` into ``base`` in place (dicts recurse)."""
+    for k, v in override.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            _merge(base[k], v)
+        elif v not in (None, ""):
+            base[k] = v
+
+
+def _env_profile() -> dict:
+    """Bootstrap defaults from environment variables (used when DB is empty)."""
 
     # Parse gym routine: "Mon:Chest + Triceps|Tue:Back + Biceps|..."
     gym_routine = {}
@@ -93,3 +113,46 @@ def load_profile() -> dict:
 
         "default_tasks": default_tasks,
     }
+
+
+def load_profile() -> dict:
+    """The owner's profile for the active tenant.
+
+    Starts from env defaults, then overlays the DB: the tenant record (name +
+    timezone) and the per-tenant ``profile/owner`` document. Best-effort — if
+    the DB or tenant context is unavailable we fall back to env so callers always
+    get a usable profile.
+    """
+    profile = _env_profile()
+    try:
+        from services import state_store
+        from services.tenancy import current_tenant_id
+
+        try:
+            from services import tenant_registry
+            rec = tenant_registry.get_tenant(current_tenant_id())
+            if rec:
+                # Skip placeholder display names like "Default" — not a person.
+                if rec.display_name and rec.display_name.strip().lower() != "default":
+                    profile["name"] = rec.display_name
+                if getattr(rec, "timezone", ""):
+                    profile["timezone"] = rec.timezone
+        except Exception:
+            logger.debug("load_profile: tenant record overlay skipped", exc_info=True)
+
+        stored = state_store.read_json(_PROFILE_NS, _PROFILE_KEY, default=None)
+        if isinstance(stored, dict) and stored:
+            _merge(profile, stored)
+    except Exception:
+        logger.debug("load_profile: DB overlay unavailable, using env defaults", exc_info=True)
+    return profile
+
+
+def save_profile(updates: dict) -> dict:
+    """Persist owner-profile overrides to the per-tenant DB doc; return merged profile."""
+    from services import state_store
+
+    stored = state_store.read_json(_PROFILE_NS, _PROFILE_KEY, default={}) or {}
+    _merge(stored, updates)
+    state_store.write_json(_PROFILE_NS, _PROFILE_KEY, stored)
+    return load_profile()
