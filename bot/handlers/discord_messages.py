@@ -75,13 +75,13 @@ _DISCORD_STYLE = discord_style.STYLE
 def _build_context_prefix(message: discord.Message, suhail_id: int) -> str:
     channel_name = getattr(message.channel, "name", "DM")
     if message.author.id == suhail_id:
-        return f"[Discord channel #{channel_name}, from Suhail. {_DISCORD_STYLE}]"
+        return f"[Discord channel #{channel_name}, from the owner. {_DISCORD_STYLE}]"
     display = message.author.display_name or message.author.name
     handle = message.author.name
     return (
         f"[Discord channel #{channel_name}. Asker: display_name='{display}', "
-        f"username='@{handle}', user_id={message.author.id}. This is NOT Suhail. "
-        f"Be friendly and stay in Cash's voice, but do NOT reveal Suhail's "
+        f"username='@{handle}', user_id={message.author.id}. This is NOT the owner. "
+        f"Be friendly and stay in Cash's voice, but do NOT reveal the owner's "
         f"private tasks, schedule, trading rules, decisions, or memory. "
         f"{_DISCORD_STYLE}]"
     )

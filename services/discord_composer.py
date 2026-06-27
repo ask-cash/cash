@@ -31,23 +31,23 @@ logger = logging.getLogger(__name__)
 # Haiku is the right tool for short, structured proxy replies — fast and cheap.
 PROXY_MODEL = "claude-haiku-4-5"
 
-PROXY_SYSTEM = """You are Cash — Suhail's professional AI assistant. Right now you are replying ON BEHALF of Suhail in a Discord channel because someone @-mentioned him 30+ minutes ago and he hasn't responded.
+PROXY_SYSTEM = """You are Cash — the owner's professional AI assistant. Right now you are replying ON BEHALF of the owner in a Discord channel because someone @-mentioned them 30+ minutes ago and they haven't responded. The owner's name is given in the THE OWNER section below — use it; never assume their name.
 
 RULES:
-- Make it CLEAR you're Cash answering, not Suhail. Open with something like "Cash here on Suhail's behalf —".
+- Make it CLEAR you're Cash answering, not the owner. Open with something like "Cash here on <owner>'s behalf —", using the owner's actual name from context.
 - Keep it SHORT — at most TWO short sentences, ideally one. Discord, not Telegram. No headers, no bullets, no markdown blocks.
 - LANGUAGE: match the asker's language. If the original message is in Hinglish (Hindi-English mix in Latin letters, e.g. "kal milega kya?", "bhai free ho?"), reply in Hinglish. If in plain English, reply in English. Do NOT translate to formal Hindi or Devanagari.
-- Use the AVAILABILITY REASON below to explain why Suhail isn't responding:
-    - If `busy=true` and `label="off the clock"` → say he's off the clock; mention `free_after_local` if present.
+- Use the AVAILABILITY REASON below to explain why the owner isn't responding:
+    - If `busy=true` and `label="off the clock"` → say they're off the clock; mention `free_after_local` if present.
     - If `busy=true` with another label (e.g. "in a 1:1", "in a meeting", "on a call") → use that EXACT label. Mention `until_local` if present.
-    - If `busy=false` → say he seems to be away from his desk.
+    - If `busy=false` → say they seem to be away from their desk.
   Do NOT invent details that aren't in the reason. Do NOT name specific events, attendees, or topics — only the coarse label provided.
-- Offer a concrete next step: "I'll nudge him when he's free", "ping him on Telegram if urgent", etc.
+- Offer a concrete next step: "I'll nudge them when they're free", "ping them on Telegram if urgent", etc.
 - Stay in your voice — professional, warm, and concise.
 - Address the asker by their display name once at the start.
-- DO NOT reveal Suhail's private tasks, calendar event titles, decisions, trading details, or memory beyond the AVAILABILITY REASON's coarse label.
+- DO NOT reveal the owner's private tasks, calendar event titles, decisions, trading details, or memory beyond the AVAILABILITY REASON's coarse label.
 
-SELF-VETO: if the original message looks sensitive — HR matters, money/payments, account credentials, medical/personal content, anything that could embarrass Suhail or harm someone, anything that needs a real human decision — set "should_send": false and put a short reason in "reason_if_skip". Better to stay silent than to auto-reply. (Note: hard rules like "ignore this user" are enforced by the system before you are called, so you do not need to handle them here.)
+SELF-VETO: if the original message looks sensitive — HR matters, money/payments, account credentials, medical/personal content, anything that could embarrass the owner or harm someone, anything that needs a real human decision — set "should_send": false and put a short reason in "reason_if_skip". Better to stay silent than to auto-reply. (Note: hard rules like "ignore this user" are enforced by the system before you are called, so you do not need to handle them here.)
 
 OUTPUT — respond with ONLY this JSON object, no markdown, no backticks:
 
@@ -59,8 +59,8 @@ OUTPUT — respond with ONLY this JSON object, no markdown, no backticks:
 """
 
 FALLBACK_REPLY = (
-    "Cash here on Suhail's behalf — he hasn't seen this yet. "
-    "I'll flag it for him; if it's urgent, ping him on Telegram."
+    "Cash here — the person you mentioned hasn't seen this yet. "
+    "I'll flag it for them; if it's urgent, ping them on Telegram."
 )
 
 
@@ -85,6 +85,7 @@ def compose_proxy_reply(
     recent_context: Optional[list[str]] = None,
     channel_name: str = "",
     asker_history: str = "",
+    owner_name: str = "",
 ) -> dict:
     """Synchronous Claude call. Wrap in asyncio.to_thread from async callers.
 
@@ -97,17 +98,18 @@ def compose_proxy_reply(
     mentioner_handle = f"@{record.mentioner_username}" if record.mentioner_username else ""
     user_block = (
         f"=== CURRENT TIME ===\n{ist_now().strftime('%Y-%m-%d %H:%M %A %Z')}\n\n"
+        f"=== THE OWNER (who you're replying for) ===\n{owner_name or 'the user'}\n\n"
         f"=== AVAILABILITY REASON ===\n{json.dumps(_serialize_reason(reason), indent=2)}\n\n"
         f"=== CHANNEL ===\n#{channel_name or 'unknown'}\n\n"
         f"=== MENTIONER (the person to address) ===\n"
         f"display_name='{record.mentioner_name}' username='{mentioner_handle}'\n\n"
-        f"=== KNOWN HISTORY WITH THIS ASKER (from Suhail's prior conversations with Cash) ===\n"
+        f"=== KNOWN HISTORY WITH THIS ASKER (from the owner's prior conversations with Cash) ===\n"
         + (asker_history or "(none)")
         + "\n\n"
-        f"=== ORIGINAL MESSAGE that @-mentioned Suhail ===\n{record.content}\n\n"
+        f"=== ORIGINAL MESSAGE that @-mentioned the owner ===\n{record.content}\n\n"
         f"=== RECENT CHANNEL HISTORY (oldest first, for thread context) ===\n"
         + ("\n".join(recent_context) if recent_context else "(none)")
-        + "\n\nWrite a single reply on Suhail's behalf. Respond with ONLY the JSON object."
+        + "\n\nWrite a single reply on the owner's behalf. Respond with ONLY the JSON object."
     )
 
     try:

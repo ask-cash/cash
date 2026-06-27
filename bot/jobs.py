@@ -72,7 +72,7 @@ async def scheduled_morning_briefing(context: ContextTypes.DEFAULT_TYPE):
         suggestions = resolve_conflicts(events, profile)
         conflicts_text = format_suggestions(suggestions)
         briefing = generate_briefing(events_text, tasks_text, conflicts_text)
-        await context.bot.send_message(chat_id=owner_id, text=f"☀️ Good morning, Suhail. Here's your briefing for the day.\n\n{briefing}")
+        await context.bot.send_message(chat_id=owner_id, text=f"☀️ Good morning, {profile.get('name', 'there')}. Here's your briefing for the day.\n\n{briefing}")
         log_message("assistant", "Morning briefing sent", {"type": "scheduled_briefing"})
     except Exception as e:
         logger.error(f"Morning briefing error: {e}")

@@ -164,7 +164,7 @@ def classify_emails(emails: list[dict]) -> list[dict]:
 
     feedback_context = _build_feedback_context(prefs)
 
-    prompt = f"""You are an email classifier for a busy professional named Suhail. Classify each email as:
+    prompt = f"""You are an email classifier for a busy professional. Classify each email as:
 - "important": Personal emails, work-related, financial alerts, calendar invites, emails from real people who expect a reply, urgent notifications
 - "low_priority": Newsletters they subscribed to, social media notifications, non-urgent updates, order confirmations, routine automated emails
 - "spam": Marketing/promotional, unsolicited, scams, mass-mailed offers, unsubscribed lists

@@ -81,7 +81,7 @@ def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
 
     @tree.command(
         name="cash-directives",
-        description="List Cash's active directives (Suhail only).",
+        description="List Cash's active directives (owner only).",
     )
     async def cash_directives(interaction: discord.Interaction):
         if not _is_suhail(interaction):

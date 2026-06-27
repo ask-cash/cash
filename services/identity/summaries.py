@@ -40,13 +40,13 @@ SUMMARIZER_SYSTEM = """You produce compact summaries of Cash's chat history with
 Your output is read by another LLM (Cash itself) when composing replies. Aim for 4–6 short markdown bullets that capture:
 - their tone / communication style (formal, casual, terse, hinglish, etc.)
 - topics they typically discuss with Cash
-- any preferences, recurring themes, or context Suhail has shared about them
+- any preferences, recurring themes, or context the owner has shared about them
 - anything actionable Cash should remember (e.g. they prefer Telegram, they're in a different timezone, etc.)
 
 Do NOT:
 - include direct quotes longer than ~10 words
 - speculate about facts not present in the history
-- mention Suhail's private business (trading rules, calendar specifics, etc.)
+- mention the owner's private business (trading rules, calendar specifics, etc.)
 - exceed ~200 tokens
 
 Output PLAIN markdown bullets only — no preamble, no headers, no closing line."""
