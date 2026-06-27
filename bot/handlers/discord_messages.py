@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DiscordContext:
     cash_id: int
-    suhail_id: int
+    owner_id: int
     allowed_guild_ids: set[int]
     queue: DiscordQueue
     scheduler: AsyncIOScheduler
@@ -53,7 +53,7 @@ class DiscordContext:
     def get_adapter(self) -> DiscordAdapter:
         """Lazily build the platform adapter from this context's ids."""
         if self.adapter is None:
-            self.adapter = DiscordAdapter(cash_id=self.cash_id, suhail_id=self.suhail_id)
+            self.adapter = DiscordAdapter(cash_id=self.cash_id, owner_id=self.owner_id)
         return self.adapter
 
 
@@ -72,9 +72,9 @@ def _proxy_job_id(message_id: int) -> str:
 _DISCORD_STYLE = discord_style.STYLE
 
 
-def _build_context_prefix(message: discord.Message, suhail_id: int) -> str:
+def _build_context_prefix(message: discord.Message, owner_id: int) -> str:
     channel_name = getattr(message.channel, "name", "DM")
-    if message.author.id == suhail_id:
+    if message.author.id == owner_id:
         return f"[Discord channel #{channel_name}, from the owner. {_DISCORD_STYLE}]"
     display = message.author.display_name or message.author.name
     handle = message.author.name
@@ -171,7 +171,7 @@ async def _reply_as_cash(
         composer_base.build_person_context, person_id, soft_hints=decision.soft_hints,
     )
     memory_block = composer_base.render_context_block(person_ctx)
-    prompt = f"{_build_context_prefix(message, ctx.suhail_id)}\n"
+    prompt = f"{_build_context_prefix(message, ctx.owner_id)}\n"
     if memory_block:
         prompt += f"{memory_block}\n"
     prompt += user_msg
@@ -212,7 +212,7 @@ def schedule_proxy_job(ctx: DiscordContext, record: PendingReply) -> None:
             "message_id": record.message_id,
             "queue": ctx.queue,
             "client": ctx.client,
-            "suhail_id": ctx.suhail_id,
+            "owner_id": ctx.owner_id,
         },
         id=_proxy_job_id(record.message_id),
         misfire_grace_time=STALE_FIRE_GRACE_SECONDS,
@@ -220,7 +220,7 @@ def schedule_proxy_job(ctx: DiscordContext, record: PendingReply) -> None:
     )
 
 
-async def _enqueue_suhail_mention(
+async def _enqueue_owner_mention(
     message: discord.Message, ctx: DiscordContext, *, person_id: Optional[str] = None,
 ) -> None:
     delay_minutes = random.randint(ctx.proxy_min_minutes, ctx.proxy_max_minutes)
@@ -293,7 +293,7 @@ async def handle_discord_message(message: discord.Message, ctx: DiscordContext) 
     # Direct messages (no guild) from non-owner users are the onboarding /
     # customer-assistant surface — handled before the guild allowlist, which
     # only governs server channels.
-    if message.guild is None and message.author.id != ctx.suhail_id:
+    if message.guild is None and message.author.id != ctx.owner_id:
         await _handle_direct_message(message, ctx)
         return
 
@@ -306,7 +306,7 @@ async def handle_discord_message(message: discord.Message, ctx: DiscordContext) 
 
     # Cancellation signal: Suhail himself posted in this channel — anything
     # earlier-than-this-post is now considered "seen" and shouldn't proxy.
-    if message.author.id == ctx.suhail_id:
+    if message.author.id == ctx.owner_id:
         cancelled = await ctx.queue.cancel_in_channel_before(
             channel_id=message.channel.id,
             before=message.created_at,
@@ -321,8 +321,8 @@ async def handle_discord_message(message: discord.Message, ctx: DiscordContext) 
         await _reply_as_cash(message, ctx, person_id=person_id)
         return
 
-    if ctx.suhail_id in mentioned_ids and message.author.id != ctx.suhail_id:
-        await _enqueue_suhail_mention(message, ctx, person_id=person_id)
+    if ctx.owner_id in mentioned_ids and message.author.id != ctx.owner_id:
+        await _enqueue_owner_mention(message, ctx, person_id=person_id)
 
 
 # ---------------------------------------------------------------------------
@@ -366,7 +366,7 @@ async def handle_raw_reaction_add(
     payload: discord.RawReactionActionEvent, ctx: DiscordContext
 ) -> None:
     """If Suhail reacts to a tracked mention, treat it as 'seen' and cancel."""
-    if payload.user_id != ctx.suhail_id:
+    if payload.user_id != ctx.owner_id:
         return
     record = ctx.queue.get(payload.message_id)
     if record is None or record.status != "pending":

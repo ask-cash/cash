@@ -83,10 +83,14 @@ def _env_guild_allowlist() -> set[int]:
 async def _run_tenant_client(tenant_id: str, token: str, scheduler: AsyncIOScheduler) -> None:
     with tenant_context(tenant_id):
         # Per-tenant vault values win; fall back to .env so a single-tenant local
-        # run works straight from .env (DISCORD_CASH_USER_ID / *_SUHAIL_USER_ID /
+        # run works straight from .env (DISCORD_CASH_USER_ID / DISCORD_OWNER_USER_ID /
         # *_ALLOWED_GUILD_IDS) with no DB onboarding required.
         cash_id = _int_secret(tenant_id, "discord_cash_user_id") or _env_int("DISCORD_CASH_USER_ID")
-        owner_id = _int_secret(tenant_id, "discord_owner_user_id") or _env_int("DISCORD_SUHAIL_USER_ID")
+        owner_id = (
+            _int_secret(tenant_id, "discord_owner_user_id")
+            or _env_int("DISCORD_OWNER_USER_ID")
+            or _env_int("DISCORD_SUHAIL_USER_ID")  # legacy name, kept for back-compat
+        )
         allowed_guilds = _guild_allowlist(tenant_id) or _env_guild_allowlist()
 
     intents = discord.Intents.default()
@@ -100,7 +104,7 @@ async def _run_tenant_client(tenant_id: str, token: str, scheduler: AsyncIOSched
 
     ctx = DiscordContext(
         cash_id=cash_id,
-        suhail_id=owner_id,
+        owner_id=owner_id,
         allowed_guild_ids=allowed_guilds,
         queue=q,
         scheduler=scheduler,

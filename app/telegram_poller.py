@@ -37,6 +37,18 @@ logger = logging.getLogger(__name__)
 
 
 def _owner_id() -> int:
+    """The owner's Telegram user id for this tenant.
+
+    Prefers the ``owner_telegram_id`` secret written at onboarding (DB-backed,
+    per tenant); falls back to env for local single-tenant runs.
+    """
+    try:
+        from services import secrets as secret_vault
+        val = secret_vault.get_secret("owner_telegram_id", tenant_id=settings.default_tenant_id)
+        if val and val.strip().isdigit():
+            return int(val)
+    except Exception:
+        logger.debug("[telegram-poller] owner_telegram_id secret lookup failed; using env", exc_info=True)
     raw = os.getenv("YOUR_TELEGRAM_USER_ID") or os.getenv("TG_OWNER_ID") or "0"
     return int(raw) if raw.strip().isdigit() else 0
 

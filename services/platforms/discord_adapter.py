@@ -29,9 +29,9 @@ class DiscordAdapter(PlatformAdapter):
     max_chars = discord_style.MAX_CHARS
     workspace_is_global = True
 
-    def __init__(self, *, cash_id: int, suhail_id: int):
+    def __init__(self, *, cash_id: int, owner_id: int):
         self.cash_id = cash_id
-        self.suhail_id = suhail_id
+        self.owner_id = owner_id
 
     def normalize(self, raw_event: Any) -> Optional[IncomingEvent]:
         """Map a discord.Message to an IncomingEvent. Returns None for bots."""
@@ -54,10 +54,10 @@ class DiscordAdapter(PlatformAdapter):
             display_name=message.author.display_name,
             handle=message.author.name,
             message_id=str(message.id),
-            is_owner=(message.author.id == self.suhail_id),
+            is_owner=(message.author.id == self.owner_id),
             is_direct=(guild is None),
             mentions_cash=(self.cash_id in mentioned_ids),
-            mentions_owner=(self.suhail_id in mentioned_ids),
+            mentions_owner=(self.owner_id in mentioned_ids),
             raw=message,
             metadata={"guild_id": getattr(guild, "id", None)},
         )
