@@ -3,7 +3,7 @@ import Nav from './components/Nav'
 import Hero from './components/Hero'
 import Sequence from './components/Sequence'
 import Ethos from './components/Ethos'
-import Compare from './components/Compare'
+// import Compare from './components/Compare'
 import Marquee from './components/Marquee'
 import Footer from './components/Footer'
 import WaitlistModal from './components/WaitlistModal'
@@ -12,7 +12,7 @@ import { initNav } from './lib/nav'
 import { initEthos } from './lib/ethos'
 import { initHeroScene } from './lib/heroScene'
 import { initSequence } from './lib/sequence'
-import { initCompareTable } from './lib/compareTable'
+// import { initCompareTable } from './lib/compareTable'
 import { initMarquee } from './lib/marquee'
 import { initWaitlist } from './lib/waitlist'
 
@@ -31,7 +31,7 @@ export default function App() {
     initEthos()
     initHeroScene() // must run before the sequence, which clones the hero scene
     initSequence()
-    initCompareTable()
+    // initCompareTable()
     initMarquee()
     initWaitlist()
   }, [])
@@ -44,7 +44,7 @@ export default function App() {
         <Marquee />
         <Sequence />
         <Ethos />
-        <Compare />
+        {/* <Compare /> */}
       </main>
       <Footer />
       <WaitlistModal />
