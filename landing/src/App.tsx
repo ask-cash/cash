@@ -44,7 +44,7 @@ export default function App() {
         <Marquee />
         <Sequence />
         <Ethos />
-        <Compare />
+        {/* <Compare /> */}
       </main>
       <Footer />
       <WaitlistModal />
