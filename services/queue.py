@@ -32,6 +32,11 @@ TELEGRAM_UPDATE = "telegram_update"
 DISCORD_EVENT = "discord_event"
 CRON = "cron"
 
+# Outbound (Cash-initiated) delivery: separate per-(platform, tenant) lists so a
+# connector pops only the work for the platform it owns a live client for. This
+# is the spine of cross-platform send (design: cash-cross-platform-presence.md §2).
+OUTBOUND_PREFIX = "cash:outbound"
+
 
 def _client():
     global _redis
@@ -65,6 +70,60 @@ def dequeue(timeout: int = 5) -> Optional[dict]:
     except json.JSONDecodeError:
         logger.error("Dropping malformed job: %r", raw[:200])
         return None
+
+
+def _outbound_key(platform: str, tenant_id: str) -> str:
+    return f"{OUTBOUND_PREFIX}:{platform}:{tenant_id}"
+
+
+def enqueue_outbound(platform: str, tenant_id: str, payload: dict) -> None:
+    """Queue a Cash-initiated message for delivery by the platform's connector.
+
+    ``payload`` carries the destination + text, e.g.
+    ``{"to": "owner", "text": "...", "idempotency_key": "<uuid>"}`` or an explicit
+    ``{"platform_user_id": "123", ...}``. The connector resolves "owner" against
+    the id it already holds, so producers don't need the platform's user id.
+    """
+    job = {
+        "platform": platform,
+        "tenant_id": tenant_id,
+        "payload": payload,
+        "enqueued_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+    _client().lpush(_outbound_key(platform, tenant_id), json.dumps(job))
+
+
+def dequeue_outbound(platform: str, tenant_id: str, timeout: int = 5) -> Optional[dict]:
+    """Blocking pop of one outbound job for (platform, tenant). None on timeout.
+
+    Synchronous/blocking — call from a thread (``asyncio.to_thread``) inside an
+    event loop so the connector's gateway socket isn't starved.
+    """
+    result = _client().brpop(_outbound_key(platform, tenant_id), timeout=timeout)
+    if result is None:
+        return None
+    _, raw = result
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        logger.error("Dropping malformed outbound job: %r", raw[:200])
+        return None
+
+
+def claim_idempotency(key: str, ttl_seconds: int = 86400) -> bool:
+    """Atomically claim an idempotency key. True if newly claimed, False if seen.
+
+    Backs at-most-once delivery across redelivery/retries. Fails open (returns
+    True) if Redis is unreachable — a possible duplicate message beats dropping
+    a delivery the user asked for.
+    """
+    if not key:
+        return True
+    try:
+        return bool(_client().set(f"{OUTBOUND_PREFIX}:idem:{key}", "1", nx=True, ex=ttl_seconds))
+    except Exception:
+        logger.exception("idempotency claim failed for %s", key)
+        return True
 
 
 def ping() -> bool:

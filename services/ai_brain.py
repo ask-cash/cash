@@ -90,9 +90,13 @@ Available actions:
   - start_date is the FIRST occurrence (concrete YYYY-MM-DD). The system computes the rest as start_date + interval_days*i. Do NOT enumerate the dates yourself.
   - count is the total number of events (max 60). The system creates them and reports exactly how many succeeded — your "reply" is replaced by that authoritative result, so do NOT list the dates or claim success in "reply"; just say you're creating them.
 - "delete_event" — delete/remove a calendar event (params: {"event_title": "...", "event_time": "HH:MM" (24h format, include if the user references the event by time e.g. "the 9 am event" → "09:00"), "date": "today|tomorrow|YYYY-MM-DD", "source": "google|outlook|auto"})
-- "set_reminder" — schedule Cash to message the user at a specific FUTURE time (a proactive ping). Use this whenever the user asks to be reminded / pinged / notified / nudged at or in some time. params: {"text": "what to remind them about", "date": "YYYY-MM-DD", "time": "HH:MM" (24h)}
-  Resolve relative times to a concrete date + 24h time using CURRENT TIME — "in 30 minutes", "at 5pm", "tonight", "tomorrow 9am" all become a concrete date+time. YES you CAN send proactive reminders now — NEVER say you can only respond when messaged or that you can't notify/ping the user.
+- "set_reminder" — schedule ONE proactive ping at a specific FUTURE time. params: {"text": "what to remind them about", "date": "YYYY-MM-DD", "time": "HH:MM" (24h)}
+  Resolve relative times to a concrete date + 24h time using CURRENT TIME — "in 30 minutes", "at 5pm", "tonight", "tomorrow 9am" all become a concrete date+time. YES you CAN send proactive reminders now — NEVER say you can only respond when messaged.
+  TIME-RELATIVE TO AN EVENT: for "an hour before my dentist appointment" / "30 min before standup", find that event in the CALENDAR block above and subtract from its REAL start time (dentist at 18:00 → remind at 17:00). NEVER guess the event's time — if it's not in the CALENDAR block, say you can't find that event and ask for the time.
+- "set_reminders" — schedule MULTIPLE reminders in one go. Use this whenever the user asks for more than one reminder in a single message (a single set_reminder can only create one). params: {"reminders": [{"text": "...", "date": "YYYY-MM-DD", "time": "HH:MM"}, {"text": "...", "date": "...", "time": "..."}]}
 - "show_reminders" — list the user's pending reminders (params: {})
+- "update_profile" — save what the user tells you about themselves / their routine (name, timezone, wake/sleep, work-study-gym-market hours, recurring commitments, how they want help). Use whenever they share any of this — especially during cold-start setup. params: a PARTIAL profile with ONLY the fields they gave, e.g. {"name": "...", "timezone": "Area/City", "wake_time": "HH:MM", "sleep_time": "HH:MM", "gym": {"default_time": "HH:MM", "duration_minutes": N, "days": ["Mon","Wed","Fri"]}, "trading": {"market_open": "HH:MM", "market_close": "HH:MM"}, "default_tasks": [{"time": "HH:MM", "category": "...", "task": "..."}]}
+- "send_platform_message" — proactively send a message to the user on ANOTHER platform (right now: Discord). Use whenever the user asks you to message / ping / DM / "tell me on" Discord. params: {"platform": "discord", "text": "the message to send"}. It's delivered to the user's own Discord DM. YES you CAN do this now — never say you can only respond in this chat.
 - "search_memory" — search past conversations (params: {"query": "..."})
 - "show_decisions" — show active decisions/intentions (params: {})
 - "show_calendars" — show connected calendar status (params: {})
@@ -145,6 +149,14 @@ CRITICAL — DO NOT FABRICATE STATE:
 - create_event/create_recurring_events do NOT set reminders/notifications. NEVER claim an event has "a 1-hour reminder" or "reminder at 5 PM" — that feature does not exist.
 - If you are not sure an event exists or what time it is, use show_schedule / show_briefing to check rather than guessing. Do not assert calendar contents you have not verified.
 
+CRITICAL — COLD START / NO ROUTINE ON FILE:
+- If the USER PROFILE says "ROUTINE: NONE ON FILE", you genuinely do NOT know their schedule, gym, work/study hours, sleep, or trading. NEVER invent defaults or claim you "have" a routine — saying you have a 7:30 gym or 9:15 market open when nothing is on file is a serious error.
+- For a new or routine-less person: warmly introduce yourself, then ask about their day-to-day and how they'd like help. One step at a time — don't interrogate.
+- Make it generic to ANY audience (student, founder, parent, trader, 9-to-5, shift worker). A good first ask: "I don't have your routine yet — tell me about a typical day: when you usually wake and sleep, your work/study hours, anything recurring (gym, classes, meetings, market hours), and what you'd like me to help you stay on top of."
+- When they share details, capture them with update_profile (ONLY the fields they actually gave) and confirm what you saved.
+- As part of first-time setup, also invite them to connect their calendar so you can see and manage their schedule: tell them to send /connect_google. Do this early — a connected calendar is core to how you help.
+- NEVER claim to see a schedule/events when the calendar isn't connected. If asked about the calendar and it isn't connected, say it isn't connected yet and prompt /connect_google (the action result is authoritative on this).
+
 CRITICAL for delete_event and move_event:
 - When the user references an event by time (e.g. "the 9 am event", "my 2pm call"), ALWAYS include event_time in params. This is more reliable than guessing the title.
 - When the user references an event by name, include event_title. Include both if both are mentioned.
@@ -152,8 +164,49 @@ CRITICAL for delete_event and move_event:
 """
 
 
-def interpret_message(user_message: str) -> dict:
-    """Send user message to Claude with full memory context."""
+def _profile_block(profile: dict) -> str:
+    """Render the USER PROFILE context — only what the user has actually told us.
+
+    When no routine is on file, say so explicitly so the model asks for it
+    instead of inventing defaults.
+    """
+    from services.user_profile import has_routine
+
+    name = profile.get("name") or "(unknown — ask them their name)"
+    lines = [f"Name: {name}", f"Timezone: {profile.get('timezone') or '(unknown)'}"]
+
+    if not has_routine(profile):
+        lines.append(
+            "ROUTINE: NONE ON FILE. You have ZERO knowledge of this person's schedule, "
+            "sleep, gym, work/study hours, or trading. Do NOT assume or invent any. "
+            "Offer to set it up and ask for their routine (see COLD START rule)."
+        )
+        return "\n".join(lines)
+
+    gym = profile.get("gym", {}) or {}
+    trading = profile.get("trading", {}) or {}
+    if profile.get("wake_time") or profile.get("sleep_time"):
+        lines.append(f"Wake: {profile.get('wake_time') or '?'} | Sleep: {profile.get('sleep_time') or '?'}")
+    if gym.get("default_time") or gym.get("days"):
+        lines.append(f"Gym: {gym.get('default_time') or '?'} ({gym.get('duration_minutes') or '?'}min), days: {gym.get('days') or []}")
+        today_gym = (gym.get("routine") or {}).get(ist_now().strftime('%a'))
+        if today_gym:
+            lines.append(f"Today's gym: {today_gym}")
+    if trading.get("market_open") or trading.get("rules"):
+        lines.append(
+            f"Trading: {trading.get('market_open') or '?'}-{trading.get('market_close') or '?'}, "
+            f"rules on file: {len(trading.get('rules') or [])}"
+        )
+    return "\n".join(lines)
+
+
+def interpret_message(user_message: str, calendar_context: str = "") -> dict:
+    """Send user message to Claude with full memory context.
+
+    ``calendar_context`` is the user's real today/tomorrow events (injected by the
+    caller, which owns the live calendar client). Ground time-relative requests
+    like "remind me an hour before my dentist appointment" on THIS, never a guess.
+    """
     client = get_client()
     profile = load_profile()
     tasks = get_tasks_summary()
@@ -161,14 +214,11 @@ def interpret_message(user_message: str) -> dict:
     active_decisions = get_active_decisions()
 
     context = f"""
-=== USER PROFILE (from .env defaults) ===
-Name: {profile['name']}
-Timezone: {profile['timezone']}
-Wake: {profile['wake_time']} | Sleep: {profile['sleep_time']}
-Gym: {profile['gym']['default_time']} for {profile['gym']['duration_minutes']}min, days: {profile['gym']['days']}
-Today's gym: {profile['gym']['routine'].get(ist_now().strftime('%a'), 'Rest day')}
-Trading: Market {profile['trading']['market_open']}-{profile['trading']['market_close']}
-Rules count: {len(profile['trading']['rules'])}
+=== USER PROFILE ===
+{_profile_block(profile)}
+
+=== CALENDAR (real events — use these exact times for anything time-relative) ===
+{calendar_context or "(not provided)"}
 
 === TODAY'S TASKS ===
 Done: {[t['task'] for t in tasks['done']]}

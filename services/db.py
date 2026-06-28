@@ -81,6 +81,8 @@ _SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS tenants (
     tenant_id    TEXT PRIMARY KEY,
     display_name TEXT,
+    email        TEXT,
+    is_admin     INTEGER NOT NULL DEFAULT 0,
     timezone     TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     status       TEXT NOT NULL DEFAULT 'active',
     created_at   TEXT NOT NULL
@@ -185,10 +187,15 @@ _PG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS tenants (
     tenant_id    TEXT PRIMARY KEY,
     display_name TEXT,
+    email        TEXT,
+    is_admin     BOOLEAN NOT NULL DEFAULT false,
     timezone     TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     status       TEXT NOT NULL DEFAULT 'active',
     created_at   TEXT NOT NULL
 );
+-- Migrations for DBs created before email/is_admin existed (idempotent).
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS tenant_bots (
     tenant_id       TEXT NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
@@ -416,10 +423,27 @@ def _bootstrap_sqlite() -> None:
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(_SQLITE_SCHEMA)
+        _sqlite_add_missing_columns(conn, "tenants", {
+            "email": "TEXT",
+            "is_admin": "INTEGER NOT NULL DEFAULT 0",
+        })
         conn.commit()
     finally:
         conn.close()
     logger.info("[db] SQLite schema ready at %s", settings.sqlite_path)
+
+
+def _sqlite_add_missing_columns(conn, table: str, columns: dict[str, str]) -> None:
+    """Idempotent ADD COLUMN for SQLite (no native IF NOT EXISTS).
+
+    Reads the live column set via PRAGMA and adds only what's missing, so
+    existing databases pick up new columns without a destructive rebuild.
+    """
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    for name, ddl in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+            logger.info("[db] migrated SQLite: added %s.%s", table, name)
 
 
 # Arbitrary constant identifying the bootstrap DDL critical section. All roles

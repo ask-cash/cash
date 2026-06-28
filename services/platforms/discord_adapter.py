@@ -24,6 +24,29 @@ from services.platforms.base import IncomingEvent, OutgoingMessage, PlatformAdap
 logger = logging.getLogger(__name__)
 
 
+async def deliver(client: Any, user_id: int, text: str, *, max_chars: int = discord_style.MAX_CHARS) -> str:
+    """Initiate a DM to a Discord user by id (Cash-initiated, not a reply).
+
+    Used by the connector's outbound consumer. Separate from ``DiscordAdapter.send``
+    (which replies to an inbound message) because outbound delivery has no source
+    event and must open the DM channel itself. Returns the sent message id.
+
+    Raises on failure (user not found, DMs closed, no mutual guild) so the caller
+    can log/report — never silently swallows.
+    """
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("refusing to deliver empty message")
+    if len(text) > max_chars:
+        text = text[: max_chars - 1] + "…"
+    user = client.get_user(user_id)
+    if user is None:
+        # Not in cache (common for an owner who hasn't messaged the bot) — fetch.
+        user = await client.fetch_user(user_id)
+    sent = await user.send(text)
+    return str(sent.id)
+
+
 class DiscordAdapter(PlatformAdapter):
     name = "discord"
     max_chars = discord_style.MAX_CHARS

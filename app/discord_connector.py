@@ -36,6 +36,7 @@ from services import tenant_registry
 from services.config import settings
 from services.db import bootstrap
 from services.discord_queue import DiscordQueue
+from services.platforms.discord_adapter import deliver as deliver_discord_dm
 from services.tenancy import system_context, tenant_context
 
 configure_logging()
@@ -78,6 +79,48 @@ def _env_guild_allowlist() -> set[int]:
         if part.isdigit():
             out.add(int(part))
     return out
+
+
+async def _consume_outbound(tenant_id: str, client: discord.Client, owner_id: int) -> None:
+    """Drain this tenant's Discord outbound queue and DM via the live socket.
+
+    The Redis pop is blocking, so it runs in a worker thread to keep the gateway
+    event loop responsive. Targets: an explicit ``platform_user_id`` in the job,
+    or ``to == "owner"`` resolved against this tenant's configured owner id.
+    """
+    if not settings.redis_url:
+        logger.info("[%s] no REDIS_URL — Discord outbound delivery disabled", tenant_id)
+        return
+    await client.wait_until_ready()
+    logger.info("[%s] outbound consumer ready", tenant_id)
+    while not client.is_closed():
+        try:
+            job = await asyncio.to_thread(queue.dequeue_outbound, "discord", tenant_id, 5)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("[%s] outbound dequeue failed", tenant_id)
+            await asyncio.sleep(5)
+            continue
+        if not job:
+            continue
+
+        payload = job.get("payload", {}) or {}
+        idem = payload.get("idempotency_key")
+        if idem and not await asyncio.to_thread(queue.claim_idempotency, idem):
+            logger.info("[%s] outbound %s already delivered — skipping", tenant_id, idem)
+            continue
+
+        explicit = payload.get("platform_user_id")
+        target = int(explicit) if str(explicit).isdigit() else (owner_id if payload.get("to") == "owner" else 0)
+        if not target:
+            logger.warning("[%s] outbound job has no resolvable target: %s", tenant_id, payload.get("to"))
+            continue
+        try:
+            await deliver_discord_dm(client, target, payload.get("text", ""))
+            logger.info("[%s] delivered outbound DM to %s", tenant_id, target)
+        except Exception:
+            logger.exception("[%s] outbound delivery to %s failed", tenant_id, target)
 
 
 async def _run_tenant_client(tenant_id: str, token: str, scheduler: AsyncIOScheduler) -> None:
@@ -148,11 +191,13 @@ async def _run_tenant_client(tenant_id: str, token: str, scheduler: AsyncIOSched
             except Exception:
                 logger.exception("[%s] delete handler failed", tenant_id)
 
+    outbound_task = asyncio.create_task(_consume_outbound(tenant_id, client, owner_id))
     try:
         await client.start(token)
     except Exception:
         logger.exception("[%s] discord client crashed", tenant_id)
     finally:
+        outbound_task.cancel()
         CONNECTOR_SOCKETS.dec()
 
 
