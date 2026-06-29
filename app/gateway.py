@@ -40,11 +40,40 @@ ADMIN_TOKEN = os.getenv("ADMIN_API_TOKEN", "")
 
 app = FastAPI(title="Cash Gateway", version="1.0.0")
 
+# Management dashboard (magic-link session → overview → connect platforms).
+from app.dashboard import router as dashboard_router  # noqa: E402
+
+app.include_router(dashboard_router)
+
 
 @app.on_event("startup")
 def _startup() -> None:
     bootstrap()
     logger.info("gateway started (postgres=%s)", is_postgres())
+
+
+# ---------------------------------------------------------------------------
+# OAuth callback proxy
+# ---------------------------------------------------------------------------
+# The Google OAuth callback server runs inside the telegram poller (its pending
+# Flow state is in-process there). The gateway is the single public entrypoint,
+# so it proxies /oauth2callback through to that server. This lets ONE public
+# tunnel/domain serve the dashboard, onboarding, AND OAuth — point it at the
+# gateway and leave OAUTH_REDIRECT_URI/PUBLIC_BASE_URL on the same host.
+
+@app.get("/oauth2callback", response_class=HTMLResponse)
+def oauth2callback_proxy(request: Request):
+    target = os.getenv("OAUTH_INTERNAL_URL", "http://telegram:8401/oauth2callback")
+    try:
+        r = requests.get(target, params=dict(request.query_params), timeout=30)
+        return Response(
+            content=r.content,
+            status_code=r.status_code,
+            media_type=r.headers.get("content-type", "text/html; charset=utf-8"),
+        )
+    except Exception as e:
+        logger.exception("oauth2callback proxy failed")
+        return HTMLResponse(f"<h1>OAuth proxy error</h1><p>{e}</p>", status_code=502)
 
 
 # ---------------------------------------------------------------------------

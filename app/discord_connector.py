@@ -36,6 +36,9 @@ from services import tenant_registry
 from services.config import settings
 from services.db import bootstrap
 from services.discord_queue import DiscordQueue
+from services.identity import linking as identity_linking
+from services.identity import people as identity_people
+from services.onboarding import links as signed_links
 from services.platforms.discord_adapter import deliver as deliver_discord_dm
 from services.tenancy import system_context, tenant_context
 
@@ -123,6 +126,51 @@ async def _consume_outbound(tenant_id: str, client: discord.Client, owner_id: in
             logger.exception("[%s] outbound delivery to %s failed", tenant_id, target)
 
 
+def _link_discord_account(tenant_id: str, primary_person_id: str, author_id, display_name, handle) -> str:
+    """Fold the DMer's Discord person into the dashboard person. Runs in a worker
+    thread, so it sets its own tenant context (contextvars don't cross threads).
+    Returns a status: 'linked' | 'already' | 'unknown_primary'.
+    """
+    with tenant_context(tenant_id):
+        discord_pid = identity_people.resolve(
+            platform="discord", platform_user_id=str(author_id),
+            display_name=display_name, handle=handle,
+        )
+        if discord_pid == primary_person_id:
+            return "already"
+        try:
+            identity_linking.link_identities(primary_person_id, discord_pid)
+        except ValueError:
+            return "unknown_primary"
+        return "linked"
+
+
+async def _handle_link_command(message: "discord.Message", tenant_id: str) -> None:
+    """Handle a DM of the form '/link <phrase>' from the dashboard connect flow."""
+    content = (message.content or "").strip()
+    phrase = content.split(None, 1)[1].strip() if " " in content else ""
+    logger.info("[%s] /link from %s — phrase valid=%s", tenant_id, message.author.id, bool(signed_links.verify_token(phrase)))
+    payload = signed_links.verify_token(phrase)
+    if not payload:
+        await message.channel.send(
+            "That link code is invalid or expired — open your Cash dashboard and grab a fresh one."
+        )
+        return
+    if payload.get("tid", "default") != tenant_id:
+        await message.channel.send("That link code isn't for this Cash account.")
+        return
+    status = await asyncio.to_thread(
+        _link_discord_account, tenant_id, payload["pid"],
+        message.author.id, message.author.display_name, message.author.name,
+    )
+    if status == "linked":
+        await message.channel.send("✅ Linked! Your Discord and your other platforms now share one Cash memory.")
+    elif status == "already":
+        await message.channel.send("✅ Your Discord is already linked.")
+    else:
+        await message.channel.send("I couldn't complete the link — generate a fresh code from your dashboard and try again.")
+
+
 async def _run_tenant_client(tenant_id: str, token: str, scheduler: AsyncIOScheduler) -> None:
     with tenant_context(tenant_id):
         # Per-tenant vault values win; fall back to .env so a single-tenant local
@@ -165,6 +213,23 @@ async def _run_tenant_client(tenant_id: str, token: str, scheduler: AsyncIOSched
     async def on_message(message: discord.Message):
         with tenant_context(tenant_id):
             try:
+                # Diagnostic: log inbound DMs so we can see content + intents.
+                if message.guild is None and not message.author.bot:
+                    logger.info(
+                        "[%s] DM from %s (id=%s): %r",
+                        tenant_id, message.author, message.author.id, (message.content or "")[:80],
+                    )
+                # Dashboard "connect Discord" flow: a DM of "/link <phrase>" links
+                # this Discord account to the dashboard person. Handle before the
+                # normal proxy/identity path. Accept a leading slash or not.
+                content = (message.content or "").strip()
+                if (
+                    message.guild is None
+                    and not message.author.bot
+                    and (content.startswith("/link ") or content.startswith("link "))
+                ):
+                    await _handle_link_command(message, tenant_id)
+                    return
                 await handle_discord_message(message, ctx)
                 if not message.author.bot:
                     queue.enqueue(queue.DISCORD_EVENT, tenant_id, {

@@ -71,6 +71,7 @@ def from_row(cls, row):
 _TENANT_TABLES = [
     "people",
     "platform_identities",
+    "person_aliases",
     "directives",
     "person_summaries",
     "kv_documents",
@@ -160,6 +161,14 @@ CREATE TABLE IF NOT EXISTS person_summaries (
     last_built_at        TEXT NOT NULL,
     source_message_count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (tenant_id, person_id)
+);
+
+CREATE TABLE IF NOT EXISTS person_aliases (
+    tenant_id           TEXT NOT NULL DEFAULT 'default',
+    alias_person_id     TEXT NOT NULL,
+    canonical_person_id TEXT NOT NULL,
+    created_at          TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, alias_person_id)
 );
 
 CREATE TABLE IF NOT EXISTS kv_documents (
@@ -269,6 +278,14 @@ CREATE TABLE IF NOT EXISTS person_summaries (
     last_built_at        TEXT NOT NULL,
     source_message_count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (tenant_id, person_id)
+);
+
+CREATE TABLE IF NOT EXISTS person_aliases (
+    tenant_id           TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    alias_person_id     TEXT NOT NULL,
+    canonical_person_id TEXT NOT NULL,
+    created_at          TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, alias_person_id)
 );
 
 CREATE TABLE IF NOT EXISTS kv_documents (

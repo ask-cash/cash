@@ -651,18 +651,38 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif target_platform != "discord":
                 reply = f"I can only send to Discord right now — not {target_platform or 'that platform'}."
             else:
-                # The brain only knows "send to the owner on Discord"; the Discord
-                # connector resolves the actual Discord user id it already holds.
-                try:
-                    queue.enqueue_outbound("discord", current_tenant_id(), {
-                        "to": "owner",
-                        "text": text,
-                        "idempotency_key": uuid.uuid4().hex,
-                    })
-                    reply = "📨 On it — sending that to your Discord now."
-                except Exception as e:
-                    logger.error("send_platform_message enqueue failed: %s", e)
-                    reply = "😿 I couldn't queue that for Discord just now — try again in a moment."
+                # Target the sender's OWN linked Discord identity — only if they've
+                # actually connected it. No owner-secret shortcut, so we never claim
+                # to send to a Discord we don't have.
+                person_id = await _resolve_telegram_author(update)
+                discord_uid = None
+                if person_id:
+                    try:
+                        ids = await asyncio.to_thread(
+                            identity_people.list_platform_identities_for_person, person_id,
+                        )
+                        discord_uid = next(
+                            (i.platform_user_id for i in ids if i.platform == "discord"), None,
+                        )
+                    except Exception:
+                        logger.exception("discord identity lookup failed for %s", person_id)
+                if not discord_uid:
+                    reply = (
+                        "I don't have your Discord connected yet, so I can't message you there. "
+                        "Connect it from your dashboard (Connect Discord → send the /link code to "
+                        "the Cash bot), then I'll be able to."
+                    )
+                else:
+                    try:
+                        queue.enqueue_outbound("discord", current_tenant_id(), {
+                            "platform_user_id": discord_uid,
+                            "text": text,
+                            "idempotency_key": uuid.uuid4().hex,
+                        })
+                        reply = "📨 On it — sending that to your Discord now."
+                    except Exception as e:
+                        logger.error("send_platform_message enqueue failed: %s", e)
+                        reply = "😿 I couldn't queue that for Discord just now — try again in a moment."
 
         elif action == "delete_event":
             cal = get_cal()
