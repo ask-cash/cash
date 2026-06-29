@@ -45,6 +45,24 @@ def _now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def from_row(cls, row):
+    """Build a dataclass instance from a DB row, dropping columns the dataclass
+    doesn't declare.
+
+    The physical tables carry an internal ``tenant_id`` column (for RLS) that
+    the application-layer dataclasses (Person, Directive, PlatformIdentity,
+    PersonSummary) deliberately don't model. ``cls(**dict(row))`` would raise on
+    that extra key for any freshly-created schema; this helper keeps the read
+    path tenant-transparent. Works for both sqlite3.Row and the Postgres row
+    wrapper (both expose ``.keys()`` and item access).
+    """
+    import dataclasses
+
+    field_names = {f.name for f in dataclasses.fields(cls)}
+    data = {k: row[k] for k in row.keys() if k in field_names}
+    return cls(**data)
+
+
 # ---------------------------------------------------------------------------
 # Schema. Forward-only, idempotent. Two dialects share the same logical model.
 # ---------------------------------------------------------------------------
@@ -53,6 +71,7 @@ def _now_iso() -> str:
 _TENANT_TABLES = [
     "people",
     "platform_identities",
+    "person_aliases",
     "directives",
     "person_summaries",
     "kv_documents",
@@ -63,6 +82,8 @@ _SQLITE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS tenants (
     tenant_id    TEXT PRIMARY KEY,
     display_name TEXT,
+    email        TEXT,
+    is_admin     INTEGER NOT NULL DEFAULT 0,
     timezone     TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     status       TEXT NOT NULL DEFAULT 'active',
     created_at   TEXT NOT NULL
@@ -142,6 +163,14 @@ CREATE TABLE IF NOT EXISTS person_summaries (
     PRIMARY KEY (tenant_id, person_id)
 );
 
+CREATE TABLE IF NOT EXISTS person_aliases (
+    tenant_id           TEXT NOT NULL DEFAULT 'default',
+    alias_person_id     TEXT NOT NULL,
+    canonical_person_id TEXT NOT NULL,
+    created_at          TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, alias_person_id)
+);
+
 CREATE TABLE IF NOT EXISTS kv_documents (
     tenant_id  TEXT NOT NULL DEFAULT 'default',
     namespace  TEXT NOT NULL,
@@ -167,10 +196,15 @@ _PG_SCHEMA = """
 CREATE TABLE IF NOT EXISTS tenants (
     tenant_id    TEXT PRIMARY KEY,
     display_name TEXT,
+    email        TEXT,
+    is_admin     BOOLEAN NOT NULL DEFAULT false,
     timezone     TEXT NOT NULL DEFAULT 'Asia/Kolkata',
     status       TEXT NOT NULL DEFAULT 'active',
     created_at   TEXT NOT NULL
 );
+-- Migrations for DBs created before email/is_admin existed (idempotent).
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE IF NOT EXISTS tenant_bots (
     tenant_id       TEXT NOT NULL REFERENCES tenants(tenant_id) ON DELETE CASCADE,
@@ -244,6 +278,14 @@ CREATE TABLE IF NOT EXISTS person_summaries (
     last_built_at        TEXT NOT NULL,
     source_message_count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (tenant_id, person_id)
+);
+
+CREATE TABLE IF NOT EXISTS person_aliases (
+    tenant_id           TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    alias_person_id     TEXT NOT NULL,
+    canonical_person_id TEXT NOT NULL,
+    created_at          TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, alias_person_id)
 );
 
 CREATE TABLE IF NOT EXISTS kv_documents (
@@ -398,16 +440,44 @@ def _bootstrap_sqlite() -> None:
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(_SQLITE_SCHEMA)
+        _sqlite_add_missing_columns(conn, "tenants", {
+            "email": "TEXT",
+            "is_admin": "INTEGER NOT NULL DEFAULT 0",
+        })
         conn.commit()
     finally:
         conn.close()
     logger.info("[db] SQLite schema ready at %s", settings.sqlite_path)
 
 
+def _sqlite_add_missing_columns(conn, table: str, columns: dict[str, str]) -> None:
+    """Idempotent ADD COLUMN for SQLite (no native IF NOT EXISTS).
+
+    Reads the live column set via PRAGMA and adds only what's missing, so
+    existing databases pick up new columns without a destructive rebuild.
+    """
+    existing = {row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    for name, ddl in columns.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+            logger.info("[db] migrated SQLite: added %s.%s", table, name)
+
+
+# Arbitrary constant identifying the bootstrap DDL critical section. All roles
+# use the same key so only one runs schema/RLS DDL at a time.
+_BOOTSTRAP_LOCK_KEY = 911_002_001
+
+
 def _bootstrap_postgres() -> None:
     pool = _get_pool()
     with pool.connection() as conn:
         with conn.cursor() as cur:
+            # Serialize bootstrap across processes. When several roles
+            # (gateway/worker/connector/telegram) start at once, running the
+            # RLS DDL (ALTER TABLE ... ENABLE RLS / CREATE POLICY on the same
+            # tables) concurrently deadlocks. A transaction-scoped advisory lock
+            # makes the others wait, then run the idempotent DDL as a no-op.
+            cur.execute("SELECT pg_advisory_xact_lock(%s)", (_BOOTSTRAP_LOCK_KEY,))
             for stmt in _split_statements(_PG_SCHEMA):
                 cur.execute(stmt)
             for stmt in _pg_rls_statements():

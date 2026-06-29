@@ -1,7 +1,7 @@
 """
 discord_commands.py — Cash's Discord slash commands.
 
-All commands are gated to DISCORD_SUHAIL_USER_ID. discord.py registers them
+All commands are gated to the owner's Discord id. discord.py registers them
 on the CommandTree, which the client syncs to allowlisted guilds at boot.
 
 Commands:
@@ -63,35 +63,35 @@ async def _resolve_discord_user_to_person(
     )
     if pi is None:
         return None, (
-            f"🐾 No record for {user.mention} yet — they need to interact "
+            f"No record for {user.mention} yet — they need to interact "
             f"with me at least once before I can act on them."
         )
     person = await asyncio.to_thread(identity_people.get_person, pi.person_id)
     if person is None:
         # Shouldn't happen (FK), but be defensive.
-        return None, "🐾 Identity row exists but person record is missing — please report this."
+        return None, "Identity row exists but person record is missing — please report this."
     return person, None
 
 
-def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
+def register(tree: app_commands.CommandTree, *, owner_id: int) -> None:
     """Register all Cash slash commands on the given CommandTree."""
 
-    def _is_suhail(interaction: discord.Interaction) -> bool:
-        return interaction.user is not None and interaction.user.id == suhail_id
+    def _is_owner(interaction: discord.Interaction) -> bool:
+        return interaction.user is not None and interaction.user.id == owner_id
 
     @tree.command(
         name="cash-directives",
-        description="List Cash's active directives (Suhail only).",
+        description="List Cash's active directives (owner only).",
     )
     async def cash_directives(interaction: discord.Interaction):
-        if not _is_suhail(interaction):
+        if not _is_owner(interaction):
             await interaction.response.send_message("⛔ Private command.", ephemeral=True)
             return
         actives = await asyncio.to_thread(directives_store.list_active)
         if not actives:
-            await interaction.response.send_message("🐾 No active directives.", ephemeral=True)
+            await interaction.response.send_message("No active directives.", ephemeral=True)
             return
-        body = "🐾 **Active directives**\n" + "\n".join(
+        body = "**Active directives**\n" + "\n".join(
             _format_directive_line(d) for d in actives[:25]
         )
         if len(actives) > 25:
@@ -106,7 +106,7 @@ def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
     )
     @app_commands.describe(user="The user to unignore")
     async def cash_unignore(interaction: discord.Interaction, user: discord.User):
-        if not _is_suhail(interaction):
+        if not _is_owner(interaction):
             await interaction.response.send_message("⛔ Private command.", ephemeral=True)
             return
         target, err = await _resolve_discord_user_to_person(user)
@@ -122,10 +122,10 @@ def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
                 if directives_store.revoke(d.directive_id):
                     revoked += 1
         msg = (
-            f"🐾 Revoked {revoked} ignore directive(s) for **{target.canonical_name}**. "
+            f"Revoked {revoked} ignore directive(s) for **{target.canonical_name}**. "
             f"I'll respond to them again."
             if revoked
-            else f"🐾 No active ignore directives for **{target.canonical_name}**."
+            else f"No active ignore directives for **{target.canonical_name}**."
         )
         await interaction.response.send_message(msg, ephemeral=True)
 
@@ -135,7 +135,7 @@ def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
     )
     @app_commands.describe(user="The user to forget all directives for")
     async def cash_forget(interaction: discord.Interaction, user: discord.User):
-        if not _is_suhail(interaction):
+        if not _is_owner(interaction):
             await interaction.response.send_message("⛔ Private command.", ephemeral=True)
             return
         target, err = await _resolve_discord_user_to_person(user)
@@ -151,9 +151,9 @@ def register(tree: app_commands.CommandTree, *, suhail_id: int) -> None:
                 if directives_store.revoke(d.directive_id):
                     revoked += 1
         msg = (
-            f"🐾 Revoked {revoked} directive(s) targeting **{target.canonical_name}**."
+            f"Revoked {revoked} directive(s) targeting **{target.canonical_name}**."
             if revoked
-            else f"🐾 No active directives targeting **{target.canonical_name}**."
+            else f"No active directives targeting **{target.canonical_name}**."
         )
         await interaction.response.send_message(msg, ephemeral=True)
 

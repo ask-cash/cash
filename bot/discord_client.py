@@ -7,7 +7,7 @@ Run as a separate process from the Telegram bot:
 Required env vars:
     DISCORD_BOT_TOKEN          bot token from Discord developer portal
     DISCORD_CASH_USER_ID       the bot account's user id (snowflake)
-    DISCORD_SUHAIL_USER_ID     Suhail's Discord user id (snowflake)
+    DISCORD_OWNER_USER_ID      The owner's Discord user id (snowflake)
     DISCORD_ALLOWED_GUILD_IDS  comma-separated guild ids; empty = allow all
     DISCORD_PROXY_DELAY_MIN    minutes to wait before proxy reply (default 30)
     DISCORD_PROXY_DELAY_MAX    upper bound on the random delay (default 40)
@@ -79,10 +79,10 @@ def main() -> None:
     if not token:
         raise SystemExit("❌ DISCORD_BOT_TOKEN not set in .env")
 
-    suhail_id = int(os.getenv("DISCORD_SUHAIL_USER_ID", "0"))
+    owner_id = int(os.getenv("DISCORD_OWNER_USER_ID") or os.getenv("DISCORD_SUHAIL_USER_ID") or "0")
     cash_id = int(os.getenv("DISCORD_CASH_USER_ID", "0"))
-    if not suhail_id or not cash_id:
-        raise SystemExit("❌ Set DISCORD_SUHAIL_USER_ID and DISCORD_CASH_USER_ID in .env")
+    if not owner_id or not cash_id:
+        raise SystemExit("❌ Set DISCORD_OWNER_USER_ID and DISCORD_CASH_USER_ID in .env")
 
     allowed_guilds = _parse_int_set(os.getenv("DISCORD_ALLOWED_GUILD_IDS", ""))
     proxy_min = int(os.getenv("DISCORD_PROXY_DELAY_MIN", "30"))
@@ -104,7 +104,7 @@ def main() -> None:
     scheduler = AsyncIOScheduler()
     ctx = DiscordContext(
         cash_id=cash_id,
-        suhail_id=suhail_id,
+        owner_id=owner_id,
         allowed_guild_ids=allowed_guilds,
         queue=queue,
         scheduler=scheduler,
@@ -113,13 +113,13 @@ def main() -> None:
         proxy_max_minutes=proxy_max,
     )
 
-    register_slash_commands(tree, suhail_id=suhail_id)
+    register_slash_commands(tree, owner_id=owner_id)
 
     @client.event
     async def on_ready():
         bot_id = client.user.id if client.user else None
         logger.info(
-            "🐾 Cash connected to Discord as %s (id=%s) in %d guilds",
+            "Cash connected to Discord as %s (id=%s) in %d guilds",
             client.user, bot_id, len(client.guilds),
         )
         if bot_id and bot_id != cash_id:

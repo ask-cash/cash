@@ -13,3 +13,5 @@ gmail_token.json
 
 docs/architecture/
 
+# Local-only tooling and secrets — never committed
+internal/

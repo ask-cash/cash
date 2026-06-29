@@ -25,12 +25,23 @@ from google.auth.transport.requests import Request
 
 from services import secrets as secret_vault
 from services.config import settings
+from services.db import is_postgres
 
 logger = logging.getLogger(__name__)
 
 
 def _use_vault() -> bool:
-    return settings.secrets_backend.lower() == "db" and bool(settings.secrets_encryption_key)
+    """True when Google tokens should live in the encrypted DB vault (DB only).
+
+    Requires an encryption key (the vault encrypts at rest). Used whenever the
+    'db' secrets backend is selected OR a Postgres database is configured — so
+    any real DB deployment stores tokens in `tenant_secrets`, never on disk.
+    On-disk token files remain only for local SQLite dev without a key
+    (scripts/auth_google.py, legacy single-process main.py).
+    """
+    if not settings.secrets_encryption_key:
+        return False
+    return settings.secrets_backend.lower() == "db" or is_postgres()
 
 
 def save_credentials(secret_name: str, creds: Credentials, legacy_token_path: str) -> None:

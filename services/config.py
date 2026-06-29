@@ -65,6 +65,16 @@ class Settings:
     log_level: str = "INFO"
     log_json: bool = False
 
+    # --- Customer onboarding --------------------------------------------
+    # When true, non-owner users who DM Cash on any platform are taken through
+    # the in-chat onboarding flow (name/email/timezone/use case) and issued a
+    # secure setup link. Owner messages are never onboarded.
+    onboarding_enabled: bool = True
+    # Secret used to sign onboarding links. Falls back to the Fernet key, then
+    # to a dev default — set ONBOARDING_SIGNING_SECRET in prod.
+    onboarding_signing_secret: str = ""
+    onboarding_link_ttl_hours: int = 72
+
 
 def load_settings() -> Settings:
     """Build Settings from the current environment."""
@@ -91,6 +101,9 @@ def load_settings() -> Settings:
         metrics_enabled=_bool("METRICS_ENABLED", True),
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         log_json=_bool("LOG_JSON", False),
+        onboarding_enabled=_bool("CASH_ONBOARDING_ENABLED", True),
+        onboarding_signing_secret=os.getenv("ONBOARDING_SIGNING_SECRET", ""),
+        onboarding_link_ttl_hours=int(os.getenv("ONBOARDING_LINK_TTL_HOURS", "72")),
     )
 
 

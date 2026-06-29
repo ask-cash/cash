@@ -26,6 +26,7 @@ from services.identity.history import (
     recent_for_person,
 )
 from services.identity.people import get_person
+from services.db import from_row
 from services.identity.store import connect
 
 logger = logging.getLogger(__name__)
@@ -39,13 +40,13 @@ SUMMARIZER_SYSTEM = """You produce compact summaries of Cash's chat history with
 Your output is read by another LLM (Cash itself) when composing replies. Aim for 4–6 short markdown bullets that capture:
 - their tone / communication style (formal, casual, terse, hinglish, etc.)
 - topics they typically discuss with Cash
-- any preferences, recurring themes, or context Suhail has shared about them
+- any preferences, recurring themes, or context the owner has shared about them
 - anything actionable Cash should remember (e.g. they prefer Telegram, they're in a different timezone, etc.)
 
 Do NOT:
 - include direct quotes longer than ~10 words
 - speculate about facts not present in the history
-- mention Suhail's private business (trading rules, calendar specifics, etc.)
+- mention the owner's private business (trading rules, calendar specifics, etc.)
 - exceed ~200 tokens
 
 Output PLAIN markdown bullets only — no preamble, no headers, no closing line."""
@@ -72,7 +73,7 @@ def get_summary_row(person_id: str) -> Optional[PersonSummary]:
         row = conn.execute(
             "SELECT * FROM person_summaries WHERE person_id = ?", (person_id,),
         ).fetchone()
-    return PersonSummary(**dict(row)) if row else None
+    return from_row(PersonSummary, row) if row else None
 
 
 def get_summary_md(person_id: str) -> str:

@@ -60,6 +60,32 @@ def save_file(
     return record
 
 
+def set_drive_link(
+    file_id: str,
+    *,
+    drive_file_id: str = "",
+    web_view_link: str = "",
+    short_url: str = "",
+) -> None:
+    """Persist Drive upload info onto a file record so it's never re-uploaded.
+
+    Called after a successful Drive upload; subsequent ``upload_to_drive`` for the
+    same file returns the stored link instead of uploading again.
+    """
+    index = _load_index()
+    for rec in index:
+        if rec.get("id") == file_id:
+            if drive_file_id:
+                rec["drive_file_id"] = drive_file_id
+            if web_view_link:
+                rec["drive_web_link"] = web_view_link
+            if short_url:
+                rec["drive_short_link"] = short_url
+            rec["drive_uploaded_at"] = ist_now().isoformat()
+            break
+    _save_index(index)
+
+
 def list_recent(limit: int = 10) -> list[dict]:
     """Return the most recent uploads, newest first."""
     index = _load_index()
