@@ -19,6 +19,7 @@ import os
 
 import requests
 from fastapi import FastAPI, Header, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel
 
 from app.observability import (
@@ -39,11 +40,40 @@ ADMIN_TOKEN = os.getenv("ADMIN_API_TOKEN", "")
 
 app = FastAPI(title="Cash Gateway", version="1.0.0")
 
+# Management dashboard (magic-link session → overview → connect platforms).
+from app.dashboard import router as dashboard_router  # noqa: E402
+
+app.include_router(dashboard_router)
+
 
 @app.on_event("startup")
 def _startup() -> None:
     bootstrap()
     logger.info("gateway started (postgres=%s)", is_postgres())
+
+
+# ---------------------------------------------------------------------------
+# OAuth callback proxy
+# ---------------------------------------------------------------------------
+# The Google OAuth callback server runs inside the telegram poller (its pending
+# Flow state is in-process there). The gateway is the single public entrypoint,
+# so it proxies /oauth2callback through to that server. This lets ONE public
+# tunnel/domain serve the dashboard, onboarding, AND OAuth — point it at the
+# gateway and leave OAUTH_REDIRECT_URI/PUBLIC_BASE_URL on the same host.
+
+@app.get("/oauth2callback", response_class=HTMLResponse)
+def oauth2callback_proxy(request: Request):
+    target = os.getenv("OAUTH_INTERNAL_URL", "http://telegram:8401/oauth2callback")
+    try:
+        r = requests.get(target, params=dict(request.query_params), timeout=30)
+        return Response(
+            content=r.content,
+            status_code=r.status_code,
+            media_type=r.headers.get("content-type", "text/html; charset=utf-8"),
+        )
+    except Exception as e:
+        logger.exception("oauth2callback proxy failed")
+        return HTMLResponse(f"<h1>OAuth proxy error</h1><p>{e}</p>", status_code=502)
 
 
 # ---------------------------------------------------------------------------
@@ -138,6 +168,101 @@ def create_tenant(body: TenantOnboard, x_admin_token: str | None = Header(defaul
         _set_telegram_webhook(body.telegram_bot_token)
 
     return {"tenant_id": tenant_id}
+
+
+# ---------------------------------------------------------------------------
+# Customer onboarding — secure web setup
+# ---------------------------------------------------------------------------
+
+def _onboard_payload_or_404(token: str) -> dict:
+    from services.onboarding import links as onboarding_links
+
+    payload = onboarding_links.verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=404, detail="invalid or expired link")
+    return payload
+
+
+def _render_setup_page(token: str, profile) -> str:
+    from services.onboarding.profiles import KNOWN_INTEGRATIONS
+
+    labels = {
+        "google_calendar": "Google Calendar",
+        "google_drive": "Google Drive",
+        "gmail": "Gmail",
+        "outlook": "Outlook Calendar",
+    }
+    rows = []
+    for key in KNOWN_INTEGRATIONS:
+        connected = bool((profile.integrations or {}).get(key))
+        badge = "✅ Connected" if connected else (
+            f'<a class="btn" href="/onboard/{token}/connect/{key}">Connect</a>'
+        )
+        rows.append(f'<li><span>{labels.get(key, key)}</span> {badge}</li>')
+    name = profile.name or "there"
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cash — Finish setup</title>
+<style>
+ body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:40px auto;padding:0 20px;color:#1a1a1a}}
+ h1{{font-size:1.5rem}} ul{{list-style:none;padding:0}}
+ li{{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border:1px solid #eee;border-radius:10px;margin:10px 0}}
+ .btn{{background:#111;color:#fff;text-decoration:none;padding:8px 14px;border-radius:8px;font-size:.9rem}}
+ .finish{{display:inline-block;margin-top:18px;background:#2563eb}}
+ .note{{color:#888;font-size:.85rem;margin-top:24px}}
+</style></head>
+<body>
+ <h1>Welcome {name}, let's finish setting up Cash</h1>
+ <p>Connect the accounts you'd like me to help with. You can add the rest later.</p>
+ <ul>{''.join(rows)}</ul>
+ <form method="post" action="/onboard/{token}/complete">
+   <button class="btn finish" type="submit">I'm done — activate Cash</button>
+ </form>
+ <p class="note">This link is private to you and expires automatically.</p>
+</body></html>"""
+
+
+@app.get("/onboard/{token}", response_class=HTMLResponse)
+def onboard_page(token: str):
+    payload = _onboard_payload_or_404(token)
+    from services.onboarding import profiles as onboarding_profiles
+    from services.tenancy import tenant_context
+
+    with tenant_context(payload.get("tid") or "default"):
+        profile = onboarding_profiles.get_or_create(payload["pid"])
+    return HTMLResponse(_render_setup_page(token, profile))
+
+
+@app.get("/onboard/{token}/connect/{integration}")
+def onboard_connect(token: str, integration: str):
+    """Mark an integration as connected, then return to the setup page.
+
+    In production this is where the provider OAuth flow begins (Google consent
+    screen, etc.) and the callback marks it connected with the per-customer
+    token stored in the secret vault. See docs/architecture/cash-onboarding.md.
+    """
+    payload = _onboard_payload_or_404(token)
+    from services.onboarding import profiles as onboarding_profiles
+    from services.tenancy import tenant_context
+
+    with tenant_context(payload.get("tid") or "default"):
+        onboarding_profiles.mark_integration_connected(payload["pid"], integration)
+    return RedirectResponse(url=f"/onboard/{token}", status_code=303)
+
+
+@app.post("/onboard/{token}/complete", response_class=HTMLResponse)
+def onboard_complete(token: str):
+    payload = _onboard_payload_or_404(token)
+    from services.onboarding import profiles as onboarding_profiles
+    from services.tenancy import tenant_context
+
+    with tenant_context(payload.get("tid") or "default"):
+        onboarding_profiles.mark_active(payload["pid"])
+    return HTMLResponse(
+        "<!doctype html><html><body style='font-family:sans-serif;max-width:520px;"
+        "margin:60px auto;text-align:center'><h1>You're all set!</h1>"
+        "<p>Head back to your chat with Cash — I'm ready to help.</p></body></html>"
+    )
 
 
 def _set_telegram_webhook(token: str) -> None:

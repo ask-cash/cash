@@ -98,7 +98,7 @@ async def _morning_briefing(tenant_id: str) -> None:
     suggestions = resolve_conflicts(events, profile)
     conflicts_text = format_suggestions(suggestions)
     briefing = generate_briefing(events_text, tasks_text, conflicts_text)
-    await _send(tenant_id, f"😼 Morning. {briefing}")
+    await _send(tenant_id, f"☀️ Good morning. {briefing}")
 
 
 async def _trading_reminder(tenant_id: str) -> None:
@@ -106,10 +106,10 @@ async def _trading_reminder(tenant_id: str) -> None:
     rules = profile.get("trading", {}).get("rules", [])
     if not rules:
         return
-    text = "😾 Market opens soon. The rules:\n\n" + "\n".join(
+    text = "📈 Market opens soon. The rules:\n\n" + "\n".join(
         f"{i}. {r}" for i, r in enumerate(rules, 1)
     )
-    await _send(tenant_id, text + "\n\nNo revenge trading. I'm watching. 🐾")
+    await _send(tenant_id, text + "\n\nNo revenge trading. Stay disciplined and stick to your rules.")
 
 
 async def _evening_summary(tenant_id: str) -> None:

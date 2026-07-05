@@ -58,7 +58,7 @@ _PARSER_ACTIONS = KNOWN_ACTIONS | {"unignore"}
 DEFAULT_CONFIDENCE_THRESHOLD = 0.7
 
 
-PARSER_SYSTEM = """You convert Suhail's free-text instructions into structured Directive proposals for the Cash assistant.
+PARSER_SYSTEM = """You convert the owner's free-text instructions into structured Directive proposals for the Cash assistant.
 
 Cash uses Directives to decide how to handle messages from specific people across Discord, Slack, Microsoft Teams, and Telegram.
 
@@ -85,10 +85,10 @@ ACTION SEMANTICS:
 
 RULES:
 - If the message is NOT an instruction (chat, a question, a task to do, an opinion, hypothetical talk like "I'm thinking about ignoring..."), set is_instruction=false and leave other fields null.
-- Default scope is "*" (everywhere). Only narrow scope if Suhail says so explicitly ("on Discord", "in #trading-room").
+- Default scope is "*" (everywhere). Only narrow scope if the owner says so explicitly ("on Discord", "in #trading-room").
 - For temporal phrases ("till Monday", "for a week", "until next Friday"), convert to absolute UTC ISO8601 expires_at relative to CURRENT TIME below.
 - Extract target_hint VERBATIM from the text. Don't normalize, don't expand, don't invent. If the message doesn't name anyone (e.g. "ignore everyone in #spam"), target_hint=null.
-- If you can't tell what action Suhail wants with high confidence (>= 0.7), set is_instruction=false rather than guessing.
+- If you can't tell what action the owner wants with high confidence (>= 0.7), set is_instruction=false rather than guessing.
 
 EXAMPLES:
 - "ignore @alice on discord till next monday"
@@ -142,7 +142,7 @@ def parse(text: str) -> Optional[DirectiveProposal]:
     now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
     user_block = (
         f"CURRENT TIME (UTC): {now_iso}\n\n"
-        f"Suhail's message:\n{text}\n\n"
+        f"The owner's message:\n{text}\n\n"
         f"Respond with ONLY the JSON object."
     )
 

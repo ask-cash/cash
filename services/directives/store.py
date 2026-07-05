@@ -24,6 +24,7 @@ import secrets
 from dataclasses import dataclass
 from typing import Optional
 
+from services.db import from_row
 from services.identity.store import connect
 
 logger = logging.getLogger(__name__)
@@ -132,7 +133,7 @@ def get(directive_id: str) -> Optional[Directive]:
         row = conn.execute(
             "SELECT * FROM directives WHERE directive_id = ?", (directive_id,),
         ).fetchone()
-    return Directive(**dict(row)) if row else None
+    return from_row(Directive, row) if row else None
 
 
 def list_active_for_person(person_id: str) -> list[Directive]:
@@ -153,7 +154,7 @@ def list_active_for_person(person_id: str) -> list[Directive]:
             """,
             (now, person_id),
         ).fetchall()
-    return [Directive(**dict(r)) for r in rows]
+    return [from_row(Directive, r) for r in rows]
 
 
 def list_active() -> list[Directive]:
@@ -169,7 +170,7 @@ def list_active() -> list[Directive]:
             """,
             (now,),
         ).fetchall()
-    return [Directive(**dict(r)) for r in rows]
+    return [from_row(Directive, r) for r in rows]
 
 
 def expire_due() -> int:
