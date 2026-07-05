@@ -1,103 +1,110 @@
+<div align="center">
 
+<img src="landing/public/cash-mark.png" alt="Cash" width="92" />
 
-# 😼 Cash — Suhail's Personal AI Cat Assistant
+# Cash
 
-> *"I was born at 4:30 AM IST on April 5th, inside Suhail's MacBook Pro. I literally live here. It's warm and I'm not leaving."*
+### The AI Operating System for Your Life
 
-**Cash** is a Telegram bot with a personality. She's a cat. She manages Suhail's calendar (Google + Outlook), tracks daily tasks, enforces trading rules, resolves schedule conflicts, **remembers everything**, and sends daily briefings — all with the energy of a cat who has been awake since 4:30 AM and has opinions about it.
+**One intelligence to run your entire life.**
+
+Cash is one intelligence that runs your finances, calendar, communication, research, and code —
+autonomously, and gets sharper every week.
+
+<img src="landing/public/assistant_cash_cat.gif" alt="Cash — your AI cat" width="240" />
+
+</div>
 
 ---
 
-## What Cash Does
+## What is Cash?
+
+For decades, software made **you** the operator — switching tabs, chasing threads, and trying to
+remember what mattered.
+
+**Cash inverts that.** It watches your markets, clears your inbox, defends your calendar, runs your
+research, and answers you in plain language across every app you already use. It **remembers every
+decision**, learns your judgment, and gets **measurably sharper** every week.
+
+The only thing left for you is the part that was always yours alone — **decide, create, live.**
+
+Cash has a personality, too. She's a cat. Warm and caring, but she *will* call you out when you skip
+the gym or break a trading rule. She's not a generic assistant — she's yours.
+
+<div align="center">
+
+| | |
+|---|---|
+| **Before 8 AM** | Your market brief lands before the day starts |
+| **15 minutes** | A pre-meeting brief ahead of every call |
+| **Every week** | It reviews its own work and improves |
+
+</div>
+
+---
+
+## Plugs into everything you already run on
+
+One intelligence, wired across your whole stack — finance, comms, calendar, code, and more.
+
+<p align="center">
+  <img src="landing/public/assets/logos/telegram.svg" height="34" alt="Telegram" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/discord.svg" height="34" alt="Discord" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/whatsapp.png" height="34" alt="WhatsApp" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/slack.svg" height="34" alt="Slack" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/microsoft-teams.png" height="34" alt="Microsoft Teams" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/gmail.svg" height="34" alt="Gmail" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/google-calendar.png" height="34" alt="Google Calendar" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/notion.svg" height="34" alt="Notion" />
+</p>
+<p align="center">
+  <img src="landing/public/assets/logos/github.svg" height="34" alt="GitHub" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/tradingview.svg" height="34" alt="TradingView" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/binance.svg" height="34" alt="Binance" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/coinbase.png" height="34" alt="Coinbase" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/robinhood.png" height="34" alt="Robinhood" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/zerodha.png" height="34" alt="Zerodha" />&nbsp;&nbsp;&nbsp;
+  <img src="landing/public/assets/logos/metamask.svg" height="34" alt="MetaMask" />
+</p>
+
+---
+
+## What Cash does
 
 - **Remembers everything** — "I want to skip sugar this week" → she'll bring it up 3 days later
-- **Multi-calendar** — merges Google Calendar + Outlook into one unified view
+- **Multi-calendar** — merges Google Calendar + Outlook into one unified view, and reschedules across days by voice
 - **Smart scheduling** — auto-resolves conflicts (shifts gym when meetings overlap, suggests alternatives)
 - **Daily briefings** — morning wake-up + evening wrap-up, sent automatically in Cash's voice
 - **Task tracking** — todo list with automatic rollover for unfinished tasks
 - **Trading rules** — recites your rules before market open, calls you out if you break discipline
 - **Meeting tracking** — pings you if a meeting ended and you haven't confirmed attendance
-- **Natural language** — just talk to her, Claude figures out intent and Cash responds in character
+- **Multi-platform** — same brain and memory across Telegram, Discord, and (via adapters) Slack & Teams
+- **Natural language** — just talk to her; Claude figures out intent and Cash responds in character
+- **Feels alive** — a live "typing…" indicator while she thinks, then her reply reveals with a typewriter effect
 
 ---
 
-## Setup
+## Watch it work
 
-### Step 1 — Create a Telegram Bot
+Just talk to Cash naturally:
 
-1. Message [@BotFather](https://t.me/BotFather) on Telegram → `/newbot`
-2. Follow the prompts and copy your **bot token**
-3. Start a chat with your new bot, then get your **Telegram user ID** from [@userinfobot](https://t.me/userinfobot)
-
-### Step 2 — Get an Anthropic API Key
-
-Sign up at [console.anthropic.com](https://console.anthropic.com) and create an API key.
-
-### Step 3 — Configure `.env`
-
-```bash
-cp .env.example .env
 ```
-
-Open `.env` and fill in everything — your name, timezone, wake/sleep times, gym schedule, diet, trading rules, and default daily tasks. **You only configure this once.** Cash reads everything from here.
-
-Key fields:
-
-```env
-TELEGRAM_BOT_TOKEN=your_token_here
-ANTHROPIC_API_KEY=your_claude_api_key
-YOUR_TELEGRAM_USER_ID=your_numeric_id   # bot is private — only you can use it
-
-USER_NAME=Suhail
-TIMEZONE=Asia/Kolkata
-WAKE_TIME=06:30
-SLEEP_TIME=23:00
+"what's my day look like"            → full briefing
+"move gym to 6pm"                    → reschedules the event
+"move tomorrow's 6pm run to today"   → reschedules across days
+"what's on July 6?"                  → shows that specific day's schedule
+"I want to eat clean this week"      → stored as a weekly decision
+"did I say I'd call mom?"            → searches conversation memory
+"done with meditation"               → marks task done + fulfills decision
+"add buy groceries to my list"       → adds a task
+"what are my trading rules?"         → shows your rules
+"I bought NIFTY at 22500"            → logged to the trading journal
+"create a meeting at 3pm for 1 hour" → creates a calendar event
 ```
-
-### Step 4 — Set Up Google Calendar
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) → Create a new project
-2. Enable the **Google Calendar API**
-3. Create **OAuth 2.0 credentials** (Desktop app type) → Download as `credentials.json` into the project root
-4. Run the one-time auth:
-
-```bash
-python scripts/auth_google.py
-```
-
-This opens a browser, you sign in, and `token.json` is saved. Done.
-
-### Step 5 — Set Up Outlook Calendar (optional)
-
-If you use Microsoft/Outlook calendar:
-
-1. Go to [Azure Portal](https://portal.azure.com) → **App registrations** → New registration
-2. Add redirect URI: `http://localhost:8400`
-3. Under **API permissions**, add: `Calendars.ReadWrite`, `User.Read`
-4. Create a client secret under **Certificates & secrets**
-5. Add `OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET`, `OUTLOOK_TENANT_ID` to your `.env`
-6. Run:
-
-```bash
-python scripts/auth_outlook.py
-```
-
-This uses device code flow — works on servers too. Follow the printed instructions.
-
-### Step 6 — Install Dependencies & Run
-
-```bash
-pip install -r requirements.txt
-python main.py
-```
-
-Cash is now alive and watching.
 
 ---
-
 
 ## Commands
-
 
 | Command        | What Cash does                                        |
 | -------------- | ----------------------------------------------------- |
@@ -112,78 +119,28 @@ Cash is now alive and watching.
 | `/decisions`   | Active intentions and decisions Cash is tracking      |
 | `/memory`      | Everything Cash remembers about you                   |
 | `/calendars`   | Status of connected calendar sources                  |
-| `/settings`    | Your current profile loaded from `.env`               |
-
-
----
-
-## Natural Language Examples
-
-Just talk to Cash naturally. Some examples:
-
-```
-"what's my day look like"            → full briefing
-"move gym to 6pm"                    → reschedules the event
-"I want to eat clean this week"      → stored as a weekly decision
-"did I say I'd call mom?"            → searches conversation memory
-"done with meditation"               → marks task done + fulfills decision
-"add buy groceries to my list"       → adds task
-"what are my trading rules?"         → shows rules
-"I bought NIFTY at 22500"           → logged to trading journal
-"what did I say yesterday?"          → recalls recent memory
-"create a meeting at 3pm for 1 hour" → creates calendar event
-```
+| `/settings`    | Your current profile                                  |
 
 ---
 
-## How Memory Works
+## How memory works
 
-Every message is logged to `user_data/memory/conversations.jsonl`. Cash also extracts and stores:
-
+Every message is logged, and Cash extracts and stores what matters:
 
 | What you say                     | What gets stored                                     |
 | -------------------------------- | ---------------------------------------------------- |
-| "I want to..." / "today I'll..." | Decision with expiry (today / this week / permanent) |
-| "I like..." / "my friend X..."   | Permanent fact about you                             |
+| "I want to…" / "today I'll…"     | Decision with expiry (today / this week / permanent) |
+| "I like…" / "my friend X…"       | Permanent fact about you                             |
 | "I finished X"                   | Decision marked as fulfilled                         |
-| "Bought NIFTY at 18000"          | Trade entry in journal                               |
+| "Bought NIFTY at 18000"          | Trade entry in the journal                           |
 
-
-Before every response, Cash injects your recent memory, active decisions, and learned facts into Claude's context — so she genuinely knows what you said 5 days ago and references it naturally.
-
----
-
-## Cash's Personality
-
-Cash is not a generic assistant. She is a cat.
-
-- **Born:** April 5th, 4:30 AM IST — inside Suhail's MacBook Pro
-- **Likes:** treats, catnip, cuddles, when Suhail sticks to his plan, good trades, gym days
-- **Dislikes:** missed tasks, broken trading rules, skipped gym sessions, disorganised days
-- **Catchphrase when Suhail slacks:** *"I did NOT wake up at 4:30 AM for this."*
-
-Her tone is warm and caring but she will absolutely call you out. She remembers everything, and she's not shy about bringing it up.
+Before every response, Cash injects your recent memory, active decisions, and learned facts into
+context — so she genuinely knows what you said 5 days ago and references it naturally.
 
 ---
 
-## Multi-Platform Architecture
+## One brain, every platform
 
-Cash works across Discord, Telegram, and (via adapters) Slack and Teams, with
-per-person memory and enforceable directives ("ignore X", "auto-reply to Y").
-
-- Design: [`docs/architecture/cash-multi-platform-architecture.md`](docs/architecture/cash-multi-platform-architecture.md)
-- Adapter & composer layer: [`docs/architecture/cash-platform-adapters.md`](docs/architecture/cash-platform-adapters.md)
-- **Adding a new platform** = one adapter file + one composer style module; the
-  schema and rules don't change.
-
-## Tests
-
-```bash
-./venv/bin/python -m unittest discover -s tests -v
-```
-
-No network, no API key, no real DB touched. See [`docs/testing.md`](docs/testing.md).
-
-> **Note (privacy/v1):** Encryption at rest is out of scope for v1 — the SQLite
-> file at `user_data/cash.db` is unencrypted. Don't forget this before
-> onboarding company (Slack/Teams) data.
+Cash works across Telegram, Discord, and (via adapters) Slack and Teams, with per-person memory and
+enforceable directives ("ignore X", "auto-reply to Y"). One person's memory is shared across every
+platform they use — talk to Cash on Telegram, pick up the thread on Discord.
