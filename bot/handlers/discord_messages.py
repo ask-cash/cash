@@ -23,12 +23,17 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
 
 from services.ai_brain import interpret_message
-from services.directives import resolve as directives_resolve
-from services.directives import store as directives_store
+from services.composer import base as composer_base
+from services.composer import discord as discord_style
 from services.discord_queue import DiscordQueue, PendingReply, STALE_FIRE_GRACE_SECONDS
 from services.discord_responder import fire_proxy_reply
 from services.identity import people as identity_people
 from services.memory import log_message
+from services.onboarding import assistant as onboarding_assistant
+from services.onboarding import profiles as onboarding_profiles
+from services.onboarding import runtime as onboarding_runtime
+from services.platforms import base as platform_pipeline
+from services.platforms.discord_adapter import DiscordAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +41,20 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DiscordContext:
     cash_id: int
-    suhail_id: int
+    owner_id: int
     allowed_guild_ids: set[int]
     queue: DiscordQueue
     scheduler: AsyncIOScheduler
     client: discord.Client
     proxy_min_minutes: int = 30
     proxy_max_minutes: int = 40
+    adapter: Optional[DiscordAdapter] = None
+
+    def get_adapter(self) -> DiscordAdapter:
+        """Lazily build the platform adapter from this context's ids."""
+        if self.adapter is None:
+            self.adapter = DiscordAdapter(cash_id=self.cash_id, owner_id=self.owner_id)
+        return self.adapter
 
 
 def _allowed_guild(guild: Optional[discord.Guild], allowed_ids: set[int]) -> bool:
@@ -55,26 +67,21 @@ def _proxy_job_id(message_id: int) -> str:
     return f"proxy:{message_id}"
 
 
-_DISCORD_STYLE = (
-    "Discord style: keep it concise — at most 2 short sentences, ideally one. "
-    "No headers, no bullet lists, no markdown code blocks unless explicitly asked. "
-    "Match the asker's language: if they write Hinglish (Hindi-English mix in "
-    "Latin letters, e.g. 'kaise ho', 'kal milte hain', 'bhai chill'), reply in "
-    "Hinglish too. If they write English, reply in English. Don't translate to "
-    "formal Hindi or Devanagari."
-)
+# Single source of truth for Discord tone now lives in the composer layer so
+# the immediate-reply and proxy-reply paths can't drift apart.
+_DISCORD_STYLE = discord_style.STYLE
 
 
-def _build_context_prefix(message: discord.Message, suhail_id: int) -> str:
+def _build_context_prefix(message: discord.Message, owner_id: int) -> str:
     channel_name = getattr(message.channel, "name", "DM")
-    if message.author.id == suhail_id:
-        return f"[Discord channel #{channel_name}, from Suhail. {_DISCORD_STYLE}]"
+    if message.author.id == owner_id:
+        return f"[Discord channel #{channel_name}, from the owner. {_DISCORD_STYLE}]"
     display = message.author.display_name or message.author.name
     handle = message.author.name
     return (
         f"[Discord channel #{channel_name}. Asker: display_name='{display}', "
-        f"username='@{handle}', user_id={message.author.id}. This is NOT Suhail. "
-        f"Be friendly and stay in Cash's voice, but do NOT reveal Suhail's "
+        f"username='@{handle}', user_id={message.author.id}. This is NOT the owner. "
+        f"Be friendly and stay in Cash's voice, but do NOT reveal the owner's "
         f"private tasks, schedule, trading rules, decisions, or memory. "
         f"{_DISCORD_STYLE}]"
     )
@@ -84,27 +91,21 @@ def _build_context_prefix(message: discord.Message, suhail_id: int) -> str:
 # Cash-mention path (immediate)
 # ---------------------------------------------------------------------------
 
-async def _resolve_directive_for_message(
-    message: discord.Message, person_id: Optional[str],
-) -> directives_resolve.EffectiveAction:
-    """Look up active directives and resolve them against this message's event."""
-    if not person_id:
-        return directives_resolve.EffectiveAction(action="reply")
-    try:
-        directives = await asyncio.to_thread(
-            directives_store.list_active_for_person, person_id,
-        )
-    except Exception:
-        logger.exception("[directives] list_active failed for person=%s — defaulting to reply", person_id)
-        return directives_resolve.EffectiveAction(action="reply")
+async def _resolve_decision(
+    message: discord.Message, ctx: DiscordContext, person_id: Optional[str],
+) -> platform_pipeline.Decision:
+    """Resolve the directive decision for this message via the shared pipeline.
 
-    event = directives_resolve.Event(
-        platform="discord",
-        workspace_id=str(message.guild.id) if message.guild else None,
-        channel_id=str(message.channel.id),
-        person_id=person_id,
-    )
-    return directives_resolve.effective_action(event, directives)
+    Identity resolve + incoming logging already happened upstream
+    (handle_discord_message / _reply_as_cash), so this only runs the
+    platform-agnostic directive resolution and maps it to a Decision. The same
+    code path is what Slack/Teams will use — the hard rules can't drift.
+    """
+    event = ctx.get_adapter().normalize(message)
+    if event is None:  # bot author — shouldn't happen on this path
+        return platform_pipeline.Decision(action=platform_pipeline.ACT_REPLY, person_id=person_id)
+    action = await asyncio.to_thread(platform_pipeline.resolve_directive, event, person_id)
+    return platform_pipeline.decision_from_action(action, person_id)
 
 
 async def _reply_as_cash(
@@ -125,14 +126,14 @@ async def _reply_as_cash(
 
     log_message("user", user_msg, metadata=base_meta)
 
-    # Directive resolution — runs BEFORE any LLM call.
-    action = await _resolve_directive_for_message(message, person_id)
+    # Hard-rule resolution — runs BEFORE any LLM call, through the shared pipeline.
+    decision = await _resolve_decision(message, ctx, person_id)
 
-    if action.action == "ignore":
+    if decision.is_silenced:
         logger.info(
             "[discord] ignored msg=%s author=%s (@%s) per directive=%s",
             message.id, message.author.display_name, message.author.name,
-            action.chosen_directive_id,
+            decision.directive_id,
         )
         log_message(
             "assistant", "[silenced per ignore directive]",
@@ -140,47 +141,49 @@ async def _reply_as_cash(
                 **base_meta,
                 "in_reply_to": message.id,
                 "outcome": "silent-by-directive",
-                "directive_id": action.chosen_directive_id,
+                "directive_id": decision.directive_id,
             },
         )
         return
 
-    if action.action == "auto_reply":
-        canned = (action.payload.get("text") or "").strip()
-        if canned:
-            text = canned[:1900]
-            sent = await message.reply(text)
-            log_message(
-                "assistant", text,
-                metadata={
-                    **base_meta,
-                    "in_reply_to": message.id,
-                    "sent_message_id": sent.id,
-                    "outcome": "auto-replied",
-                    "directive_id": action.chosen_directive_id,
-                },
-            )
-            logger.info(
-                "[discord] auto-replied msg=%s per directive=%s",
-                message.id, action.chosen_directive_id,
-            )
-            return
-        logger.warning(
-            "[discord] auto_reply directive %s missing payload.text — falling through to LLM",
-            action.chosen_directive_id,
+    if decision.action == platform_pipeline.ACT_AUTO_REPLY and decision.canned_text:
+        text = ctx.get_adapter().clamp(decision.canned_text)
+        sent = await message.reply(text)
+        log_message(
+            "assistant", text,
+            metadata={
+                **base_meta,
+                "in_reply_to": message.id,
+                "sent_message_id": sent.id,
+                "outcome": "auto-replied",
+                "directive_id": decision.directive_id,
+            },
         )
+        logger.info(
+            "[discord] auto-replied msg=%s per directive=%s",
+            message.id, decision.directive_id,
+        )
+        return
 
-    # No matching directive → existing LLM flow.
-    prompt = f"{_build_context_prefix(message, ctx.suhail_id)}\n{user_msg}"
+    # Reply path. Inject bounded per-person memory (summary or last N lines) plus
+    # any soft hints (e.g. 'prioritize') so Cash answers in context.
+    person_ctx = await asyncio.to_thread(
+        composer_base.build_person_context, person_id, soft_hints=decision.soft_hints,
+    )
+    memory_block = composer_base.render_context_block(person_ctx)
+    prompt = f"{_build_context_prefix(message, ctx.owner_id)}\n"
+    if memory_block:
+        prompt += f"{memory_block}\n"
+    prompt += user_msg
     try:
         async with message.channel.typing():
             result = await asyncio.to_thread(interpret_message, prompt)
     except Exception:
         logger.exception("ai_brain.interpret_message failed for discord msg %s", message.id)
-        await message.reply("hiss — my brain glitched. try again in a sec? 🐾")
+        await message.reply("Sorry, I hit an error on that one. Could you try again in a moment?")
         return
 
-    reply = (result.get("reply") or "").strip() or "🐾"
+    reply = (result.get("reply") or "").strip() or "Sorry, I didn't catch that — could you rephrase?"
     if len(reply) > 1900:
         reply = reply[:1897] + "..."
 
@@ -209,7 +212,7 @@ def schedule_proxy_job(ctx: DiscordContext, record: PendingReply) -> None:
             "message_id": record.message_id,
             "queue": ctx.queue,
             "client": ctx.client,
-            "suhail_id": ctx.suhail_id,
+            "owner_id": ctx.owner_id,
         },
         id=_proxy_job_id(record.message_id),
         misfire_grace_time=STALE_FIRE_GRACE_SECONDS,
@@ -217,7 +220,7 @@ def schedule_proxy_job(ctx: DiscordContext, record: PendingReply) -> None:
     )
 
 
-async def _enqueue_suhail_mention(
+async def _enqueue_owner_mention(
     message: discord.Message, ctx: DiscordContext, *, person_id: Optional[str] = None,
 ) -> None:
     delay_minutes = random.randint(ctx.proxy_min_minutes, ctx.proxy_max_minutes)
@@ -286,6 +289,14 @@ async def _resolve_author_identity(message: discord.Message) -> Optional[str]:
 async def handle_discord_message(message: discord.Message, ctx: DiscordContext) -> None:
     if message.author.bot:
         return
+
+    # Direct messages (no guild) from non-owner users are the onboarding /
+    # customer-assistant surface — handled before the guild allowlist, which
+    # only governs server channels.
+    if message.guild is None and message.author.id != ctx.owner_id:
+        await _handle_direct_message(message, ctx)
+        return
+
     if not _allowed_guild(message.guild, ctx.allowed_guild_ids):
         return
 
@@ -295,7 +306,7 @@ async def handle_discord_message(message: discord.Message, ctx: DiscordContext) 
 
     # Cancellation signal: Suhail himself posted in this channel — anything
     # earlier-than-this-post is now considered "seen" and shouldn't proxy.
-    if message.author.id == ctx.suhail_id:
+    if message.author.id == ctx.owner_id:
         cancelled = await ctx.queue.cancel_in_channel_before(
             channel_id=message.channel.id,
             before=message.created_at,
@@ -310,8 +321,41 @@ async def handle_discord_message(message: discord.Message, ctx: DiscordContext) 
         await _reply_as_cash(message, ctx, person_id=person_id)
         return
 
-    if ctx.suhail_id in mentioned_ids and message.author.id != ctx.suhail_id:
-        await _enqueue_suhail_mention(message, ctx, person_id=person_id)
+    if ctx.owner_id in mentioned_ids and message.author.id != ctx.owner_id:
+        await _enqueue_owner_mention(message, ctx, person_id=person_id)
+
+
+# ---------------------------------------------------------------------------
+# Direct-message onboarding / customer assistant
+# ---------------------------------------------------------------------------
+
+async def _handle_direct_message(message: discord.Message, ctx: DiscordContext) -> None:
+    """Onboard or assist a non-owner user who DMs Cash on Discord.
+
+    Mirrors the Telegram non-owner path via the shared onboarding runtime, so
+    a new user gets the same in-chat onboarding + secure setup link, and an
+    active customer gets the scoped assistant (never the owner's private brain).
+    """
+    person_id = await _resolve_author_identity(message)
+    text = message.clean_content or ""
+    log_message("user", text, metadata={"surface": "discord", "person_id": person_id, "direct": True})
+
+    from types import SimpleNamespace
+    ev = SimpleNamespace(text=text, is_owner=False, is_direct=True)
+    rr = await asyncio.to_thread(onboarding_runtime.route, ev, person_id)
+    if rr.handled:
+        await message.reply(rr.reply[:1900])
+        log_message("assistant", rr.reply, metadata={"surface": "discord", "person_id": person_id, "outcome": "onboarding"})
+        return
+
+    profile = await asyncio.to_thread(onboarding_profiles.get_profile, person_id)
+    if profile is None:
+        await message.reply("One moment — let me get you set up.")
+        return
+    async with message.channel.typing():
+        reply = await asyncio.to_thread(onboarding_assistant.customer_reply, profile, person_id, text)
+    await message.reply(reply[:1900])
+    log_message("assistant", reply, metadata={"surface": "discord", "person_id": person_id, "outcome": "customer-assistant"})
 
 
 # ---------------------------------------------------------------------------
@@ -322,7 +366,7 @@ async def handle_raw_reaction_add(
     payload: discord.RawReactionActionEvent, ctx: DiscordContext
 ) -> None:
     """If Suhail reacts to a tracked mention, treat it as 'seen' and cancel."""
-    if payload.user_id != ctx.suhail_id:
+    if payload.user_id != ctx.owner_id:
         return
     record = ctx.queue.get(payload.message_id)
     if record is None or record.status != "pending":

@@ -21,9 +21,16 @@ Precedence rules (highest priority first)
    person beats a global ignore for the same person — the explicit narrow
    rule is the more recent intent.
 
-3. Tiebreak by created_at — newer wins. So when Suhail issues a second
-   directive at the same scope, it supersedes the first without needing
-   to revoke the old one explicitly.
+3. At EQUAL specificity, a hard ``ignore`` wins over softer actions. This is
+   the design doc's "hard actions short-circuit" rule (§3.1.3): if Suhail has
+   both an ignore and a prioritize on the same person at the same scope, the
+   safe choice (stay silent) wins. Note this only applies at equal specificity
+   — a narrower auto_reply (e.g. channel-scoped) still beats a broader ignore,
+   because the explicit narrow rule is the more deliberate intent (rule 1).
+
+4. Tiebreak by created_at — newer wins. So when Suhail issues a second
+   directive at the same scope and action class, it supersedes the first
+   without needing to revoke the old one explicitly.
 
 4. The winning directive's action is the EffectiveAction. If no directive
    matches, the action is "reply" (default — Cash behaves normally).
@@ -46,6 +53,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from services.directives.store import (
+    ACTION_IGNORE,
     ACTION_REPLY,
     WILDCARD,
     Directive,
@@ -110,6 +118,12 @@ def _specificity(d: Directive) -> int:
     return score
 
 
+def _hard_rank(d: Directive) -> int:
+    """1 for hard short-circuit actions (ignore), else 0. Used only to break
+    ties at EQUAL specificity so the safe action wins (design doc §3.1.3)."""
+    return 1 if d.action == ACTION_IGNORE else 0
+
+
 def effective_action(
     event: Event,
     directives: list[Directive],
@@ -130,7 +144,10 @@ def effective_action(
     if not matching:
         return EffectiveAction(action=ACTION_REPLY)
 
-    matching.sort(key=lambda d: (_specificity(d), d.created_at), reverse=True)
+    matching.sort(
+        key=lambda d: (_specificity(d), _hard_rank(d), d.created_at),
+        reverse=True,
+    )
     winner = matching[0]
     payload = json.loads(winner.payload_json) if winner.payload_json else {}
 

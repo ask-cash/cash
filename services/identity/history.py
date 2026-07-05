@@ -43,11 +43,20 @@ def recent_for_person(
     if not person_id:
         return []
 
+    # Include history of any person merged into this one, so a linked identity
+    # inherits its past conversations (shared memory across platforms).
+    ids = {person_id}
+    try:
+        from services.identity.linking import merged_into
+        ids |= merged_into(person_id)
+    except Exception:
+        logger.debug("[history] alias expansion skipped", exc_info=True)
+
     cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).isoformat()
     matches: list[dict] = []
     for entry in _all_conversations():
         md = entry.get("metadata") or {}
-        if md.get("person_id") != person_id:
+        if md.get("person_id") not in ids:
             continue
         ts = entry.get("timestamp", "")
         if ts and ts < cutoff:

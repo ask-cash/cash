@@ -35,6 +35,8 @@ class TenantRecord:
     display_name: str
     timezone: str
     status: str
+    email: str = ""
+    is_admin: bool = False
 
 
 @dataclass
@@ -58,43 +60,96 @@ def _token_hash(token: str) -> str:
 # Tenants
 # ---------------------------------------------------------------------------
 
+_TENANT_COLS = "tenant_id, display_name, timezone, status, email, is_admin"
+
+
+def _to_record(row) -> TenantRecord:
+    return TenantRecord(
+        tenant_id=row["tenant_id"],
+        display_name=row["display_name"],
+        timezone=row["timezone"],
+        status=row["status"],
+        email=row["email"] or "",
+        is_admin=bool(row["is_admin"]),
+    )
+
+
 def ensure_tenant(
     tenant_id: str,
     *,
     display_name: str = "",
     timezone: str = "Asia/Kolkata",
+    email: str = "",
+    is_admin: bool = False,
 ) -> None:
+    """Create the tenant if absent. Existing rows are left untouched — use
+    ``set_tenant_meta`` to change email/admin/display_name on an existing tenant."""
     now = _now_iso()
     with connect() as conn:
         conn.execute(
             """
-            INSERT INTO tenants (tenant_id, display_name, timezone, status, created_at)
-            VALUES (?, ?, ?, 'active', ?)
+            INSERT INTO tenants (tenant_id, display_name, email, is_admin, timezone, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'active', ?)
             ON CONFLICT (tenant_id) DO NOTHING
             """,
-            (tenant_id, display_name or tenant_id, timezone, now),
+            (tenant_id, display_name or tenant_id, email or None, is_admin, timezone, now),
         )
+
+
+def set_tenant_meta(
+    tenant_id: str,
+    *,
+    email: Optional[str] = None,
+    is_admin: Optional[bool] = None,
+    display_name: Optional[str] = None,
+) -> None:
+    """Update mutable tenant metadata. Only provided fields change."""
+    sets: list[str] = []
+    params: list = []
+    if email is not None:
+        sets.append("email = ?")
+        params.append(email)
+    if is_admin is not None:
+        sets.append("is_admin = ?")
+        params.append(is_admin)
+    if display_name is not None:
+        sets.append("display_name = ?")
+        params.append(display_name)
+    if not sets:
+        return
+    params.append(tenant_id)
+    with connect() as conn:
+        conn.execute(f"UPDATE tenants SET {', '.join(sets)} WHERE tenant_id = ?", params)
 
 
 def get_tenant(tenant_id: str) -> Optional[TenantRecord]:
     with connect() as conn:
         row = conn.execute(
-            "SELECT tenant_id, display_name, timezone, status FROM tenants WHERE tenant_id = ?",
+            f"SELECT {_TENANT_COLS} FROM tenants WHERE tenant_id = ?",
             (tenant_id,),
         ).fetchone()
-    if not row:
-        return None
-    return TenantRecord(row["tenant_id"], row["display_name"], row["timezone"], row["status"])
+    return _to_record(row) if row else None
 
 
 def list_tenants(active_only: bool = True) -> list[TenantRecord]:
-    sql = "SELECT tenant_id, display_name, timezone, status FROM tenants"
+    sql = f"SELECT {_TENANT_COLS} FROM tenants"
     if active_only:
         sql += " WHERE status = 'active'"
     sql += " ORDER BY created_at"
     with connect() as conn:
         rows = conn.execute(sql).fetchall()
-    return [TenantRecord(r["tenant_id"], r["display_name"], r["timezone"], r["status"]) for r in rows]
+    return [_to_record(r) for r in rows]
+
+
+def get_admin_tenant() -> Optional[TenantRecord]:
+    """The platform admin tenant (Suhail), if one is flagged. Used e.g. to route
+    approval/notification emails to the admin's address."""
+    with connect() as conn:
+        row = conn.execute(
+            f"SELECT {_TENANT_COLS} FROM tenants WHERE is_admin = ? ORDER BY created_at LIMIT 1",
+            (True,),
+        ).fetchone()
+    return _to_record(row) if row else None
 
 
 def new_tenant_id() -> str:

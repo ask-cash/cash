@@ -10,7 +10,7 @@ Outcomes (recorded in both queue status and audit log):
   - dry-run       composer ok, flag off, deliberately not sent
   - vetoed        composer self-vetoed (sensitive content)
   - send-failed   composer ok, send raised
-  - cancelled     suhail-active-late-check fired
+  - cancelled     owner-active-late-check fired
   - skipped       original deleted / channel unreachable / etc.
 """
 
@@ -95,8 +95,8 @@ def _audit(
         logger.exception("[responder] failed to write audit log")
 
 
-async def _suhail_active_in_channel_since(
-    client: discord.Client, channel_id: int, suhail_id: int, since: dt.datetime
+async def _owner_active_in_channel_since(
+    client: discord.Client, channel_id: int, owner_id: int, since: dt.datetime
 ) -> bool:
     """Did Suhail post anything in this channel after `since`? Late safety net."""
     channel = client.get_channel(channel_id)
@@ -108,7 +108,7 @@ async def _suhail_active_in_channel_since(
             return False
     try:
         async for msg in channel.history(limit=50, after=since):
-            if msg.author.id == suhail_id:
+            if msg.author.id == owner_id:
                 return True
     except Exception:
         logger.exception("history() failed for channel %s", channel_id)
@@ -232,7 +232,7 @@ async def fire_proxy_reply(
     message_id: int,
     queue: DiscordQueue,
     client: discord.Client,
-    suhail_id: int,
+    owner_id: int,
 ) -> None:
     """Scheduler job entrypoint. Re-checks state, composes, then sends or audits."""
     record = queue.get(message_id)
@@ -244,8 +244,8 @@ async def fire_proxy_reply(
         return
 
     created_at = dt.datetime.fromisoformat(record.created_at)
-    if await _suhail_active_in_channel_since(client, record.channel_id, suhail_id, created_at):
-        await queue.cancel(message_id, "suhail-active-late-check")
+    if await _owner_active_in_channel_since(client, record.channel_id, owner_id, created_at):
+        await queue.cancel(message_id, "owner-active-late-check")
         return
 
     # Directive resolution — runs BEFORE we fetch the message or call the LLM.

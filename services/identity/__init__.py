@@ -20,6 +20,10 @@ from services.identity.people import (  # noqa: F401
     resolve,
     set_canonical_name,
 )
+from services.identity.linking import (  # noqa: F401
+    canonical_person_id,
+    link_identities,
+)
 from services.identity.store import DB_PATH, ensure_schema  # noqa: F401
 from services.identity.summaries import (  # noqa: F401
     PersonSummary,

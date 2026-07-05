@@ -43,15 +43,15 @@ logger = logging.getLogger(__name__)
 MEM_PATH = os.path.join("user_data", "memory", "conversations.jsonl")
 
 
-def _ensure_suhail_person() -> Optional[str]:
+def _ensure_owner_person() -> Optional[str]:
     """Pre-link Suhail's known platform identities under one canonical person."""
     tg_id = (os.getenv("YOUR_TELEGRAM_USER_ID") or "").strip()
-    discord_id = (os.getenv("DISCORD_SUHAIL_USER_ID") or "").strip()
+    discord_id = (os.getenv("DISCORD_OWNER_USER_ID") or os.getenv("DISCORD_SUHAIL_USER_ID") or "").strip()
     canonical_name = (os.getenv("USER_NAME") or "Suhail").strip()
 
     if (not tg_id or tg_id == "0") and (not discord_id or discord_id == "0"):
-        logger.info("Suhail: env config not present (YOUR_TELEGRAM_USER_ID / "
-                    "DISCORD_SUHAIL_USER_ID); skipping pre-link")
+        logger.info("owner: env config not present (YOUR_TELEGRAM_USER_ID / "
+                    "DISCORD_OWNER_USER_ID); skipping pre-link")
         return None
 
     person_id: Optional[str] = None
@@ -127,7 +127,7 @@ def _summarize() -> dict:
 
 
 def main() -> int:
-    suhail = _ensure_suhail_person()
+    suhail = _ensure_owner_person()
     if suhail:
         ids = list_platform_identities_for_person(suhail)
         plats = ", ".join(sorted({i.platform for i in ids}))

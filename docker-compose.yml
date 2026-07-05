@@ -18,9 +18,11 @@ x-app-env: &app-env
   AWS_ACCESS_KEY_ID: minioadmin
   AWS_SECRET_ACCESS_KEY: minioadmin
   SECRETS_BACKEND: db
-  # Dev-only Fernet key. Generate prod keys with:
+  # Dev-only Fernet key — MUST be a valid 32-byte url-safe base64 key, else
+  # per-tenant token encryption (and therefore bot onboarding) fails. Generate
+  # your own / prod keys with:
   #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-  SECRETS_ENCRYPTION_KEY: 3aQ9o5b2Yk0r8mUu2t6w9z$$Bg7Hh2Kk5Nn8Qq1Ss4Vv=
+  SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-TDmXj1OoypbO7JYjFJQiBfMgXSpq2i4w0bmy8S1Erfk=}
   ENFORCE_TENANT: "true"
   TELEGRAM_WEBHOOK_SECRET: dev-webhook-secret
   ADMIN_API_TOKEN: dev-admin
@@ -35,7 +37,10 @@ services:
       POSTGRES_USER: cash
       POSTGRES_PASSWORD: cash
       POSTGRES_DB: cash
-    ports: ["5432:5432"]
+    # Host ports are env-overridable so the stack comes up even if you already
+    # run Postgres/Redis/minio locally. Containers talk to each other over the
+    # compose network (postgres:5432, redis:6379) regardless of these.
+    ports: ["${POSTGRES_PORT_HOST:-5432}:5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cash"]
       interval: 5s
@@ -46,7 +51,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ["${REDIS_PORT_HOST:-6380}:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -59,7 +64,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-    ports: ["9000:9000", "9001:9001"]
+    ports: ["${MINIO_PORT_HOST:-9000}:9000", "${MINIO_CONSOLE_PORT_HOST:-9001}:9001"]
     volumes:
       - miniodata:/data
 
@@ -78,16 +83,51 @@ services:
     command: ["gateway"]
     environment:
       <<: *app-env
-    ports: ["8080:8080"]
+    ports: ["${GATEWAY_PORT_HOST:-18080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+    healthcheck:
+      # The runtime image has python but not curl; probe /readyz with urllib.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/readyz').status==200 else 1)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
   worker:
     build: .
     command: ["worker"]
     environment:
       <<: *app-env
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  # Long-polling Telegram from .env — no webhook / ngrok / PUBLIC_BASE_URL needed.
+  # On startup it clears any webhook, so polling takes over from the gateway path.
+  telegram:
+    build: .
+    command: ["telegram-poller"]
+    environment:
+      <<: *app-env
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      YOUR_TELEGRAM_USER_ID: ${YOUR_TELEGRAM_USER_ID:-}
+      TG_OWNER_ID: ${TG_OWNER_ID:-}
+      # Google OAuth for /connect_google. The callback server listens on
+      # OAUTH_SERVER_PORT inside the container (published below). The redirect
+      # URI must be reachable from your browser AND registered on your Google
+      # OAuth client. http://localhost:8401/oauth2callback works for local use.
+      OAUTH_SERVER_PORT: "8401"
+      OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI:-http://localhost:8401/oauth2callback}
+      GOOGLE_CREDENTIALS_PATH: ${GOOGLE_CREDENTIALS_PATH:-credentials.json}
+      GOOGLE_TOKEN_PATH: ${GOOGLE_TOKEN_PATH:-token.json}
+      GMAIL_TOKEN_PATH: ${GMAIL_TOKEN_PATH:-gmail_token.json}
+    ports:
+      - "${OAUTH_PORT_HOST:-8401}:8401"
+    volumes:
+      # credentials.json is excluded from the image (.dockerignore); mount it.
+      - ./credentials.json:/app/credentials.json:ro
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -99,6 +139,11 @@ services:
       <<: *app-env
       CONNECTOR_SHARD_INDEX: "0"
       CONNECTOR_SHARD_TOTAL: "1"
+      # Single-tenant local Discord bot straight from .env (no DB onboarding).
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_CASH_USER_ID: ${DISCORD_CASH_USER_ID:-}
+      DISCORD_SUHAIL_USER_ID: ${DISCORD_SUHAIL_USER_ID:-}
+      DISCORD_ALLOWED_GUILD_IDS: ${DISCORD_ALLOWED_GUILD_IDS:-}
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}

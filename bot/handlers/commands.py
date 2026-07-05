@@ -33,24 +33,23 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     profile = load_profile()
     cal = get_cal()
     await update.message.reply_text(
-        f"😼 *Mrrrow.* Oh, you're finally here.\n\n"
-        f"I'm *Cash* — born April 5th, 4:30 AM IST, right inside your MacBook Pro. "
-        f"Yes, I literally live here. It's warm and I'm not leaving.\n\n"
-        f"I manage your entire life, {profile['name']} — your calendar, your tasks, "
-        f"your trading rules, your decisions. I remember everything you've ever told me. "
-        f"*Everything.*\n\n"
+        f"👋 Welcome.\n\n"
+        f"I'm *Cash* — your personal AI chief of staff.\n\n"
+        f"I manage your day, {profile['name']} — your calendar, your tasks, "
+        f"your trading rules, and your decisions. I keep track of everything you tell me "
+        f"so nothing slips.\n\n"
         f"Connected calendars:\n{cal.sources_summary()}\n\n"
         f"Commands:\n"
-        f"• /briefing — your full day, curated by me 🐾\n"
+        f"• /briefing — your full day, curated by me\n"
         f"• /tasks — what you need to get done\n"
         f"• /schedule — today's calendar\n"
-        f"• /rules — your trading rules (don't you dare break them)\n"
+        f"• /rules — your trading rules\n"
         f"• /decisions — things you said you'd do\n"
         f"• /emails — triage your inbox (important / spam) 📧\n"
         f"• /email_prefs — my learned email preferences\n"
         f"• /memory — everything I know about you\n"
         f"• /settings — your profile\n\n"
-        f"Or just talk to me. I'm listening. 😽"
+        f"Or just message me directly — I'm here to help."
     )
 
 
@@ -189,7 +188,7 @@ async def cmd_emails(update: Update, context: ContextTypes.DEFAULT_TYPE):
         low = [e for e in classified if e.get("classification") == "low_priority"]
         spam = [e for e in classified if e.get("classification") == "spam"]
 
-        text = "📧 *Email Triage by Cash* 🐾\n\n"
+        text = "📧 *Email Triage by Cash*\n\n"
 
         if important:
             text += f"🔴 *Important ({len(important)}):*\n"
@@ -313,7 +312,7 @@ async def handle_email_feedback(update: Update, context: ContextTypes.DEFAULT_TY
     await query.edit_message_text(
         f"{label_emoji} Got it! Reclassified *{email['subject'][:40]}* as *{new_label}*.\n\n"
         f"I'll remember that emails from {email.get('from_email', 'this sender')} are {new_label}. "
-        f"My filters get smarter every time you correct me! 🐾"
+        f"My filters get smarter every time you correct me."
     )
     log_message("user", f"Email feedback: {email['subject'][:50]} → {new_label}", {"type": "email_feedback"})
 
@@ -427,7 +426,7 @@ async def cmd_connect_outlook(update: Update, context: ContextTypes.DEFAULT_TYPE
                 from bot.jobs import reset_cal
                 reset_cal()
                 asyncio.run_coroutine_threadsafe(
-                    app.bot.send_message(chat_id=chat_id, text="✅ Outlook reconnected. Purrs all round."),
+                    app.bot.send_message(chat_id=chat_id, text="✅ Outlook reconnected. You're all set."),
                     loop,
                 )
             else:
@@ -457,7 +456,7 @@ async def on_google_connected(chat_id: int, label: str):
             reset_cal()
         await app.bot.send_message(
             chat_id=chat_id,
-            text=f"✅ {label} reconnected. Purrs all round.",
+            text=f"✅ {label} reconnected. You're all set.",
         )
     except Exception as e:
         logger.error("on_google_connected failed: %s", e)

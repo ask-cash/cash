@@ -29,11 +29,15 @@ def get_cal() -> UnifiedCalendar:
     return _cal
 
 
-def reset_cal() -> UnifiedCalendar:
-    """Force a fresh UnifiedCalendar — call after OAuth re-auth."""
+def reset_cal() -> None:
+    """Drop the cached UnifiedCalendar so it's rebuilt lazily — call after OAuth
+    re-auth. We must NOT rebuild eagerly here: reset_cal is invoked from the
+    OAuth success callback, which runs without a tenant in context. Building
+    UnifiedCalendar there would fail to load Google creds and cache a calendar
+    with google=None. Clearing the cache lets the next get_cal() rebuild under
+    the request handler's tenant context (mirrors reset_gmail)."""
     global _cal
-    _cal = UnifiedCalendar()
-    return _cal
+    _cal = None
 
 
 def get_gmail() -> Optional[GmailManager]:
@@ -68,7 +72,7 @@ async def scheduled_morning_briefing(context: ContextTypes.DEFAULT_TYPE):
         suggestions = resolve_conflicts(events, profile)
         conflicts_text = format_suggestions(suggestions)
         briefing = generate_briefing(events_text, tasks_text, conflicts_text)
-        await context.bot.send_message(chat_id=owner_id, text=f"😼 *paws at your face* Wake up, Suhail. I've been awake since 4:30 AM — this is nothing for me.\n\n{briefing}")
+        await context.bot.send_message(chat_id=owner_id, text=f"☀️ Good morning, {profile.get('name', 'there')}. Here's your briefing for the day.\n\n{briefing}")
         log_message("assistant", "Morning briefing sent", {"type": "scheduled_briefing"})
     except Exception as e:
         logger.error(f"Morning briefing error: {e}")
@@ -81,7 +85,7 @@ async def scheduled_trading_reminder(context: ContextTypes.DEFAULT_TYPE):
     profile = load_profile()
     rules = profile.get("trading", {}).get("rules", [])
     if rules:
-        text = "😾 *sits on your keyboard*\n\nMarket opens soon. You know the rules — I wrote them on the wall with my claws so you'd remember:\n\n"
+        text = "📈 Market opens soon. A quick reminder of the rules you set:\n\n"
         for i, rule in enumerate(rules, 1):
             text += f"{i}. {rule}\n"
 
@@ -92,7 +96,7 @@ async def scheduled_trading_reminder(context: ContextTypes.DEFAULT_TYPE):
             for d in trading_decisions:
                 text += f"  • {d['decision']}\n"
 
-        text += "\nNo revenge trading. No emotions. I'm watching. 🐾"
+        text += "\nNo revenge trading. Stay disciplined and stick to your rules."
         await context.bot.send_message(chat_id=owner_id, text=text)
 
 
@@ -119,7 +123,7 @@ async def scheduled_meeting_check(context: ContextTypes.DEFAULT_TYPE):
                     if att.get("self") and att.get("responseStatus") in ("needsAction",):
                         await context.bot.send_message(
                             chat_id=owner_id,
-                            text=f"🐱 Hey — '{title}' just ended and you haven't confirmed your attendance. Did you actually go, or did you ghost it? Tell me so I can update my records.",
+                            text=f"'{title}' just ended and your attendance is still unconfirmed. Did you attend? Let me know so I can update your records.",
                         )
     except Exception as e:
         logger.error(f"Meeting check error: {e}")
@@ -134,27 +138,27 @@ async def scheduled_evening_summary(context: ContextTypes.DEFAULT_TYPE):
     summary = get_tasks_summary()
     done_ratio = f"{summary['done_count']}/{summary['total']}"
     if summary['done_count'] == summary['total'] and summary['total'] > 0:
-        opening = f"😽 *purrs* {done_ratio} tasks done. You actually did it. I'm impressed. Almost proud enough to share my catnip."
+        opening = f"{done_ratio} tasks done — a full sweep. Excellent work today."
     elif summary['done_count'] == 0:
-        opening = f"😾 {done_ratio} tasks done. Zero. I did NOT wake up at 4:30 AM for this, Suhail."
+        opening = f"{done_ratio} tasks done. Nothing closed out today — let's reset and get back on track tomorrow."
     else:
-        opening = f"😼 {done_ratio} tasks done. Decent. Could've been better. Could've been worse. I've seen both."
+        opening = f"{done_ratio} tasks done. Solid progress, with a bit more to push on tomorrow."
 
     text = f"🌙 End of Day — Cash's Report\n\n{opening}\n"
 
     if summary["pending"]:
-        text += "\n⏳ Rolling these over to tomorrow (you're welcome):\n"
+        text += "\n⏳ Rolling these over to tomorrow:\n"
         for t in summary["pending"]:
             text += f"  • {t['task']}\n"
 
     decisions = get_active_decisions()
     unfulfilled = [d for d in decisions if not d.get("fulfilled") and d.get("scope") == "today"]
     if unfulfilled:
-        text += "\n🧠 You said you'd do these today. You didn't:\n"
+        text += "\n🧠 Still outstanding from today's commitments:\n"
         for d in unfulfilled:
             text += f"  • {d['decision']}\n"
 
-    text += "\nGet some sleep. I'll be here, judging you silently. 🐾"
+    text += "\nGet some rest — I'll have everything ready for tomorrow."
     await context.bot.send_message(chat_id=owner_id, text=text)
     log_message("assistant", "Evening summary sent", {"type": "scheduled_summary"})
 
@@ -194,7 +198,7 @@ async def scheduled_email_check(context: ContextTypes.DEFAULT_TYPE):
             text += f"• *{e['from_name']}*: {e['subject'][:60]}\n"
             text += f"  _{e.get('reason', '')}_\n"
 
-        text += "\nUse /emails for full triage. 🐾"
+        text += "\nUse /emails for full triage."
         await context.bot.send_message(chat_id=owner_id, text=text)
         log_message("assistant", f"Email alert: {len(important)} important", {"type": "email_alert"})
 

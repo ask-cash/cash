@@ -25,6 +25,7 @@ import secrets
 from dataclasses import dataclass
 from typing import Optional
 
+from services.db import from_row
 from services.identity.store import connect
 
 logger = logging.getLogger(__name__)
@@ -157,7 +158,7 @@ def get_person(person_id: str) -> Optional[Person]:
         ).fetchone()
         if row is None:
             return None
-        return Person(**dict(row))
+        return from_row(Person, row)
 
 
 def list_platform_identities_for_person(person_id: str) -> list[PlatformIdentity]:
@@ -166,7 +167,7 @@ def list_platform_identities_for_person(person_id: str) -> list[PlatformIdentity
             "SELECT * FROM platform_identities WHERE person_id = ? ORDER BY first_seen",
             (person_id,),
         ).fetchall()
-    return [PlatformIdentity(**dict(r)) for r in rows]
+    return [from_row(PlatformIdentity, r) for r in rows]
 
 
 def find_platform_identity(
@@ -192,7 +193,7 @@ def find_platform_identity(
             """,
             (platform, norm_workspace, pu_id),
         ).fetchone()
-    return PlatformIdentity(**dict(row)) if row else None
+    return from_row(PlatformIdentity, row) if row else None
 
 
 def find_by_hint(hint: str, *, platform: Optional[str] = None) -> list[Person]:
@@ -246,7 +247,7 @@ def find_by_hint(hint: str, *, platform: Optional[str] = None) -> list[Person]:
                 """,
                 (needle, needle, needle),
             ).fetchall()
-    return [Person(**dict(r)) for r in rows]
+    return [from_row(Person, r) for r in rows]
 
 
 def set_canonical_name(person_id: str, name: str) -> None:
