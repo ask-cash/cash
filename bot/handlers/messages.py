@@ -404,9 +404,15 @@ async def _keep_typing(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context.chat_data.pop("_typing_stop", None)
 
 
-async def _reply_typing(msg, text: str, context=None, *, steps: int = 6, delay: float = 0.4):
+async def _reply_typing(msg, text: str, context=None, *, interval: float = 0.32):
     """Send `text` with a typewriter reveal: post a first chunk, then edit the
     message to grow it in word groups so it looks like Cash is typing it out.
+
+    Smoothness comes from two things: (1) few round-trips — the number of edit
+    frames scales with length but is capped, since each edit is a network call;
+    (2) an EVEN cadence — we subtract the time each edit actually took from the
+    target ``interval`` before sleeping, so variable Telegram latency doesn't
+    make the reveal stutter.
 
     Stops the 'typing…' chat action first (so it doesn't flicker under the
     message), and falls back to a plain send on any Telegram error — e.g. an
@@ -425,12 +431,15 @@ async def _reply_typing(msg, text: str, context=None, *, steps: int = 6, delay: 
     if len(words) <= 4 or len(text) > 3500:
         return await msg.reply_text(text)
 
-    steps = min(steps, len(words))
+    # ~4 words per frame, but never fewer than 3 or more than 6 edits — keeps it
+    # snappy and well under Telegram's per-chat edit rate limit.
+    steps = max(3, min(6, len(words) // 4))
     bounds = sorted({max(1, round(len(words) * (i + 1) / steps)) for i in range(steps)})
     sent = None
     for i, b in enumerate(bounds):
         last = i == len(bounds) - 1
         partial = " ".join(words[:b]) + ("" if last else " ▍")  # ▍ = typing cursor
+        t0 = time.monotonic()
         try:
             if sent is None:
                 sent = await msg.reply_text(partial)
@@ -443,7 +452,8 @@ async def _reply_typing(msg, text: str, context=None, *, steps: int = 6, delay: 
                 await sent.edit_text(text)
             return sent
         if not last:
-            await asyncio.sleep(delay)
+            # Even cadence regardless of how long the round-trip took.
+            await asyncio.sleep(max(0.05, interval - (time.monotonic() - t0)))
     return sent
 
 
