@@ -370,25 +370,81 @@ async def _keep_typing(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Telegram auto-clears a chat action after ~5s, so a single send would vanish
     while Cash is still thinking. This re-sends every 4s in the background and
     cancels cleanly on exit (including early returns / exceptions).
+
+    Exposes a stopper via ``context.chat_data["_typing_stop"]`` so the reply
+    reveal (`_reply_typing`) can end the indicator the moment it starts typing
+    the answer out — otherwise the chat action would flicker under the message.
     """
     chat = update.effective_chat
     chat_id = chat.id if chat else None
+    stop = asyncio.Event()
+    if getattr(context, "chat_data", None) is not None:
+        context.chat_data["_typing_stop"] = stop.set
 
     async def _loop():
-        while chat_id is not None:
+        while chat_id is not None and not stop.is_set():
             try:
                 await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
             except Exception:  # never let the indicator break message handling
                 pass
-            await asyncio.sleep(4)
+            try:  # wake early if stopped, else re-send after 4s
+                await asyncio.wait_for(stop.wait(), timeout=4)
+            except asyncio.TimeoutError:
+                pass
 
     task = asyncio.create_task(_loop())
     try:
         yield
     finally:
+        stop.set()
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+        if getattr(context, "chat_data", None) is not None:
+            context.chat_data.pop("_typing_stop", None)
+
+
+async def _reply_typing(msg, text: str, context=None, *, steps: int = 6, delay: float = 0.4):
+    """Send `text` with a typewriter reveal: post a first chunk, then edit the
+    message to grow it in word groups so it looks like Cash is typing it out.
+
+    Stops the 'typing…' chat action first (so it doesn't flicker under the
+    message), and falls back to a plain send on any Telegram error — e.g. an
+    edit rate-limit (RetryAfter) — so a reply is never lost to the effect.
+    """
+    text = text or "👍"
+
+    # End the thinking indicator before we start revealing the answer.
+    if getattr(context, "chat_data", None):
+        stopper = context.chat_data.get("_typing_stop")
+        if stopper:
+            stopper()
+
+    words = text.split()
+    # Not worth the effect for very short replies or very long ones (many edits).
+    if len(words) <= 4 or len(text) > 3500:
+        return await msg.reply_text(text)
+
+    steps = min(steps, len(words))
+    bounds = sorted({max(1, round(len(words) * (i + 1) / steps)) for i in range(steps)})
+    sent = None
+    for i, b in enumerate(bounds):
+        last = i == len(bounds) - 1
+        partial = " ".join(words[:b]) + ("" if last else " ▍")  # ▍ = typing cursor
+        try:
+            if sent is None:
+                sent = await msg.reply_text(partial)
+            else:
+                await sent.edit_text(partial)
+        except Exception:  # rate-limited / edit failed — show the full text and bail
+            if sent is None:
+                return await msg.reply_text(text)
+            with contextlib.suppress(Exception):
+                await sent.edit_text(text)
+            return sent
+        if not last:
+            await asyncio.sleep(delay)
+    return sent
 
 
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -468,7 +524,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        result = interpret_message(user_msg, calendar_context=_calendar_context())
+        # Run the blocking calendar fetch + Claude call in a worker thread so the
+        # event loop stays free to emit the "typing…" indicator (and re-send it).
+        # Doing this inline froze the loop, so typing only appeared once the reply
+        # was already ready. to_thread copies contextvars, so tenant scoping holds.
+        result = await asyncio.to_thread(
+            lambda: interpret_message(user_msg, calendar_context=_calendar_context())
+        )
         action = result.get("action", "chat")
         params = result.get("params", {})
         reply = result.get("reply", "")
@@ -1025,7 +1087,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply = f"😿 Couldn't attach '{record['name']}' to the event: {e}"
 
         final_reply = reply or "👍"
-        await update.message.reply_text(final_reply)
+        await _reply_typing(update.message, final_reply, context)
         log_message(
             "assistant", final_reply,
             metadata={"surface": "telegram", "person_id": person_id} if person_id else None,
