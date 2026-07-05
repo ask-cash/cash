@@ -5,7 +5,9 @@ so the bot truly remembers what you said days ago.
 """
 
 import os
+import re
 import json
+import logging
 import datetime
 import anthropic
 from services.user_profile import load_profile, now as ist_now
@@ -15,6 +17,8 @@ from services.files import (
     build_files_context,
     build_claude_content_block,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_client():
@@ -78,11 +82,12 @@ Available actions:
 - "show_tasks" — show task list (params: {})
 - "show_schedule" — show today's schedule (params: {})
 - "show_tomorrow" — show tomorrow's schedule (params: {})
+- "show_date" — show the schedule for a SPECIFIC day the user names (e.g. "what's on July 6", "show Friday", "events on 2026-07-06"). Use this WHENEVER the user asks about a day that is NOT today or tomorrow. params: {"date": "YYYY-MM-DD"} — ALWAYS a concrete date resolved from the UPCOMING DATES table. (For today use show_schedule; for tomorrow use show_tomorrow.)
 - "check_conflicts" — resolve schedule conflicts (params: {})
 - "show_trading_rules" — display trading rules (params: {})
 - "add_trading_rule" — add a rule (params: {"rule": "..."})
 - "show_briefing" — full daily briefing (params: {})
-- "move_event" — reschedule something (params: {"event_title": "...", "event_time": "HH:MM" (24h, the current time of the event if referenced by time), "new_time": "HH:MM"})
+- "move_event" — reschedule an existing event to a new time and/or a new day (params: {"event_title": "...", "event_time": "HH:MM" (24h — the event's CURRENT start time if referenced by time), "date": "today|tomorrow|YYYY-MM-DD" (the day the event is CURRENTLY on — REQUIRED so it can be found; default "today"), "new_time": "HH:MM" (omit if only the day changes), "new_date": "today|tomorrow|YYYY-MM-DD" (the day to move it TO — omit if only the time changes)}). Provide at least one of new_time / new_date. Resolve every relative day to a concrete date using the UPCOMING DATES table. If the event the user refers to is in the CALENDAR block above, read its current day/time from there.
 - "create_event" — create calendar event (params: {"title": "...", "date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": N, "calendar": "google|outlook"})
   IMPORTANT: "date" must ALWAYS be a concrete YYYY-MM-DD string. Resolve relative references yourself using CURRENT TIME above. "today" → today's date, "tomorrow" → tomorrow's date, "Wednesday" → the next upcoming Wednesday's date, "next Friday" → next Friday's date. NEVER pass words like "today" or "wednesday" — always convert to YYYY-MM-DD.
 - "create_recurring_events" — create a SERIES of events spaced a fixed number of days apart, all in ONE action. ALWAYS use this (never repeated create_event) whenever the user asks for repeating/recurring events or several events at an interval — e.g. "every 14 days", "weekly for 8 weeks", "sets 1 to 13". params: {"title_template": "Change Braces Set - {n}", "start_date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": N, "interval_days": 14, "count": 13, "calendar": "google|outlook"}
@@ -124,6 +129,9 @@ Be smart about interpreting intent. Examples:
 - "what's my day look like" → show_briefing
 - "did I say I wanted to run today?" → search_memory + check decisions
 - "move gym to 6" → move_event with event_title "gym", new_time "18:00"
+- "shift tomorrow's 6pm run to today" → move_event with event_title "run", event_time "18:00", date "tomorrow", new_date "today" (event is CURRENTLY on tomorrow, so date="tomorrow"; it moves TO today, so new_date="today")
+- "move the standup to July 8 at 4pm" → move_event with event_title "standup", new_date "2026-07-08", new_time "16:00"
+- "what's on July 6" / "check July 6 events" / "show me the 6th" → show_date with date "2026-07-06"
 - "delete the standup" / "remove the 3pm meeting" / "cancel tomorrow's lunch" → delete_event
 - "remove the 9 am event" → delete_event with event_time "09:00" (DO NOT guess the title from memory — use event_time to match)
 - "cancel the 2pm meeting tomorrow" → delete_event with event_time "14:00", date "tomorrow"
@@ -252,9 +260,17 @@ Pending: {[t['task'] for t in tasks['pending']]}
     raw = response.content[0].text.strip()
     raw = raw.replace("```json", "").replace("```", "").strip()
 
+    # Isolate the JSON object even if the model wrapped it in prose.
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    candidate = match.group(0) if match else raw
+
+    # strict=False tolerates literal newlines inside string values — the model
+    # often puts multi-line replies (e.g. a bulleted schedule) in "reply", which
+    # is invalid strict JSON and previously dumped the whole envelope to the user.
     try:
-        return json.loads(raw)
+        return json.loads(candidate, strict=False)
     except json.JSONDecodeError:
+        logger.warning("interpret_message: could not parse model output as JSON; treating as chat")
         return {
             "action": "chat",
             "params": {},

@@ -135,6 +135,18 @@ def main() -> None:
         raise SystemExit("❌ TELEGRAM_BOT_TOKEN not set — required for the poller")
 
     bootstrap()
+    # Seed the default tenant so token/secret persistence (tenant_secrets FK ->
+    # tenants) works on the env-based single-tenant path. Admin onboarding
+    # creates its own tenant rows; this covers the "bot straight from .env" run.
+    from services import tenant_registry
+    from services.tenancy import system_context
+
+    with system_context():
+        tenant_registry.ensure_tenant(
+            settings.default_tenant_id,
+            display_name=os.getenv("USER_NAME", ""),
+            timezone=os.getenv("TIMEZONE", "Asia/Kolkata"),
+        )
     owner_id = _owner_id()
     tenant = settings.default_tenant_id
 

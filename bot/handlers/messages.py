@@ -3,6 +3,7 @@ messages.py — Natural language message handler with AI brain + memory.
 """
 
 import asyncio
+import contextlib
 import logging
 import os
 import re
@@ -11,6 +12,7 @@ import uuid
 import datetime as dt
 from types import SimpleNamespace
 from telegram import Update
+from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
 from services.onboarding import assistant as onboarding_assistant
@@ -361,6 +363,34 @@ async def _try_handle_as_directive(update: Update, user_msg: str) -> bool:
     return True
 
 
+@contextlib.asynccontextmanager
+async def _keep_typing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show Telegram's 'typing…' indicator until the wrapped block exits.
+
+    Telegram auto-clears a chat action after ~5s, so a single send would vanish
+    while Cash is still thinking. This re-sends every 4s in the background and
+    cancels cleanly on exit (including early returns / exceptions).
+    """
+    chat = update.effective_chat
+    chat_id = chat.id if chat else None
+
+    async def _loop():
+        while chat_id is not None:
+            try:
+                await context.bot.send_chat_action(chat_id=chat_id, action=ChatAction.TYPING)
+            except Exception:  # never let the indicator break message handling
+                pass
+            await asyncio.sleep(4)
+
+    task = asyncio.create_task(_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Top-level text dispatcher: owner -> private assistant, others -> onboarding.
 
@@ -374,43 +404,46 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     if msg is None or not msg.text:
         return
 
-    owner_id = int(context.bot_data.get("owner_id", 0) or 0)
-    uid = update.effective_user.id if update.effective_user else 0
-    # owner_id == 0 means "no owner configured" -> legacy single-user dev mode,
-    # treat the sender as the owner (onboarding effectively off).
-    is_owner = owner_id == 0 or uid == owner_id
+    # Show "typing…" for the whole think — covers the owner brain (handle_message)
+    # and the onboarding/customer paths, all of which make slow Claude calls.
+    async with _keep_typing(update, context):
+        owner_id = int(context.bot_data.get("owner_id", 0) or 0)
+        uid = update.effective_user.id if update.effective_user else 0
+        # owner_id == 0 means "no owner configured" -> legacy single-user dev mode,
+        # treat the sender as the owner (onboarding effectively off).
+        is_owner = owner_id == 0 or uid == owner_id
 
-    if is_owner:
-        await handle_message(update, context)
-        return
+        if is_owner:
+            await handle_message(update, context)
+            return
 
-    # Non-owner path: onboarding / customer assistant.
-    person_id = await _resolve_telegram_author(update)
-    chat = update.effective_chat
-    is_direct = getattr(chat, "type", "private") == "private"
+        # Non-owner path: onboarding / customer assistant.
+        person_id = await _resolve_telegram_author(update)
+        chat = update.effective_chat
+        is_direct = getattr(chat, "type", "private") == "private"
 
-    log_message(
-        "user", msg.text,
-        metadata={"surface": "telegram", "person_id": person_id} if person_id else None,
-    )
+        log_message(
+            "user", msg.text,
+            metadata={"surface": "telegram", "person_id": person_id} if person_id else None,
+        )
 
-    ev = SimpleNamespace(text=msg.text, is_owner=False, is_direct=is_direct)
-    rr = await asyncio.to_thread(onboarding_runtime.route, ev, person_id)
-    if rr.handled:
-        await msg.reply_text(rr.reply)
-        log_message("assistant", rr.reply,
-                    metadata={"surface": "telegram", "person_id": person_id, "outcome": "onboarding"} if person_id else None)
-        return
+        ev = SimpleNamespace(text=msg.text, is_owner=False, is_direct=is_direct)
+        rr = await asyncio.to_thread(onboarding_runtime.route, ev, person_id)
+        if rr.handled:
+            await msg.reply_text(rr.reply)
+            log_message("assistant", rr.reply,
+                        metadata={"surface": "telegram", "person_id": person_id, "outcome": "onboarding"} if person_id else None)
+            return
 
-    # Active customer -> scoped assistant (never the owner's private brain).
-    profile = await asyncio.to_thread(onboarding_profiles.get_profile, person_id)
-    if profile is None:
-        await msg.reply_text("One sec — let me get you set up.")
-        return
-    reply = await asyncio.to_thread(onboarding_assistant.customer_reply, profile, person_id, msg.text)
-    await msg.reply_text(reply)
-    log_message("assistant", reply,
-                metadata={"surface": "telegram", "person_id": person_id, "outcome": "customer-assistant"} if person_id else None)
+        # Active customer -> scoped assistant (never the owner's private brain).
+        profile = await asyncio.to_thread(onboarding_profiles.get_profile, person_id)
+        if profile is None:
+            await msg.reply_text("One sec — let me get you set up.")
+            return
+        reply = await asyncio.to_thread(onboarding_assistant.customer_reply, profile, person_id, msg.text)
+        await msg.reply_text(reply)
+        log_message("assistant", reply,
+                    metadata={"surface": "telegram", "person_id": person_id, "outcome": "customer-assistant"} if person_id else None)
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -465,6 +498,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 profile = load_profile()
                 events = cal.get_tomorrow_events(profile.get("timezone", "Asia/Kolkata"))
                 reply = f"📅 Tomorrow's Schedule:\n\n{cal.format_events(events)}"
+
+        elif action == "show_date":
+            cal = get_cal()
+            if not _calendar_connected(cal):
+                reply = _CONNECT_CAL_MSG
+            else:
+                date_param = (params.get("date", "") or "").strip().lower()
+                target_date = _resolve_date(date_param) if date_param else ist_today()
+                events = cal.get_events_for_date(target_date)
+                label = target_date.strftime("%A, %b %d")
+                reply = f"📅 Schedule for {label}:\n\n{cal.format_events(events)}"
 
         elif action == "show_briefing":
             if not _calendar_connected(get_cal()):
@@ -719,13 +763,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             event_title = params.get("event_title", "")
             event_time = params.get("event_time", "")
             new_time = params.get("new_time", "")
+            # The day the event currently lives on (defaults to today). Without
+            # this, find_event only ever searched today's events, so moving
+            # tomorrow's (or any other day's) event always failed to match.
+            date_param = params.get("date", "today")
+            target_date = _resolve_date((date_param or "today").strip().lower())
+            # Optional target day to move the event TO (for "shift it to July 5").
+            new_date_param = (params.get("new_date", "") or "").strip().lower()
+            new_date = _resolve_date(new_date_param) if new_date_param else None
             # If AI didn't extract event_time, try extracting from user message
             if not event_time:
                 event_time = _extract_time_from_text(user_msg)
                 if event_time:
                     logger.info("Extracted time '%s' from user message as fallback", event_time)
-            event = cal.find_event(title=event_title, event_time=event_time)
-            if event and new_time:
+            event = cal.find_event(title=event_title, event_time=event_time, date=target_date)
+            if event and (new_time or new_date):
                 source = event.get("_source", "google")
                 start_raw = event.get("start", {}).get("dateTime", "")
                 if start_raw:
@@ -737,11 +789,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             duration = int((old_end - old_start).total_seconds() / 60)
                         else:
                             duration = 60
-                        new_start_time = dt.time.fromisoformat(new_time)
-                        new_start = dt.datetime.combine(old_start.date(), new_start_time)
+                        # Keep whichever of time/day the user didn't change.
+                        new_start_time = dt.time.fromisoformat(new_time) if new_time else old_start.time()
+                        new_start_date = new_date if new_date else old_start.date()
+                        new_start = dt.datetime.combine(new_start_date, new_start_time)
                         result = cal.move_event(event["id"], new_start, duration, source=source)
                         if result:
-                            reply = f"📅 Moved '{event.get('summary')}' to {new_time} on {source.capitalize()} Calendar."
+                            when = new_start.strftime("%H:%M on %a, %b %d")
+                            reply = f"📅 Moved '{event.get('summary')}' to {when} on {source.capitalize()} Calendar."
                         else:
                             reply = f"😿 Could not move '{event.get('summary')}' on {source.capitalize()} Calendar. The update failed on the calendar."
                     except Exception as e:
@@ -751,9 +806,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     reply = f"😿 Could not move '{event.get('summary')}' — the event has no start time to work with."
             elif not event:
                 desc = f"'{event_title}'" if event_title else f"at {event_time}"
-                reply = f"😿 Could not find an event matching {desc}. No event was moved."
+                reply = f"😿 Could not find an event matching {desc} on {target_date}. No event was moved."
             else:
-                reply = f"😿 No new time specified for '{event.get('summary')}'. Could not move the event."
+                reply = f"😿 No new time or date specified for '{event.get('summary')}'. Could not move the event."
 
         elif action == "search_memory":
             query = params.get("query", "")
