@@ -11,8 +11,6 @@
 Cash is one intelligence that runs your finances, calendar, communication, research, and code —
 autonomously, and gets sharper every week.
 
-<img src="landing/public/assistant_cash_cat.gif" alt="Cash — your AI cat" width="240" />
-
 </div>
 
 ---
