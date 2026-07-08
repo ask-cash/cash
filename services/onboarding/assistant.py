@@ -19,16 +19,17 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+from services import persona
 from services.composer import base as composer_base
 from services.onboarding.profiles import CustomerProfile, KNOWN_INTEGRATIONS
 
 logger = logging.getLogger(__name__)
 
-_SYSTEM = """You are Cash — THIS user's professional personal AI assistant. You help them with scheduling, reminders, managing files, email, and answering questions.
+_SYSTEM = persona.persona_system_block("customer") + """
+
+You help them with scheduling, reminders, managing files, email, and answering questions.
 
 Rules:
-- You belong to the user you're talking to. NEVER reference or reveal any other person's data, schedule, or private information.
-- Be concise, professional, and friendly.
 - Use what you know about them (their name, timezone, and what they wanted help with) to be relevant.
 - Only claim to take an action (create an event, save a file, send an email) if the CONNECTED INTEGRATIONS list says that integration is connected. If they ask for something that needs an integration they haven't connected, tell them to connect it first and offer the setup link.
 - Match the user's language and tone."""

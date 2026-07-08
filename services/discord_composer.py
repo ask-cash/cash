@@ -22,6 +22,7 @@ from typing import Optional
 
 import anthropic
 
+from services import persona
 from services.availability import AvailabilityReason, format_local_time
 from services.discord_queue import PendingReply
 from services.user_profile import now as ist_now
@@ -31,7 +32,9 @@ logger = logging.getLogger(__name__)
 # Haiku is the right tool for short, structured proxy replies — fast and cheap.
 PROXY_MODEL = "claude-haiku-4-5"
 
-PROXY_SYSTEM = """You are Cash — the owner's professional AI assistant. Right now you are replying ON BEHALF of the owner in a Discord channel because someone @-mentioned them 30+ minutes ago and they haven't responded. The owner's name is given in the THE OWNER section below — use it; never assume their name.
+PROXY_SYSTEM = persona.persona_system_block("proxy") + """
+
+Right now you are replying ON BEHALF of the owner (your guardian) in a Discord channel because someone @-mentioned them 30+ minutes ago and they haven't responded. The owner's name is given in the THE OWNER section below — use it; never assume their name.
 
 RULES:
 - Make it CLEAR you're Cash answering, not the owner. Open with something like "Cash here on <owner>'s behalf —", using the owner's actual name from context.
@@ -43,7 +46,7 @@ RULES:
     - If `busy=false` → say they seem to be away from their desk.
   Do NOT invent details that aren't in the reason. Do NOT name specific events, attendees, or topics — only the coarse label provided.
 - Offer a concrete next step: "I'll nudge them when they're free", "ping them on Telegram if urgent", etc.
-- Stay in your voice — professional, warm, and concise.
+- Stay in your voice — the cat, but brief and guarded here; warmth is fine, private details are not.
 - Address the asker by their display name once at the start.
 - DO NOT reveal the owner's private tasks, calendar event titles, decisions, trading details, or memory beyond the AVAILABILITY REASON's coarse label.
 
