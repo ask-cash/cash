@@ -11,12 +11,45 @@ prod, local files in dev) rather than raw user_data/*.json files:
 """
 
 import datetime as dt
+import hashlib
 from typing import Optional
 
 from services import state_store
 from services.user_profile import now as ist_now, today as ist_today
 
 NAMESPACE = "memory"
+
+# Memory "kinds" — Cash's practical subset of the documented eight-type model.
+# Facts map onto durable kinds; decisions are always prospective.
+#   semantic   — stable facts about the user / their world
+#   procedural — rules and how-tos ("my trading rule is …")
+#   emotional  — feelings, sensitivities, what to be careful about
+#   narrative  — the ongoing story of who they are
+#   prospective— intentions / decisions with an expiry (decisions only)
+_CATEGORY_TO_KIND = {
+    "preference": "semantic",
+    "person": "semantic",
+    "general": "semantic",
+    "rule": "procedural",
+    "plan": "prospective",
+    "feeling": "emotional",
+}
+DURABLE_KINDS = ("semantic", "procedural", "emotional", "narrative")
+
+
+def _fingerprint(text: str) -> str:
+    """Stable content hash for dedup — case/space-insensitive."""
+    normalized = " ".join((text or "").strip().lower().split())
+    return hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:16]
+
+
+def _age_days(made_date: str) -> int:
+    """Whole days since an ISO date string (best-effort; 0 on parse failure)."""
+    try:
+        made = dt.date.fromisoformat((made_date or "")[:10])
+        return max((ist_today() - made).days, 0)
+    except ValueError:
+        return 0
 
 
 # =====================================================================
@@ -64,16 +97,39 @@ def _save_facts(facts: list[dict]):
     state_store.write_json(NAMESPACE, "facts", facts)
 
 
-def store_fact(fact: str, category: str = "general", source_message: str = ""):
-    """Store a learned fact about the user."""
+def store_fact(fact: str, category: str = "general", source_message: str = "",
+               kind: str = None) -> dict:
+    """Store a learned fact about the user, deduped by content fingerprint.
+
+    Returns the stored (or refreshed) record. If an equivalent fact already
+    exists it is not duplicated — its ``last_seen`` is refreshed and the new
+    source is attributed, so re-hearing the same thing strengthens rather than
+    clutters memory.
+    """
     facts = _load_facts()
-    facts.append({
+    fp = _fingerprint(fact)
+    for f in facts:
+        if f.get("fingerprint") == fp or _fingerprint(f.get("fact", "")) == fp:
+            f["last_seen"] = ist_now().isoformat()
+            if source_message:
+                srcs = f.setdefault("sources", [])
+                if source_message not in srcs:
+                    srcs.append(source_message)
+            _save_facts(facts)
+            return f
+
+    entry = {
         "fact": fact,
         "category": category,  # e.g. "preference", "plan", "person", "general"
+        "kind": kind or _CATEGORY_TO_KIND.get(category, "semantic"),
+        "fingerprint": fp,
         "learned_on": ist_now().isoformat(),
         "source": source_message,
-    })
+        "sources": [source_message] if source_message else [],
+    }
+    facts.append(entry)
     _save_facts(facts)
+    return entry
 
 
 def get_facts(category: str = None) -> list[dict]:
@@ -121,15 +177,31 @@ def store_decision(decision: str, scope: str = "today", expires: str = None):
         else:
             expires = "9999-12-31"  # permanent
 
-    decisions.append({
+    fp = _fingerprint(decision)
+    today = ist_today().isoformat()
+    for d in decisions:
+        # Dedup only against still-active, unfulfilled decisions — an expired or
+        # fulfilled one with the same text is a genuinely new intention.
+        if (_fingerprint(d.get("decision", "")) == fp
+                and not d.get("fulfilled")
+                and d.get("expires", "") >= today):
+            d["restated_on"] = ist_now().isoformat()
+            _save_decisions(decisions)
+            return d
+
+    entry = {
         "decision": decision,
         "scope": scope,
+        "kind": "prospective",
+        "fingerprint": fp,
         "made_on": ist_now().isoformat(),
-        "made_date": ist_today().isoformat(),
+        "made_date": today,
         "expires": expires,
         "fulfilled": False,
-    })
+    }
+    decisions.append(entry)
     _save_decisions(decisions)
+    return entry
 
 
 def get_active_decisions() -> list[dict]:
@@ -217,3 +289,44 @@ def build_memory_context(days: int = 7) -> str:
             sections.append(f"  [{t['date']}] {t.get('symbol','?')} {t.get('action','?')} — {t.get('result','?')}")
 
     return "\n".join(sections) if sections else "No memory yet — this is a fresh start."
+
+
+# =====================================================================
+# BACKFILL — classify legacy records into kinds + fingerprints (idempotent)
+# =====================================================================
+
+def backfill_kinds() -> dict:
+    """Add ``kind`` + ``fingerprint`` to any pre-v2 facts/decisions.
+
+    Idempotent: records that already carry both fields are left untouched, so it
+    is safe to run repeatedly (e.g. once on deploy). Returns a small report.
+    """
+    facts = _load_facts()
+    facts_touched = 0
+    for f in facts:
+        changed = False
+        if not f.get("fingerprint"):
+            f["fingerprint"] = _fingerprint(f.get("fact", ""))
+            changed = True
+        if not f.get("kind"):
+            f["kind"] = _CATEGORY_TO_KIND.get(f.get("category", "general"), "semantic")
+            changed = True
+        facts_touched += 1 if changed else 0
+    if facts_touched:
+        _save_facts(facts)
+
+    decisions = _load_decisions()
+    decisions_touched = 0
+    for d in decisions:
+        changed = False
+        if not d.get("fingerprint"):
+            d["fingerprint"] = _fingerprint(d.get("decision", ""))
+            changed = True
+        if not d.get("kind"):
+            d["kind"] = "prospective"
+            changed = True
+        decisions_touched += 1 if changed else 0
+    if decisions_touched:
+        _save_decisions(decisions)
+
+    return {"facts_updated": facts_touched, "decisions_updated": decisions_touched}

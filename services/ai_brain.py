@@ -14,6 +14,7 @@ from services import persona
 from services.user_profile import load_profile, now as ist_now
 from services.task_tracker import get_tasks_summary
 from services.memory import build_memory_context, get_active_decisions
+from services import memory_brief, memory_recall
 from services.files import (
     build_files_context,
     build_claude_content_block,
@@ -218,7 +219,10 @@ def interpret_message(user_message: str, calendar_context: str = "") -> dict:
     client = get_client()
     profile = load_profile()
     tasks = get_tasks_summary()
-    memory_context = build_memory_context(days=14)
+    # Memory v2: a bounded, freshly-compiled brief every turn (not a raw log
+    # dump), plus gated archive recall only when the message reaches into the past.
+    memory_context = memory_brief.build_brief()
+    recall_block = memory_recall.recall_block(user_message)
     active_decisions = get_active_decisions()
 
     context = f"""
@@ -235,8 +239,9 @@ Pending: {[t['task'] for t in tasks['pending']]}
 === ACTIVE DECISIONS ===
 {json.dumps([{"decision": d["decision"], "scope": d["scope"], "made_on": d["made_date"], "fulfilled": d.get("fulfilled", False)} for d in active_decisions[-10:]], indent=2) if active_decisions else "None yet"}
 
-=== MEMORY (past conversations, facts, decisions) ===
+=== MEMORY BRIEF (current, time-relevant context) ===
 {memory_context}
+{recall_block}
 
 === RECENT UPLOADS (most recent first) ===
 {build_files_context(limit=5)}
