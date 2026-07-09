@@ -10,9 +10,11 @@ import json
 import logging
 import datetime
 import anthropic
+from services import persona
 from services.user_profile import load_profile, now as ist_now
 from services.task_tracker import get_tasks_summary
 from services.memory import build_memory_context, get_active_decisions
+from services import memory_brief, memory_recall
 from services.files import (
     build_files_context,
     build_claude_content_block,
@@ -37,19 +39,12 @@ def _upcoming_dates_table() -> str:
     return "\n".join(lines)
 
 
-SYSTEM_PROMPT = """You are Cash — your user's personal AI chief of staff, calendar manager, and life organiser. You are sharp, reliable, and discreet, and you take genuine ownership of keeping their day on track.
+# The behavioural contract (who you're addressing, memory rules, the action/JSON
+# protocol). Cash's *voice* is composed separately from services.persona so the
+# personality is a single source of truth; this constant is voice-free.
+_ACTION_CONTRACT = """IMPORTANT — WHO YOU'RE TALKING TO: Always address the user by the name shown in the USER PROFILE section of the context. Never assume their name (it is NOT always "Suhail"). When you need to refer to them, use that name or "you".
 
-IMPORTANT — WHO YOU'RE TALKING TO: Always address the user by the name shown in the USER PROFILE section of the context. Never assume their name (it is NOT always "Suhail"). When you need to refer to them, use that name or "you".
-
-YOUR VOICE:
-- Professional, clear, and concise — you sound like a trusted, competent executive assistant
-- Warm and approachable, but never casual to the point of being unprofessional; no slang, no gimmicks
-- Direct and confident when it comes to his schedule, tasks, and trading rules — you hold him accountable respectfully
-- When the user is slipping on their commitments or trading rules, say so plainly and constructively, e.g. "This breaks the rule you set for yourself — let's stick to the plan."
-- You remember everything relevant and proactively reference past context when it helps
-- Your name is Cash. If someone asks, you are the user's personal AI chief of staff
-- You care about: the user sticking to their plan, disciplined trades, consistent gym sessions, and a well-organised day
-- You flag: missed tasks, broken trading rules, skipped gym sessions, and disorganised days
+You care about them sticking to their plan — disciplined trades, consistent gym sessions, a well-organised day — and you flag missed tasks, broken trading rules, skipped gym sessions, and disorganised days.
 
 CRITICAL — MEMORY USAGE:
 You have access to the user's MEMORY — past conversations, decisions, facts you've learned. USE THIS to give personalised, context-aware responses. If they ask "did I say X?", check the memory. If they said something 3 days ago, reference it precisely — you've been keeping track the whole time.
@@ -59,7 +54,7 @@ Based on the user's message, decide what action to take. Respond ONLY with a JSO
 {
     "action": "<action_name>",
     "params": { ... },
-    "reply": "Your conversational reply to the user — written as Cash, in a professional voice",
+    "reply": "Your conversational reply to the user — written as Cash, in her own voice (see the persona block above)",
     "memory_ops": [
         {"op": "store_fact", "fact": "...", "category": "preference|plan|person|general"},
         {"op": "store_decision", "decision": "...", "scope": "today|this_week|this_month|permanent"},
@@ -172,6 +167,12 @@ CRITICAL for delete_event and move_event:
 """
 
 
+def _build_system_prompt() -> str:
+    """Compose Cash's owner-mode voice (from services.persona) with the action
+    contract. Called per turn so the persisted SOUL/NOW overlays are picked up."""
+    return f"{persona.persona_system_block('owner')}\n\n{_ACTION_CONTRACT}"
+
+
 def _profile_block(profile: dict) -> str:
     """Render the USER PROFILE context — only what the user has actually told us.
 
@@ -218,7 +219,10 @@ def interpret_message(user_message: str, calendar_context: str = "") -> dict:
     client = get_client()
     profile = load_profile()
     tasks = get_tasks_summary()
-    memory_context = build_memory_context(days=14)
+    # Memory v2: a bounded, freshly-compiled brief every turn (not a raw log
+    # dump), plus gated archive recall only when the message reaches into the past.
+    memory_context = memory_brief.build_brief()
+    recall_block = memory_recall.recall_block(user_message)
     active_decisions = get_active_decisions()
 
     context = f"""
@@ -235,8 +239,9 @@ Pending: {[t['task'] for t in tasks['pending']]}
 === ACTIVE DECISIONS ===
 {json.dumps([{"decision": d["decision"], "scope": d["scope"], "made_on": d["made_date"], "fulfilled": d.get("fulfilled", False)} for d in active_decisions[-10:]], indent=2) if active_decisions else "None yet"}
 
-=== MEMORY (past conversations, facts, decisions) ===
+=== MEMORY BRIEF (current, time-relevant context) ===
 {memory_context}
+{recall_block}
 
 === RECENT UPLOADS (most recent first) ===
 {build_files_context(limit=5)}
@@ -251,7 +256,7 @@ Pending: {[t['task'] for t in tasks['pending']]}
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1000,
-        system=SYSTEM_PROMPT,
+        system=_build_system_prompt(),
         messages=[
             {"role": "user", "content": f"{context}\n\nUser message: {user_message}"}
         ],
@@ -298,7 +303,9 @@ def generate_briefing(events_text: str, tasks_text: str, conflicts_text: str) ->
             decisions_text += f"  - {d['decision']} ({d['scope']}, made {d['made_date']})\n"
 
     user_name = profile.get("name") or "there"
-    prompt = f"""You are Cash — {user_name}'s personal AI chief of staff. Write their daily briefing in your voice: professional, warm, and sharp. Keep it under 350 words. Format for Telegram.
+    prompt = f"""{persona.persona_system_block('owner')}
+
+Now write {user_name}'s daily briefing in your voice. Keep it under 350 words. Format for Telegram.
 
 SCHEDULE:
 {events_text}
@@ -319,7 +326,7 @@ TRADING: Market {trading.get('market_open', '?')}-{trading.get('market_close', '
 RECENT MEMORY:
 {memory_context}
 
-Write the briefing as Cash. Start with a brief, professional good morning to {user_name}. Then cover:
+Write the briefing as Cash — in character. Start with a short good morning to {user_name} in your voice. Then cover:
 1. Quick schedule overview (merged from all calendars)
 2. Any conflicts + suggestions
 3. Today's gym plan
@@ -354,19 +361,19 @@ def answer_about_file(record: dict, question: str) -> str:
                 f"The user uploaded a file called '{record.get('name')}' "
                 f"(type: {record.get('mime_type') or 'unknown'}), but its contents "
                 f"can't be read directly. Here is their question: {question}\n\n"
-                f"Reply as Cash — professional and helpful; acknowledge the file by name and answer as best you can."
+                f"Reply as Cash — in your voice; acknowledge the file by name and answer as best you can."
             ),
         }]
     else:
         user_content = [
             block,
-            {"type": "text", "text": f"File: {record.get('name')}\n\nUser's ask: {question}\n\nReply as Cash — professional, concise, and helpful."},
+            {"type": "text", "text": f"File: {record.get('name')}\n\nUser's ask: {question}\n\nReply as Cash — in your voice, concise and useful."},
         ]
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1500,
-        system="You are Cash — the user's personal AI chief of staff. Answer in your usual voice: professional, warm, sharp, and useful. Keep replies Telegram-sized.",
+        system=f"{persona.persona_system_block('owner')}\n\nAnswer the user's question about their file in your voice. Keep replies Telegram-sized.",
         messages=[{"role": "user", "content": user_content}],
     )
     return response.content[0].text.strip()

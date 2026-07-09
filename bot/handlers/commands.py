@@ -33,11 +33,11 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     profile = load_profile()
     cal = get_cal()
     await update.message.reply_text(
-        f"👋 Welcome.\n\n"
-        f"I'm *Cash* — your personal AI chief of staff.\n\n"
-        f"I manage your day, {profile['name']} — your calendar, your tasks, "
-        f"your trading rules, and your decisions. I keep track of everything you tell me "
-        f"so nothing slips.\n\n"
+        f"👋 Oh, it's you.\n\n"
+        f"I'm *Cash* — your cat. I live in your MacBook (born 4:30 AM, it's warm, I'm staying).\n\n"
+        f"I run your day, {profile['name']} — your calendar, your tasks, "
+        f"your trading rules, your decisions. I remember everything you tell me, "
+        f"and I *will* bring it up when you slack. 😼\n\n"
         f"Connected calendars:\n{cal.sources_summary()}\n\n"
         f"Commands:\n"
         f"• /briefing — your full day, curated by me\n"
