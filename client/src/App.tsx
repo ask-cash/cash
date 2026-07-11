@@ -5,7 +5,9 @@ import SignUp from './pages/SignUp'
 import SignIn from './pages/SignIn'
 import Onboarding from './pages/Onboarding'
 import ConnectCalendar from './pages/ConnectCalendar'
+import Hatching from './pages/Hatching'
 import DashboardLayout from './pages/dashboard/Layout'
+import Activity from './pages/dashboard/Activity'
 import Chat from './pages/dashboard/Chat'
 import Integrations from './pages/dashboard/Integrations'
 import Settings from './pages/dashboard/Settings'
@@ -35,10 +37,15 @@ export default function App() {
             path="/connect-calendar"
             element={<ProtectedRoute requireOnboarded={false}><ConnectCalendar /></ProtectedRoute>}
           />
+          <Route
+            path="/hatching"
+            element={<ProtectedRoute requireOnboarded={false}><Hatching /></ProtectedRoute>}
+          />
 
           {/* The dashboard proper. */}
           <Route path="/app" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
-            <Route index element={<Chat />} />
+            <Route index element={<Activity />} />
+            <Route path="chat" element={<Chat />} />
             <Route path="integrations" element={<Integrations />} />
             <Route path="settings" element={<Settings />} />
           </Route>

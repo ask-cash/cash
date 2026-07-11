@@ -29,7 +29,7 @@ export default function ConnectCalendar() {
           Connect Google Calendar
         </button>
         <p className="auth-alt">
-          <a onClick={() => navigate('/app', { replace: true })} style={{ cursor: 'pointer' }}>Skip for now</a>
+          <a onClick={() => navigate('/hatching', { replace: true })} style={{ cursor: 'pointer' }}>Skip for now</a>
         </p>
       </div>
     </div>

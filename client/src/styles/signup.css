@@ -1,0 +1,264 @@
+/* signup.css — the one bespoke stylesheet (blueprint §4.4), Cash-flavoured.
+   Two-column, forced-dark signup with a serif headline + rotating green word. */
+
+.signup {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+  background: var(--surface-base);
+  animation: signupFade 0.5s ease both;
+}
+@keyframes signupFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Left — the form column */
+.signup__left {
+  flex: 0 0 42%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 32px;
+  position: relative;
+  overflow-y: auto;
+}
+.signup__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: -0.03em;
+  color: var(--content-emphasised);
+}
+.signup__brand .mark { width: 30px; height: 30px; color: var(--content-emphasised); }
+.signup__brand .mark svg { width: 100%; height: 100%; display: block; }
+
+.signup__form {
+  margin: auto;
+  width: 100%;
+  max-width: 360px;
+}
+.signup__title {
+  font-family: var(--font-serif);
+  font-size: clamp(2.1rem, 1rem + 2.8vw, 3.75rem);
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--content-emphasised);
+  margin-bottom: 14px;
+}
+.signup__title em {
+  display: block;
+  color: var(--cash-green);
+  white-space: nowrap;
+  font-style: italic;
+}
+/* Reserve the width of the longest rotating word so the line never reflows. */
+.rotating-sizer {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--font-serif);
+  font-size: clamp(2.1rem, 1rem + 2.8vw, 3.75rem);
+  font-style: italic;
+}
+.rotating-wrap { position: relative; display: block; }
+.rotating-word {
+  display: block;
+  animation: rotIn 0.3s ease both;
+}
+@keyframes rotIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.signup__sub {
+  color: var(--content-secondary);
+  font-size: 15px;
+  line-height: 1.5;
+  margin-bottom: 28px;
+}
+
+.signup__field { margin-bottom: 14px; }
+.signup__field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--content-secondary);
+  margin-bottom: 6px;
+}
+.signup__row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.signup__input {
+  width: 100%;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--content-default);
+  background: var(--surface-lift);
+  border: 1px solid var(--border-element);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.signup__input::placeholder { color: var(--content-tertiary); }
+.signup__input:focus {
+  outline: none;
+  border-color: var(--cash-green);
+  box-shadow: 0 0 0 3px rgba(70, 193, 120, 0.22);
+}
+
+/* Buttons */
+.signup__btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 13px 18px;
+  border: 1px solid var(--border-base);
+  border-radius: var(--radius-lg);
+  background: var(--surface-hover);
+  color: var(--content-default);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s, border-color 0.2s;
+}
+.signup__btn:hover { transform: translateY(-1px); border-color: var(--border-element); }
+.signup__btn--primary {
+  background: var(--cash-green);
+  color: var(--cash-green-ink);
+  border-color: transparent;
+}
+.signup__btn--primary:hover { background: var(--cash-green-hover); transform: translateY(-1px); }
+.signup__btn img { width: 18px; height: 18px; }
+
+.signup__divider {
+  display: flex; align-items: center; gap: 14px;
+  margin: 20px 0; color: var(--content-tertiary);
+  font-size: 12.5px; font-weight: 500;
+}
+.signup__divider::before, .signup__divider::after {
+  content: ""; flex: 1; height: 1px; background: var(--border-subtle);
+}
+.signup__alt { text-align: center; font-size: 14px; color: var(--content-secondary); margin-top: 20px; }
+.signup__alt a { color: var(--content-emphasised); font-weight: 600; cursor: pointer; }
+.signup__err {
+  background: rgba(218, 73, 26, 0.12);
+  border: 1px solid rgba(218, 73, 26, 0.4);
+  color: var(--content-default);
+  font-size: 13.5px;
+  border-radius: var(--radius-md);
+  padding: 11px 14px;
+  margin-bottom: 16px;
+}
+.signup__download {
+  position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--content-tertiary);
+}
+.signup__download svg { width: 14px; height: 14px; }
+
+/* Right — the scene column */
+.signup__right {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.signup__scene {
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(70, 193, 120, 0.18), transparent 60%),
+    linear-gradient(160deg, #1c2024, #17191c);
+  border: 1px solid var(--border-subtle);
+  display: grid;
+  place-items: center;
+  animation: signupFade 0.6s ease 0.15s both;
+}
+.signup__scene .cat { width: 34%; max-width: 260px; color: rgba(253, 253, 252, 0.92); filter: drop-shadow(0 12px 40px rgba(0, 0, 0, 0.5)); }
+.signup__scene .cat svg { width: 100%; height: auto; display: block; }
+.signup__scene .quip {
+  position: absolute; bottom: 26px; left: 0; right: 0; text-align: center;
+  font-family: var(--font-serif); font-style: italic; font-size: 20px;
+  color: rgba(253, 253, 252, 0.72);
+}
+
+@media (max-width: 768px) {
+  .signup { flex-direction: column; overflow-y: auto; position: absolute; }
+  .signup__left { flex: 1 1 auto; }
+  .signup__right { display: none; }
+}
+
+/* ---- Login (blueprint §4.3): forced-dark shell + decorative background ---- */
+.login-shell {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--surface-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
+.login-bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.login-bg__mark {
+  position: absolute; top: 96px; left: 50%; transform: translateX(-50%);
+  width: 40px; height: 40px; color: rgba(253, 253, 252, 0.9);
+}
+.login-bg__scene {
+  position: absolute; left: 50%; bottom: -2%; transform: translateX(-50%);
+  width: min(1100px, 120vw); opacity: 0.5;
+  color: rgba(233, 230, 226, 0.16);
+  filter: blur(0.2px);
+}
+.login-bg__glow {
+  position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%);
+  width: 620px; height: 620px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(70, 193, 120, 0.14), transparent 62%);
+}
+.login-card {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 448px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-disabled);
+  background: var(--surface-lift);
+  padding: 30px;
+  box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.6);
+}
+.login-card .brand { display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--content-emphasised); font-weight: 600; font-size: 17px; }
+.login-card .brand .mark { width: 26px; height: 26px; }
+.login-card .brand .mark svg { width: 100%; height: 100%; display: block; }
+.login-heading { text-align: center; color: var(--content-emphasised); }
+.login-error { text-align: center; color: var(--system-negative-strong); font-size: 13px; }
+
+/* ---- Hatching (onboarding funnel finale, §5.4) — Cash waking up ---- */
+.hatch {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  background: var(--surface-base); text-align: center; padding: 24px;
+}
+.hatch__glow {
+  position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%);
+  width: 480px; height: 480px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(70, 193, 120, 0.18), transparent 62%);
+  animation: hatchGlow 2.4s ease-in-out infinite;
+}
+@keyframes hatchGlow { 0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); } }
+.hatch__cat {
+  position: relative; width: 96px; height: 96px; color: var(--content-emphasised);
+  margin: 0 auto 26px; animation: hatchBob 1.6s ease-in-out infinite;
+}
+@keyframes hatchBob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-8px) rotate(2deg); } }
+.hatch__cat svg { width: 100%; height: 100%; display: block; }
+.hatch__title { position: relative; font-family: var(--font-serif); font-size: clamp(2rem, 1rem + 2.4vw, 3rem); color: var(--content-emphasised); }
+.hatch__sub { position: relative; margin-top: 12px; color: var(--content-secondary); font-size: 16px; }

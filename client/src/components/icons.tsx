@@ -14,6 +14,9 @@ const base = {
 export const ChatIcon = (p: P) => (
   <svg {...base} {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
 )
+export const ActivityIcon = (p: P) => (
+  <svg {...base} {...p}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+)
 export const PlugIcon = (p: P) => (
   <svg {...base} {...p}><path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0z" /><path d="M12 17v5" /></svg>
 )

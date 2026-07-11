@@ -1,10 +1,13 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import CashMark from '../../components/CashMark'
-import { ChatIcon, PlugIcon, GearIcon } from '../../components/icons'
+import { ActivityIcon, ChatIcon, PlugIcon, GearIcon } from '../../components/icons'
 import { useAuth } from '../../lib/auth'
 
+// Primary nav (blueprint §7.1): Activity is the home surface; Chat, Integrations
+// and Settings are siblings.
 const NAV = [
-  { to: '/app', label: 'Chat', icon: ChatIcon, end: true },
+  { to: '/app', label: 'Activity', icon: ActivityIcon, end: true },
+  { to: '/app/chat', label: 'Chat', icon: ChatIcon, end: false },
   { to: '/app/integrations', label: 'Integrations', icon: PlugIcon, end: false },
   { to: '/app/settings', label: 'Settings', icon: GearIcon, end: false },
 ]

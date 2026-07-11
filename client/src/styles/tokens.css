@@ -1,0 +1,109 @@
+/* tokens.css — the design-token layer from the Auth+Dashboard blueprint (§1),
+   tuned to Cash's warm, near-black palette. Every color the new auth + dashboard
+   screens use is a var(--token); light is the default, dark applies via the
+   system preference AND a manual [data-theme="dark"] scope. */
+
+:root {
+  /* Surfaces */
+  --surface-base: #f6f5f4;
+  --surface-overlay: #fdfdfc;
+  --surface-lift: #ffffff;
+  --surface-active: #f2f0ee;
+  --surface-hover: rgba(185, 180, 172, 0.08);
+  /* Content (text) */
+  --content-default: #24292e;
+  --content-emphasised: #161616;
+  --content-secondary: #5a6672;
+  --content-tertiary: #71808e;
+  --content-inset: #fdfdfc; /* text on a primary-filled button */
+  /* Brand / primary */
+  --primary-base: #17191c;
+  --primary-hover: #24292e;
+  /* Cash's signal green (the one intentional brand color, per §0.2) */
+  --cash-green: #46c178;
+  --cash-green-hover: #3ad17a;
+  --cash-green-ink: #0b1f12;
+  /* Borders */
+  --border-base: #f2f0ee;
+  --border-element: #cfccc9;
+  --border-disabled: #e9e6e2;
+  --border-subtle: #e9e6e2;
+  /* System */
+  --system-negative-strong: #da491a;
+  /* Type */
+  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  /* Radii */
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-pill: 999px;
+  /* Spacing */
+  --app-spacing-xxs: 2px; --app-spacing-xs: 4px; --app-spacing-sm: 8px;
+  --app-spacing-md: 12px; --app-spacing-lg: 16px; --app-spacing-xl: 24px;
+  --app-spacing-xxl: 32px; --app-spacing-xxxl: 48px;
+}
+
+:root[data-theme="dark"] {
+  --surface-base: #17191c;
+  --surface-overlay: #1c2024;
+  --surface-lift: #24292e;
+  --surface-active: #444d56;
+  --surface-hover: rgba(233, 230, 226, 0.06);
+  --content-default: #f6f5f4;
+  --content-emphasised: #fdfdfc;
+  --content-secondary: #a9b2bb;
+  --content-tertiary: #8d99a5;
+  --content-inset: #17191c;
+  --primary-base: #fdfdfc;
+  --primary-hover: #f2f0ee;
+  --border-base: #24292e;
+  --border-element: #5a6672;
+  --border-disabled: #1c2024;
+  --border-subtle: #2d3339;
+  --system-negative-strong: #da491a;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface-base: #17191c;
+    --surface-overlay: #1c2024;
+    --surface-lift: #24292e;
+    --surface-active: #444d56;
+    --surface-hover: rgba(233, 230, 226, 0.06);
+    --content-default: #f6f5f4;
+    --content-emphasised: #fdfdfc;
+    --content-secondary: #a9b2bb;
+    --content-tertiary: #8d99a5;
+    --content-inset: #17191c;
+    --primary-base: #fdfdfc;
+    --primary-hover: #f2f0ee;
+    --border-base: #24292e;
+    --border-element: #5a6672;
+    --border-disabled: #1c2024;
+    --border-subtle: #2d3339;
+  }
+}
+
+/* Type helpers used by name in the blueprint. */
+.text-title-large { font-size: 24px; font-weight: 400; line-height: 1.15; letter-spacing: -0.02em; }
+.text-body-small-default { font-size: 13px; line-height: 1.5; }
+.text-body-medium-default { font-size: 15px; line-height: 1.5; }
+.serif { font-family: var(--font-serif); }
+
+/* A forced-dark scope (login/signup live here regardless of app theme). */
+.force-dark {
+  --surface-base: #17191c;
+  --surface-overlay: #1c2024;
+  --surface-lift: #24292e;
+  --surface-active: #444d56;
+  --surface-hover: rgba(233, 230, 226, 0.06);
+  --content-default: #f6f5f4;
+  --content-emphasised: #fdfdfc;
+  --content-secondary: #a9b2bb;
+  --content-tertiary: #8d99a5;
+  --content-inset: #17191c;
+  --primary-base: #fdfdfc;
+  --primary-hover: #f2f0ee;
+  --border-base: #24292e;
+  --border-element: #5a6672;
+  --border-disabled: #1c2024;
+  --border-subtle: #2d3339;
+  color: var(--content-default);
+}
