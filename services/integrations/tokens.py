@@ -51,13 +51,18 @@ def _outlook_connected(p: registry.Provider) -> bool:
 
 def _linked_platform(p: registry.Provider) -> bool:
     # An account-link provider is "connected" once an identity for that platform
-    # has been seen/linked for this tenant (a platform_identities row exists).
+    # has been linked for THIS tenant (a platform_identities row exists). We filter
+    # by tenant_id explicitly rather than relying only on Postgres RLS, so the
+    # check is also correct on SQLite (dev), where RLS doesn't exist and an
+    # unscoped query would leak identities from other tenants.
     # Best-effort; any identity/DB hiccup reports "not connected" rather than raising.
     try:
         from services.identity.store import connect
+        from services.tenancy import current_tenant_id
         with connect() as conn:
             row = conn.execute(
-                "SELECT 1 FROM platform_identities WHERE platform = ? LIMIT 1", (p.id,)
+                "SELECT 1 FROM platform_identities WHERE platform = ? AND tenant_id = ? LIMIT 1",
+                (p.id, current_tenant_id()),
             ).fetchone()
         return row is not None
     except Exception:
