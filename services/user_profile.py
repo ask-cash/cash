@@ -140,15 +140,36 @@ def has_routine(profile: dict) -> bool:
     ])
 
 
+def _empty_profile() -> dict:
+    """A blank profile skeleton with NO env overlay — the starting point for a
+    tenant that hasn't told Cash anything (e.g. a fresh web signup)."""
+    return {
+        "name": "",
+        "timezone": "Asia/Kolkata",
+        "wake_time": "",
+        "sleep_time": "",
+        "gym": {"default_time": "", "duration_minutes": 0, "commute_minutes": 0,
+                "gym_closes_at": "", "days": [], "routine": {}},
+        "diet": {"meals": [], "water_goal_liters": 0.0, "supplements": []},
+        "trading": {"market_open": "", "market_close": "", "pre_market_review_time": "", "rules": []},
+        "default_tasks": [],
+    }
+
+
 def load_profile() -> dict:
     """The owner's profile for the active tenant.
 
-    Starts from env defaults, then overlays the DB: the tenant record (name +
-    timezone) and the per-tenant ``profile/owner`` document. Best-effort — if
-    the DB or tenant context is unavailable we fall back to env so callers always
-    get a usable profile.
+    The env-provided routine belongs ONLY to the self-host/default tenant. Every
+    other tenant (a web signup, another customer) starts from an EMPTY profile so
+    one person's routine, gym, and trading rules never bleed into another's. On
+    top of the base we overlay the tenant record (name + timezone) and the
+    per-tenant ``profile/owner`` document, which is where each user's own profile
+    is built and saved. Best-effort — falls back to a usable profile on error.
     """
-    profile = _env_profile()
+    from services.tenancy import current_tenant_id as _tid
+    from services.config import settings as _settings
+
+    profile = _env_profile() if _tid() == _settings.default_tenant_id else _empty_profile()
     try:
         from services import state_store
         from services.tenancy import current_tenant_id

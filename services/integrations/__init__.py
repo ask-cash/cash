@@ -38,6 +38,21 @@ from services.integrations.tokens import (  # noqa: F401
     store_token,
     disconnect,
 )
+from services.integrations.connections import (  # noqa: F401
+    set_status,
+    get_status,
+    status_map,
+)
+
+
+def mark_connected(provider_id: str) -> None:
+    """Record a provider as connected for the active tenant (ledger write)."""
+    set_status(provider_id, True)
+
+
+def mark_disconnected(provider_id: str) -> None:
+    """Record a provider as disconnected for the active tenant (ledger write)."""
+    set_status(provider_id, False)
 
 
 def is_pack_unlocked(pack_id: str) -> bool:

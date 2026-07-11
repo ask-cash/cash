@@ -302,6 +302,7 @@ def google_callback(request: Request):
         creds_json = flow.credentials.to_json()
         with tenant_context(payload.get("tid", "default")):
             integrations.store_token("google_calendar", creds_json)
+            integrations.mark_connected("google_calendar")
     except Exception:
         logger.exception("google_callback failed")
         return RedirectResponse(url=f"{_CLIENT_BASE}/app/integrations?error=oauth", status_code=303)

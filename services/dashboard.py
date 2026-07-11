@@ -118,7 +118,9 @@ def connectors_status(tenant_id: str) -> list[dict]:
 def disconnect_provider(tenant_id: str, provider_id: str) -> bool:
     from services import integrations
     with tenant_context(tenant_id):
-        return integrations.disconnect(provider_id)
+        cleared = integrations.disconnect(provider_id)   # remove stored credentials
+        integrations.mark_disconnected(provider_id)       # remember the intent in the ledger
+    return cleared
 
 
 # ---------------------------------------------------------------------------

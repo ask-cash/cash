@@ -74,10 +74,23 @@ _discord_connected = _linked_platform
 
 
 def is_connected(provider_id: str) -> bool:
-    """True if the provider currently has usable credentials for this tenant."""
+    """True if the provider is connected for the active tenant.
+
+    The per-tenant connection ledger (services.integrations.connections) is the
+    source of truth: an explicit connect/disconnect there wins. Only when the
+    ledger has no record do we auto-detect from the real credentials (a stored
+    OAuth token, an MSAL cache, or a linked platform identity) — this keeps
+    already-connected accounts working before the ledger is populated.
+    """
     p = registry.get(provider_id)
     if p is None or not p.available:
         return False
+
+    from services.integrations import connections
+    ledger = connections.get_status(provider_id)
+    if ledger is not None:
+        return ledger
+
     if p.is_oauth:
         return _token_blob(p.secret_name, p.legacy_token_path) is not None
     if p.auth == registry.AUTH_DEVICE_CODE:

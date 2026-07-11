@@ -76,6 +76,7 @@ _TENANT_TABLES = [
     "person_summaries",
     "kv_documents",
     "event_log",
+    "integration_connections",
 ]
 
 _SQLITE_SCHEMA = """
@@ -119,6 +120,15 @@ CREATE TABLE IF NOT EXISTS accounts (
     onboarded     INTEGER NOT NULL DEFAULT 0,
     auth_provider TEXT NOT NULL DEFAULT 'password',
     created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS integration_connections (
+    tenant_id    TEXT NOT NULL DEFAULT 'default',
+    provider_id  TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'connected',
+    connected_at TEXT,
+    updated_at   TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, provider_id)
 );
 
 CREATE TABLE IF NOT EXISTS people (
@@ -251,6 +261,15 @@ CREATE TABLE IF NOT EXISTS accounts (
     onboarded     BOOLEAN NOT NULL DEFAULT false,
     auth_provider TEXT NOT NULL DEFAULT 'password',
     created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS integration_connections (
+    tenant_id    TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    provider_id  TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'connected',
+    connected_at TEXT,
+    updated_at   TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, provider_id)
 );
 
 CREATE TABLE IF NOT EXISTS people (
