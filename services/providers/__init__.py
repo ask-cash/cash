@@ -35,6 +35,8 @@ DEFAULTS: dict[str, dict] = {
     "directive_parser": {"model": "claude-haiku-4-5",  "max_tokens": 400},
     "identity_summary": {"model": "claude-haiku-4-5",  "max_tokens": 400},
     "composer":         {"model": "claude-haiku-4-5",  "max_tokens": 400},
+    "routine_leaf":     {"model": "claude-haiku-4-5",  "max_tokens": 600},
+    "routine_synthesis": {"model": "claude-sonnet-4-6", "max_tokens": 1200},
 }
 
 _FALLBACK_DEFAULT = {"model": "claude-sonnet-4-6", "max_tokens": 1000}

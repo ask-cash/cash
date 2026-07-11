@@ -58,6 +58,7 @@ SENSITIVE_ACTIONS = {
     "attach_file_to_event",
     "add_trading_rule",
     "update_profile",
+    "run_routine",  # fanning out many sub-agents spends real money — consent once
 }
 
 # What a trusted (non-guardian) contact may do. They converse with Cash via the
