@@ -49,19 +49,23 @@ def _outlook_connected(p: registry.Provider) -> bool:
     return bool(path and os.path.exists(path) and os.path.getsize(path) > 0)
 
 
-def _discord_connected(p: registry.Provider) -> bool:
-    # Discord is "connected" once a Discord account has been seen/linked for this
-    # tenant — i.e. a discord platform_identity row exists. Best-effort; any
-    # identity/DB hiccup reports "not connected" rather than raising.
+def _linked_platform(p: registry.Provider) -> bool:
+    # An account-link provider is "connected" once an identity for that platform
+    # has been seen/linked for this tenant (a platform_identities row exists).
+    # Best-effort; any identity/DB hiccup reports "not connected" rather than raising.
     try:
         from services.identity.store import connect
         with connect() as conn:
             row = conn.execute(
-                "SELECT 1 FROM platform_identities WHERE platform = 'discord' LIMIT 1"
+                "SELECT 1 FROM platform_identities WHERE platform = ? LIMIT 1", (p.id,)
             ).fetchone()
         return row is not None
     except Exception:
         return False
+
+
+# Back-compat alias (tests patch this name).
+_discord_connected = _linked_platform
 
 
 def is_connected(provider_id: str) -> bool:
@@ -74,7 +78,7 @@ def is_connected(provider_id: str) -> bool:
     if p.auth == registry.AUTH_DEVICE_CODE:
         return _outlook_connected(p)
     if p.auth == registry.AUTH_ACCOUNT_LINK:
-        return _discord_connected(p)
+        return _discord_connected(p)  # aliased to _linked_platform; patchable in tests
     return False
 
 

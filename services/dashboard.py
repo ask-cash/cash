@@ -8,6 +8,8 @@ and HTML rendering live in ``app/dashboard.py`` and call into here.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 from typing import Optional
 
@@ -72,3 +74,124 @@ def overview(person_id: str, tenant_id: str) -> dict:
         "summary": summary,
         "conversation_count": convo_count,
     }
+
+
+# ---------------------------------------------------------------------------
+# CSRF — a token bound to the session, for the chat/connect POSTs
+# ---------------------------------------------------------------------------
+
+def csrf_token(session_token: str) -> str:
+    """Derive a CSRF token from the session cookie (a keyed digest of it).
+
+    Same session → same token (embeddable in the page); a different/absent
+    session can't forge it without the signing secret.
+    """
+    secret = links._signing_secret()  # same key that signs session tokens (bytes)
+    return hmac.new(secret, (session_token or "").encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def verify_csrf(session_token: str, token: str) -> bool:
+    return bool(token) and hmac.compare_digest(csrf_token(session_token), token)
+
+
+# ---------------------------------------------------------------------------
+# Connectors (Feature 7 registry + TokenManager)
+# ---------------------------------------------------------------------------
+
+def connectors_status(tenant_id: str) -> list[dict]:
+    """Every provider with its live connect state, for the connectors page."""
+    from services import integrations
+    with tenant_context(tenant_id):
+        rows = []
+        for p in integrations.all_providers():
+            rows.append({
+                "id": p.id,
+                "title": p.title,
+                "available": p.available,
+                "connected": integrations.is_connected(p.id),
+                "unlocks": list(p.unlocks),
+                "connect_hint": p.connect_hint,
+            })
+    return rows
+
+
+def disconnect_provider(tenant_id: str, provider_id: str) -> bool:
+    from services import integrations
+    with tenant_context(tenant_id):
+        return integrations.disconnect(provider_id)
+
+
+# ---------------------------------------------------------------------------
+# Preferred proactive channel (Feature 5)
+# ---------------------------------------------------------------------------
+
+def get_notify_channel(tenant_id: str) -> str:
+    from services import notifications
+    with tenant_context(tenant_id):
+        return notifications.get_preferred_channel()
+
+
+def set_notify_channel(tenant_id: str, platform: str) -> str:
+    from services import notifications
+    with tenant_context(tenant_id):
+        notifications.set_preferred_channel(platform)
+    return platform
+
+
+# ---------------------------------------------------------------------------
+# Memory view / redact (Feature 2)
+# ---------------------------------------------------------------------------
+
+def memory_items(tenant_id: str) -> dict:
+    from services import memory
+    with tenant_context(tenant_id):
+        return {"facts": memory.get_facts(), "decisions": memory.get_active_decisions()}
+
+
+def redact_fact(tenant_id: str, fingerprint: str) -> int:
+    from services import memory
+    with tenant_context(tenant_id):
+        return memory.forget_fact(fingerprint)
+
+
+# ---------------------------------------------------------------------------
+# Web chat — the same owner brain + memory as Telegram/Discord
+# ---------------------------------------------------------------------------
+
+def _default_interpret(message: str) -> dict:
+    from services.ai_brain import interpret_message
+    return interpret_message(message)
+
+
+def chat_reply(person_id: str, tenant_id: str, message: str, *, interpret=None) -> dict:
+    """Handle one browser chat turn through the owner brain.
+
+    Logs the turn and applies memory ops under the tenant context — the same
+    path Telegram uses — so a message here and a message on Telegram share one
+    memory. ``interpret`` is injectable for tests; it defaults to the real brain.
+    Returns ``{"reply", "action"}``.
+    """
+    from services import memory, web_actions
+    message = (message or "").strip()
+    if not message:
+        return {"reply": "", "action": "chat"}
+    interpret = interpret or _default_interpret
+    with tenant_context(tenant_id):
+        memory.log_message("user", message,
+                           metadata={"surface": "dashboard", "person_id": person_id})
+        result = interpret(message) or {}
+        action = result.get("action", "chat")
+        reply = (result.get("reply") or "").strip()
+        memory.apply_ops(result.get("memory_ops") or [])
+
+        # Execute the action for real (calendar, tasks, reminders, memory, …) via
+        # the shared executor. Its result is authoritative and replaces the LLM's
+        # pre-written reply; conversational turns fall through to that reply.
+        action_result = web_actions.execute(action, result.get("params") or {})
+        if action_result is not None:
+            reply = action_result
+
+        memory.log_message("assistant", reply,
+                           metadata={"surface": "dashboard", "person_id": person_id,
+                                     "outcome": "web-chat", "action": action})
+    return {"reply": reply, "action": action}

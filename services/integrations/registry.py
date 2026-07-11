@@ -115,6 +115,13 @@ def _seed() -> None:
         unlocks=("cross_platform",),
         connect_hint="Open the dashboard and DM Cash the /link code",
     ))
+    register(Provider(
+        id="telegram",
+        title="Telegram",
+        auth=AUTH_ACCOUNT_LINK,
+        unlocks=("cross_platform",),
+        connect_hint="Message the Cash bot on Telegram to link your account",
+    ))
     # Documented in doc/ but not yet wired into Cash — surfaced so the dashboard
     # can show the full catalogue with an honest "coming soon" state.
     for pid, title, packs in (

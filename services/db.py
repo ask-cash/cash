@@ -107,6 +107,20 @@ CREATE TABLE IF NOT EXISTS tenant_secrets (
     PRIMARY KEY (tenant_id, name)
 );
 
+CREATE TABLE IF NOT EXISTS accounts (
+    email         TEXT PRIMARY KEY,
+    password_hash TEXT,
+    first_name    TEXT,
+    last_name     TEXT,
+    tenant_id     TEXT NOT NULL,
+    person_id     TEXT NOT NULL,
+    role          TEXT,
+    platforms     TEXT,
+    onboarded     INTEGER NOT NULL DEFAULT 0,
+    auth_provider TEXT NOT NULL DEFAULT 'password',
+    created_at    TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS people (
     tenant_id        TEXT NOT NULL DEFAULT 'default',
     person_id        TEXT NOT NULL,
@@ -223,6 +237,20 @@ CREATE TABLE IF NOT EXISTS tenant_secrets (
     cipher     TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     PRIMARY KEY (tenant_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS accounts (
+    email         TEXT PRIMARY KEY,
+    password_hash TEXT,
+    first_name    TEXT,
+    last_name     TEXT,
+    tenant_id     TEXT NOT NULL,
+    person_id     TEXT NOT NULL,
+    role          TEXT,
+    platforms     TEXT,
+    onboarded     BOOLEAN NOT NULL DEFAULT false,
+    auth_provider TEXT NOT NULL DEFAULT 'password',
+    created_at    TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS people (

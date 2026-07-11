@@ -40,10 +40,27 @@ ADMIN_TOKEN = os.getenv("ADMIN_API_TOKEN", "")
 
 app = FastAPI(title="Cash Gateway", version="1.0.0")
 
+# CORS so the web client (client/) can call the API with its session cookie. In
+# production the client is served same-origin (nginx proxies /api), so this
+# mainly enables the Vite dev server on :5173. Set CLIENT_BASE_URL to lock it
+# down to your client's origin; defaults to the local dev origin.
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+
+_client_origin = os.getenv("CLIENT_BASE_URL", "http://localhost:5173")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o for o in [_client_origin] if o] or ["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Management dashboard (magic-link session → overview → connect platforms).
 from app.dashboard import router as dashboard_router  # noqa: E402
+from app.api import router as api_router  # noqa: E402
 
 app.include_router(dashboard_router)
+app.include_router(api_router)
 
 
 @app.on_event("startup")

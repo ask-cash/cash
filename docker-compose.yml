@@ -83,6 +83,14 @@ services:
     command: ["gateway"]
     environment:
       <<: *app-env
+      # The web client is served same-origin behind nginx (the `client` service),
+      # so OAuth redirects + the session cookie resolve against that origin.
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8090}
+      CLIENT_BASE_URL: ${CLIENT_BASE_URL:-http://localhost:8090}
+      GOOGLE_CREDENTIALS_PATH: ${GOOGLE_CREDENTIALS_PATH:-credentials.json}
+    volumes:
+      # Google OAuth client for browser-initiated calendar/login connect.
+      - ./credentials.json:/app/credentials.json:ro
     ports: ["${GATEWAY_PORT_HOST:-18080}:8080"]
     depends_on:
       postgres: {condition: service_healthy}
@@ -147,6 +155,15 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+
+  # The web dashboard client (client/): Vite build served by nginx, which
+  # reverse-proxies /api to the gateway so client + API are same-origin.
+  # Open http://localhost:8090 after `docker compose up --build`.
+  client:
+    build: ./client
+    ports: ["${CLIENT_PORT_HOST:-8090}:80"]
+    depends_on:
+      gateway: {condition: service_started}
 
 volumes:
   pgdata:
