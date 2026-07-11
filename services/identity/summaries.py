@@ -18,7 +18,7 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
-import anthropic
+from services import providers
 
 from services.identity.history import (
     conversation_counts_by_person,
@@ -58,10 +58,6 @@ class PersonSummary:
     summary_md: str
     last_built_at: str
     source_message_count: int
-
-
-def _client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
 def _now_iso() -> str:
@@ -115,21 +111,17 @@ def build_for_person(person_id: str) -> Optional[str]:
     )
 
     try:
-        resp = _client().messages.create(
-            model=SUMMARIZER_MODEL,
-            max_tokens=400,
-            system=[{
-                "type": "text",
-                "text": SUMMARIZER_SYSTEM,
-                "cache_control": {"type": "ephemeral"},
-            }],
-            messages=[{"role": "user", "content": user_block}],
+        summary_text = providers.send_message(
+            "identity_summary",
+            system=SUMMARIZER_SYSTEM,
+            cache_system=True,
+            user=user_block,
         )
     except Exception:
         logger.exception("[summaries] Anthropic call failed for %s", person_id)
         return None
 
-    summary = resp.content[0].text.strip()
+    summary = summary_text.strip()
     if not summary:
         logger.warning("[summaries] empty summary returned for %s", person_id)
         return None

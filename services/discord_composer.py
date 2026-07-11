@@ -20,9 +20,8 @@ import logging
 import os
 from typing import Optional
 
-import anthropic
-
 from services import persona
+from services import providers
 from services.availability import AvailabilityReason, format_local_time
 from services.discord_queue import PendingReply
 from services.user_profile import now as ist_now
@@ -65,10 +64,6 @@ FALLBACK_REPLY = (
     "Cash here — the person you mentioned hasn't seen this yet. "
     "I'll flag it for them; if it's urgent, ping them on Telegram."
 )
-
-
-def _client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
 def _serialize_reason(r: AvailabilityReason) -> dict:
@@ -116,21 +111,17 @@ def compose_proxy_reply(
     )
 
     try:
-        resp = _client().messages.create(
-            model=PROXY_MODEL,
-            max_tokens=400,
-            system=[{
-                "type": "text",
-                "text": PROXY_SYSTEM,
-                "cache_control": {"type": "ephemeral"},
-            }],
-            messages=[{"role": "user", "content": user_block}],
+        raw_text = providers.send_message(
+            "discord_proxy",
+            system=PROXY_SYSTEM,
+            cache_system=True,
+            user=user_block,
         )
     except Exception:
         logger.exception("[composer] Anthropic call failed; using fallback reply")
         return {"reply": FALLBACK_REPLY, "should_send": True, "reason_if_skip": ""}
 
-    raw = resp.content[0].text.strip().replace("```json", "").replace("```", "").strip()
+    raw = raw_text.strip().replace("```json", "").replace("```", "").strip()
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:
