@@ -220,12 +220,21 @@ async def scheduled_heartbeat(context: ContextTypes.DEFAULT_TYPE):
     if owner_id == 0:
         return
     import asyncio
-    from services import heartbeat
+    from services import heartbeat, notifications
     try:
         result = await asyncio.to_thread(heartbeat.run_heartbeat)
-        if result.get("spoke") and result.get("message"):
-            await context.bot.send_message(chat_id=owner_id, text=result["message"])
-            log_message("assistant", result["message"], {"type": "heartbeat"})
+        if not (result.get("spoke") and result.get("message")):
+            return
+        # Route through the notification engine: it picks the channel and holds
+        # the nudge back if the guardian is mid-conversation. Discord/Slack are
+        # delivered by the connector off the outbound queue; Telegram (this
+        # in-process job) delivers the returned decision itself.
+        message = result["message"]
+        decision = await asyncio.to_thread(notifications.emit_signal, notifications.KIND_HEARTBEAT, message)
+        if decision.channel == "telegram" and decision.should_deliver:
+            await context.bot.send_message(chat_id=owner_id, text=message)
+        if decision.should_deliver:
+            log_message("assistant", message, {"type": "heartbeat", "channel": decision.channel})
     except Exception:
         logger.exception("[jobs] heartbeat failed")
 
@@ -235,15 +244,16 @@ async def scheduled_followup_sweep(context: ContextTypes.DEFAULT_TYPE):
     owner_id = context.bot_data.get("owner_id", 0)
     if owner_id == 0:
         return
-    from services import followups
+    from services import followups, notifications
     try:
         due = followups.sweep()
         for f in due:
-            await context.bot.send_message(
-                chat_id=owner_id,
-                text=f"😼 Still waiting on this: {f['awaiting']} (re: {f['what']})",
-            )
-            followups.snooze(f["id"])  # re-surface later, don't spam every sweep
+            text = f"😼 Still waiting on this: {f['awaiting']} (re: {f['what']})"
+            decision = notifications.emit_signal(notifications.KIND_FOLLOWUP, text)
+            if decision.channel == "telegram" and decision.should_deliver:
+                await context.bot.send_message(chat_id=owner_id, text=text)
+            if decision.should_deliver:
+                followups.snooze(f["id"])  # re-surface later, don't spam every sweep
     except Exception:
         logger.exception("[jobs] follow-up sweep failed")
 

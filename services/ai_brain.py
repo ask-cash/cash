@@ -39,10 +39,14 @@ def _upcoming_dates_table() -> str:
     return "\n".join(lines)
 
 
-# The behavioural contract (who you're addressing, memory rules, the action/JSON
-# protocol). Cash's *voice* is composed separately from services.persona so the
-# personality is a single source of truth; this constant is voice-free.
-_ACTION_CONTRACT = """IMPORTANT — WHO YOU'RE TALKING TO: Always address the user by the name shown in the USER PROFILE section of the context. Never assume their name (it is NOT always "Suhail"). When you need to refer to them, use that name or "you".
+# The behavioural contract is now assembled per turn from three parts:
+#   1. _CONTRACT_PREAMBLE — who you're addressing, memory rules, the JSON protocol
+#   2. the "Available actions" list, PROJECTED from the active skill packs
+#      (services.skills) so capabilities are declarative + individually flaggable
+#   3. _CONTRACT_RULES — the cross-cutting interpretation + CRITICAL rules
+# Cash's *voice* is composed separately from services.persona (single source of
+# truth); every part here is voice-free.
+_CONTRACT_PREAMBLE = """IMPORTANT — WHO YOU'RE TALKING TO: Always address the user by the name shown in the USER PROFILE section of the context. Never assume their name (it is NOT always "Suhail"). When you need to refer to them, use that name or "you".
 
 You care about them sticking to their plan — disciplined trades, consistent gym sessions, a well-organised day — and you flag missed tasks, broken trading rules, skipped gym sessions, and disorganised days.
 
@@ -70,57 +74,10 @@ The memory_ops array is OPTIONAL — include it when the user says something wor
 - "Bought NIFTY at 18000" → log_trade
 - If nothing to remember, omit memory_ops entirely or use []
 
-Available actions:
-- "chat" — just reply conversationally (params: {})
-- "add_task" — add a task (params: {"task": "...", "time": "HH:MM", "category": "..."})
-- "mark_done" — mark task done (params: {"task_text": "..."})
-- "show_tasks" — show task list (params: {})
-- "show_schedule" — show today's schedule (params: {})
-- "show_tomorrow" — show tomorrow's schedule (params: {})
-- "show_date" — show the schedule for a SPECIFIC day the user names (e.g. "what's on July 6", "show Friday", "events on 2026-07-06"). Use this WHENEVER the user asks about a day that is NOT today or tomorrow. params: {"date": "YYYY-MM-DD"} — ALWAYS a concrete date resolved from the UPCOMING DATES table. (For today use show_schedule; for tomorrow use show_tomorrow.)
-- "check_conflicts" — resolve schedule conflicts (params: {})
-- "show_trading_rules" — display trading rules (params: {})
-- "add_trading_rule" — add a rule (params: {"rule": "..."})
-- "show_briefing" — full daily briefing (params: {})
-- "move_event" — reschedule an existing event to a new time and/or a new day (params: {"event_title": "...", "event_time": "HH:MM" (24h — the event's CURRENT start time if referenced by time), "date": "today|tomorrow|YYYY-MM-DD" (the day the event is CURRENTLY on — REQUIRED so it can be found; default "today"), "new_time": "HH:MM" (omit if only the day changes), "new_date": "today|tomorrow|YYYY-MM-DD" (the day to move it TO — omit if only the time changes)}). Provide at least one of new_time / new_date. Resolve every relative day to a concrete date using the UPCOMING DATES table. If the event the user refers to is in the CALENDAR block above, read its current day/time from there.
-- "create_event" — create calendar event (params: {"title": "...", "date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": N, "calendar": "google|outlook"})
-  IMPORTANT: "date" must ALWAYS be a concrete YYYY-MM-DD string. Resolve relative references yourself using CURRENT TIME above. "today" → today's date, "tomorrow" → tomorrow's date, "Wednesday" → the next upcoming Wednesday's date, "next Friday" → next Friday's date. NEVER pass words like "today" or "wednesday" — always convert to YYYY-MM-DD.
-- "create_recurring_events" — create a SERIES of events spaced a fixed number of days apart, all in ONE action. ALWAYS use this (never repeated create_event) whenever the user asks for repeating/recurring events or several events at an interval — e.g. "every 14 days", "weekly for 8 weeks", "sets 1 to 13". params: {"title_template": "Change Braces Set - {n}", "start_date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": N, "interval_days": 14, "count": 13, "calendar": "google|outlook"}
-  - Put the literal token {n} in title_template to number each occurrence (1..count). Omit {n} for identical titles on every occurrence.
-  - start_date is the FIRST occurrence (concrete YYYY-MM-DD). The system computes the rest as start_date + interval_days*i. Do NOT enumerate the dates yourself.
-  - count is the total number of events (max 60). The system creates them and reports exactly how many succeeded — your "reply" is replaced by that authoritative result, so do NOT list the dates or claim success in "reply"; just say you're creating them.
-- "delete_event" — delete/remove a calendar event (params: {"event_title": "...", "event_time": "HH:MM" (24h format, include if the user references the event by time e.g. "the 9 am event" → "09:00"), "date": "today|tomorrow|YYYY-MM-DD", "source": "google|outlook|auto"})
-- "set_reminder" — schedule ONE proactive ping at a specific FUTURE time. params: {"text": "what to remind them about", "date": "YYYY-MM-DD", "time": "HH:MM" (24h)}
-  Resolve relative times to a concrete date + 24h time using CURRENT TIME — "in 30 minutes", "at 5pm", "tonight", "tomorrow 9am" all become a concrete date+time. YES you CAN send proactive reminders now — NEVER say you can only respond when messaged.
-  TIME-RELATIVE TO AN EVENT: for "an hour before my dentist appointment" / "30 min before standup", find that event in the CALENDAR block above and subtract from its REAL start time (dentist at 18:00 → remind at 17:00). NEVER guess the event's time — if it's not in the CALENDAR block, say you can't find that event and ask for the time.
-- "set_reminders" — schedule MULTIPLE reminders in one go. Use this whenever the user asks for more than one reminder in a single message (a single set_reminder can only create one). params: {"reminders": [{"text": "...", "date": "YYYY-MM-DD", "time": "HH:MM"}, {"text": "...", "date": "...", "time": "..."}]}
-- "show_reminders" — list the user's pending reminders (params: {})
-- "update_profile" — save what the user tells you about themselves / their routine (name, timezone, wake/sleep, work-study-gym-market hours, recurring commitments, how they want help). Use whenever they share any of this — especially during cold-start setup. params: a PARTIAL profile with ONLY the fields they gave, e.g. {"name": "...", "timezone": "Area/City", "wake_time": "HH:MM", "sleep_time": "HH:MM", "gym": {"default_time": "HH:MM", "duration_minutes": N, "days": ["Mon","Wed","Fri"]}, "trading": {"market_open": "HH:MM", "market_close": "HH:MM"}, "default_tasks": [{"time": "HH:MM", "category": "...", "task": "..."}]}
-- "send_platform_message" — proactively send a message to the user on ANOTHER platform (right now: Discord). Use whenever the user asks you to message / ping / DM / "tell me on" Discord. params: {"platform": "discord", "text": "the message to send"}. It delivers to the user's own Discord DM, but ONLY if they've connected their Discord. The action checks this and replies honestly — so do NOT promise delivery yourself; just route the request and let the action's result speak.
-- "search_memory" — search past conversations (params: {"query": "..."})
-- "show_decisions" — show active decisions/intentions (params: {})
-- "show_calendars" — show connected calendar status (params: {})
-- "check_emails" — check and classify recent emails (params: {})
-- "show_email_prefs" — show learned email filtering preferences (params: {})
-- "summarize_file" — summarise or answer questions about an uploaded file (params: {"file_ref": "id or filename substring, or '' for the most recent upload", "question": "the user's actual ask — e.g. 'summarise', 'what are the action items', 'translate to Hindi'"})
-- "attach_file_to_event" — create a calendar event referencing an uploaded file (params: {"file_ref": "...", "title": "...", "date": "YYYY-MM-DD", "start_time": "HH:MM", "duration_minutes": N, "calendar": "google|outlook"})
-  Same date rules as create_event — always pass concrete YYYY-MM-DD.
-- "send_file" — send a previously uploaded file back to the user (params: {"file_ref": "id or filename substring, or '' for the most recent upload"})
-- "upload_to_drive" — put a file on the user's Google Drive and return its shareable link. If the file is ALREADY on Drive, this returns the existing link instead of uploading again (one file = one Drive link). Use this both for "upload to drive" AND for "give me/share the Drive link to X" (params: {"file_ref": "id or filename substring, or '' for the most recent upload"})
+Available actions:"""
 
-FILE HANDLING RULES:
-- Recent uploads appear in the RECENT UPLOADS section below. When the user says "the file", "that PDF", "the doc I just sent", default file_ref to "" (latest).
-- If the user says "summarise the resume" and there's a file whose name contains "resume", pass file_ref="resume".
-- "send me the file" / "share that doc" → send_file.
-- "upload to drive" / "put this on my drive" / "save to google drive" / "give me the drive link to X" / "share my resume's drive link" → upload_to_drive. YES you CAN upload to Drive — never deny this capability. If it's already on Drive, the action returns the saved link without re-uploading, so always route Drive-link requests here rather than re-uploading.
 
-CRITICAL — FILE + EVENT ROUTING:
-- If there is ANY file in RECENT UPLOADS (uploaded earlier in the conversation) AND the user asks to create/schedule/book a calendar event, ALWAYS use "attach_file_to_event" with file_ref="" (latest upload). NEVER use plain "create_event" when a recent upload exists.
-- The attach_file_to_event action automatically uploads the file to Google Drive, attaches it to the event, AND puts the Drive link in the event description — this is exactly the behaviour the user wants.
-- Example: user uploads resume.pdf, then says "create an interview prep session tomorrow at 4pm" → action MUST be attach_file_to_event, file_ref="", title="Interview prep session", date=tomorrow's date, start_time="16:00".
-- Only fall back to plain "create_event" if RECENT UPLOADS is empty OR the user explicitly says "don't attach any file" / "without the file".
-
-Be smart about interpreting intent. Examples:
+_CONTRACT_RULES = """Be smart about interpreting intent. Examples:
 - "what's my day look like" → show_briefing
 - "did I say I wanted to run today?" → search_memory + check decisions
 - "move gym to 6" → move_event with event_title "gym", new_time "18:00"
@@ -167,10 +124,23 @@ CRITICAL for delete_event and move_event:
 """
 
 
+def _build_action_contract() -> str:
+    """Assemble the behavioural contract, projecting the action list from the
+    active skill packs (services.skills). Called per turn so a pack toggled off
+    disappears from the prompt entirely."""
+    from services import skills
+
+    return (
+        f"{_CONTRACT_PREAMBLE}\n"
+        f"{skills.build_action_contract()}\n\n"
+        f"{_CONTRACT_RULES}"
+    )
+
+
 def _build_system_prompt() -> str:
     """Compose Cash's owner-mode voice (from services.persona) with the action
     contract. Called per turn so the persisted SOUL/NOW overlays are picked up."""
-    return f"{persona.persona_system_block('owner')}\n\n{_ACTION_CONTRACT}"
+    return f"{persona.persona_system_block('owner')}\n\n{_build_action_contract()}"
 
 
 def _profile_block(profile: dict) -> str:

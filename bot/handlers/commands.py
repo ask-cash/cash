@@ -156,6 +156,18 @@ async def cmd_decisions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text)
 
 
+async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Guardian says yes to the action Cash last held for approval (Feature 4)."""
+    from services import trust
+    approved = trust.approve_latest()
+    if not approved:
+        await update.message.reply_text("Nothing's waiting on your yes right now. 😺")
+        return
+    await update.message.reply_text(
+        f"Got it — approved *{approved['action']}*. Ask me again and I'll do it."
+    )
+
+
 async def cmd_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     memory = build_memory_context(days=14)
     if len(memory) > 4000:
@@ -372,13 +384,19 @@ async def _start_google_oauth(update: Update, scopes: list[str], token_path: str
 
 async def cmd_connect_google(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Connect Google Calendar + Drive."""
-    token_path = os.getenv("GOOGLE_TOKEN_PATH", "token.json")
-    await _start_google_oauth(update, GOOGLE_CAL_SCOPES, token_path, "Google Calendar", secret_name="google_token")
+    # Feature 7: scopes + token location come from the integration registry, so
+    # every connect path shares one source of truth.
+    from services.integrations import registry
+    p = registry.get("google_calendar")
+    token_path = p.legacy_token_path or os.getenv("GOOGLE_TOKEN_PATH", "token.json")
+    await _start_google_oauth(update, list(p.scopes), token_path, "Google Calendar", secret_name=p.secret_name)
 
 
 async def cmd_connect_gmail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Connect Gmail."""
-    await _start_google_oauth(update, GMAIL_SCOPES, GMAIL_TOKEN_PATH, "Gmail", secret_name="gmail_token")
+    from services.integrations import registry
+    p = registry.get("gmail")
+    await _start_google_oauth(update, list(p.scopes), p.legacy_token_path or GMAIL_TOKEN_PATH, "Gmail", secret_name=p.secret_name)
 
 
 async def cmd_connect_outlook(update: Update, context: ContextTypes.DEFAULT_TYPE):

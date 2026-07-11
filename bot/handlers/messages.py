@@ -23,6 +23,7 @@ from services.user_profile import load_profile, save_profile, today as ist_today
 from services.task_tracker import initialize_daily_tasks, format_tasks, add_task, mark_done
 from services.scheduler import resolve_conflicts, format_suggestions
 from services.ai_brain import interpret_message
+from services import security, trust
 from services.directives import parser as directives_parser
 from services.directives import store as directives_store
 from services.identity import people as identity_people
@@ -40,7 +41,7 @@ from services.files import find_by_ref, local_path_for, set_drive_link
 from services.drive import upload_and_share, shorten_url
 from services.ai_brain import answer_about_file
 from bot.jobs import get_cal, get_gmail
-from services import reminders, queue
+from services import reminders, queue, notifications, skills
 from services.tenancy import tenant_context, current_tenant_id
 from services.config import settings
 
@@ -525,6 +526,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         metadata={"surface": "telegram", "person_id": person_id} if person_id else None,
     )
 
+    # Feature 5: mark the conversation active so a heartbeat/follow-up firing in
+    # the next few minutes won't talk over the guardian mid-turn.
+    notifications.touch_activity("telegram")
+
     # Step 5: try to interpret as a structured directive before falling through to chat.
     if await _try_handle_as_directive(update, user_msg):
         log_message(
@@ -547,6 +552,42 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         memory_ops = result.get("memory_ops", [])
 
         process_memory_ops(memory_ops)
+
+        # Skill-pack gate (Feature 6): if the pack that owns this action is
+        # disabled, the capability is off everywhere — refuse before running it.
+        # Default: every pack is enabled, so this is a no-op unless a guardian
+        # has switched one off.
+        if not skills.is_action_enabled(action):
+            await update.message.reply_text(
+                "😼 That capability is switched off right now. Turn its skill back on and ask me again."
+            )
+            log_message("assistant", f"[skill disabled: {action}]",
+                        metadata={"surface": "telegram", "outcome": "skill-disabled"})
+            return
+
+        # Trust gate (Feature 4): every action passes through the trust engine
+        # before it runs. This is the authenticated owner path, so the role is
+        # guardian — under the default full-access posture that means allow, so
+        # behaviour is unchanged unless the guardian has set stricter rules.
+        role = security.ROLE_GUARDIAN
+        decision = trust.evaluate(role, action)
+        if decision == trust.REQUIRE_APPROVAL and trust.consume_grant(role, action):
+            decision = trust.ALLOW
+        if decision == trust.DENY:
+            await update.message.reply_text(
+                "😼 That one's off-limits under the rules you set. Change them if you want me to."
+            )
+            log_message("assistant", f"[denied action: {action}]",
+                        metadata={"surface": "telegram", "outcome": "trust-denied"})
+            return
+        if decision == trust.REQUIRE_APPROVAL:
+            trust.request_approval(role, action, note=user_msg[:120])
+            await update.message.reply_text(
+                "That one needs a yes. Send /approve, then ask me again and I'll do it."
+            )
+            log_message("assistant", f"[needs approval: {action}]",
+                        metadata={"surface": "telegram", "outcome": "trust-approval"})
+            return
 
         if action == "show_tasks":
             profile = load_profile()

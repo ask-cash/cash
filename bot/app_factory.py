@@ -27,6 +27,7 @@ from bot.handlers.commands import (
     cmd_conflicts, cmd_rules, cmd_decisions, cmd_memory, cmd_calendars,
     cmd_settings, cmd_emails, cmd_email_detail, cmd_email_prefs,
     cmd_connect_google, cmd_connect_gmail, cmd_connect_outlook,
+    cmd_approve,
     handle_email_feedback,
 )
 from bot.handlers.directives_commands import (
@@ -66,6 +67,7 @@ def register_handlers(app: Application, owner_id: int = 0) -> None:
     app.add_handler(CommandHandler("memory", guard(cmd_memory)))
     app.add_handler(CommandHandler("calendars", guard(cmd_calendars)))
     app.add_handler(CommandHandler("settings", guard(cmd_settings)))
+    app.add_handler(CommandHandler("approve", guard(cmd_approve)))
     app.add_handler(CommandHandler("emails", guard(cmd_emails)))
     app.add_handler(CommandHandler("email_detail", guard(cmd_email_detail)))
     app.add_handler(CommandHandler("email_prefs", guard(cmd_email_prefs)))
