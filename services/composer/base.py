@@ -142,16 +142,16 @@ def complete(
     helper does not swallow failures because "silence" and "generic reply" are
     different product decisions per surface.
     """
-    import anthropic
+    from services import providers
 
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    resp = client.messages.create(
+    return providers.send_message(
+        "composer",
+        system=system,
+        cache_system=True,
+        user=user_block,
         model=model,
         max_tokens=max_tokens,
-        system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": user_block}],
-    )
-    return resp.content[0].text.strip()
+    ).strip()
 
 
 def strip_code_fences(raw: str) -> str:

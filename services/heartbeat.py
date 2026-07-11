@@ -84,16 +84,9 @@ def _render_context(ctx: dict) -> str:
 
 
 def _default_llm(system: str, user: str) -> str:
-    import anthropic
+    from services import providers
 
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    resp = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=400,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    return resp.content[0].text
+    return providers.send_message("heartbeat", system=system, user=user)
 
 
 def _parse_decision(raw: str) -> dict:

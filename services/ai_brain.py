@@ -9,8 +9,8 @@ import re
 import json
 import logging
 import datetime
-import anthropic
 from services import persona
+from services import providers
 from services.user_profile import load_profile, now as ist_now
 from services.task_tracker import get_tasks_summary
 from services.memory import build_memory_context, get_active_decisions
@@ -21,10 +21,6 @@ from services.files import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def get_client():
-    return anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 
 def _upcoming_dates_table() -> str:
@@ -186,7 +182,6 @@ def interpret_message(user_message: str, calendar_context: str = "") -> dict:
     caller, which owns the live calendar client). Ground time-relative requests
     like "remind me an hour before my dentist appointment" on THIS, never a guess.
     """
-    client = get_client()
     profile = load_profile()
     tasks = get_tasks_summary()
     # Memory v2: a bounded, freshly-compiled brief every turn (not a raw log
@@ -223,16 +218,11 @@ Pending: {[t['task'] for t in tasks['pending']]}
 {_upcoming_dates_table()}
 """
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1000,
+    raw = providers.send_message(
+        "owner_brain",
         system=_build_system_prompt(),
-        messages=[
-            {"role": "user", "content": f"{context}\n\nUser message: {user_message}"}
-        ],
-    )
-
-    raw = response.content[0].text.strip()
+        user=f"{context}\n\nUser message: {user_message}",
+    ).strip()
     raw = raw.replace("```json", "").replace("```", "").strip()
 
     # Isolate the JSON object even if the model wrapped it in prose.
@@ -256,7 +246,6 @@ Pending: {[t['task'] for t in tasks['pending']]}
 
 def generate_briefing(events_text: str, tasks_text: str, conflicts_text: str) -> str:
     """Generate a natural daily briefing using Claude with memory context."""
-    client = get_client()
     profile = load_profile()
     memory_context = build_memory_context(days=3)
     active_decisions = get_active_decisions()
@@ -306,12 +295,7 @@ Write the briefing as Cash — in character. Start with a short good morning to 
 7. End with a short, motivating line that keeps them focused on the day ahead
 """
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=700,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.content[0].text.strip()
+    return providers.send_message("briefing", user=prompt).strip()
 
 
 def answer_about_file(record: dict, question: str) -> str:
@@ -320,7 +304,6 @@ def answer_about_file(record: dict, question: str) -> str:
     Supports PDFs (document block), images, and text files. For unsupported
     types, falls back to a filename-only prompt so Cash can at least respond.
     """
-    client = get_client()
     question = (question or "Summarise this file").strip()
 
     block = build_claude_content_block(record)
@@ -340,10 +323,8 @@ def answer_about_file(record: dict, question: str) -> str:
             {"type": "text", "text": f"File: {record.get('name')}\n\nUser's ask: {question}\n\nReply as Cash — in your voice, concise and useful."},
         ]
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1500,
+    return providers.send_message(
+        "file_answer",
         system=f"{persona.persona_system_block('owner')}\n\nAnswer the user's question about their file in your voice. Keep replies Telegram-sized.",
         messages=[{"role": "user", "content": user_content}],
-    )
-    return response.content[0].text.strip()
+    ).strip()

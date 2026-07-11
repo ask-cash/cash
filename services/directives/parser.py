@@ -25,8 +25,7 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-import anthropic
-
+from services import providers
 from services.directives.store import KNOWN_ACTIONS
 
 logger = logging.getLogger(__name__)
@@ -127,10 +126,6 @@ def looks_like_instruction(text: str) -> bool:
     return bool(_INSTRUCTION_KEYWORDS.search(text))
 
 
-def _client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-
-
 def parse(text: str) -> Optional[DirectiveProposal]:
     """LLM-backed parse. Returns None when the text isn't an actionable instruction.
 
@@ -147,21 +142,17 @@ def parse(text: str) -> Optional[DirectiveProposal]:
     )
 
     try:
-        resp = _client().messages.create(
-            model=PARSER_MODEL,
-            max_tokens=400,
-            system=[{
-                "type": "text",
-                "text": PARSER_SYSTEM,
-                "cache_control": {"type": "ephemeral"},
-            }],
-            messages=[{"role": "user", "content": user_block}],
+        raw_text = providers.send_message(
+            "directive_parser",
+            system=PARSER_SYSTEM,
+            cache_system=True,
+            user=user_block,
         )
     except Exception:
         logger.exception("[parser] Anthropic call failed for: %r", text[:120])
         return None
 
-    raw = resp.content[0].text.strip().replace("```json", "").replace("```", "").strip()
+    raw = raw_text.strip().replace("```json", "").replace("```", "").strip()
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError:

@@ -9,7 +9,6 @@ import os
 import json
 import logging
 import datetime as dt
-import anthropic
 from services import state_store
 from services.user_profile import now as ist_now
 from typing import Optional
@@ -180,13 +179,8 @@ Respond ONLY with a JSON array (no markdown, no backticks). Each element:
 """
 
     try:
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=800,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = response.content[0].text.strip()
+        from services import providers
+        raw = providers.send_message("email_classifier", user=prompt).strip()
         raw = raw.replace("```json", "").replace("```", "").strip()
         classifications = json.loads(raw)
 
