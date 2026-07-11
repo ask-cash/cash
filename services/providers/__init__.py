@@ -1,5 +1,5 @@
 """
-providers — Cash's multi-provider LLM abstraction (Feature 8).
+providers — Cash's multi-provider LLM abstraction.
 
 One entry point for every model call: ``send_message(call_site, ...)``. Feature
 code names a **call site** (e.g. "owner_brain", "discord_proxy"), never a model
@@ -7,10 +7,9 @@ or an SDK, and a layered resolver decides provider + model + token budget:
 
     code defaults  →  tenant profile ("llm" settings)  →  per-call override
 
-This is Cash's take on Vellum's ``getConfiguredProvider(callSite)``. Anthropic is
-the primary backend; an OpenAI-compatible backend is registered as a fallback
-seam. New backends register themselves via ``register_backend`` and become
-selectable by config alone — no feature code changes.
+Anthropic is the primary backend; an OpenAI-compatible backend is registered as a
+fallback seam. New backends register themselves via ``register_backend`` and
+become selectable by config alone — no feature code changes.
 
 The one place ``anthropic`` may be imported is a backend under this package.
 """
@@ -119,6 +118,24 @@ def send_message(
         )
     return backend(cfg, system, messages, cache_system)
 
+
+# The model catalog (providers × models + metadata) — the data companion callers
+# and any config UI pick a concrete provider/model from.
+from services.providers.catalog import (  # noqa: E402,F401
+    CatalogModel,
+    MODELS_BY_PROVIDER,
+    DEFAULT_MODEL_BY_PROVIDER,
+    PROVIDER_DISPLAY_NAMES,
+    PROVIDER_SUPPORTS_PLATFORM_AUTH,
+    MANAGED_MODELS,
+    provider_ids,
+    get_models_for_provider,
+    get_default_model_for_provider,
+    provider_display_name,
+    provider_supports_platform_auth,
+    find_model,
+    is_known_model,
+)
 
 # Register the built-in backends (Anthropic primary + OpenAI-compatible seam).
 from services.providers import backends as _backends  # noqa: E402,F401

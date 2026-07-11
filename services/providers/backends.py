@@ -1,5 +1,5 @@
 """
-backends.py — concrete LLM backends for services.providers (Feature 8).
+backends.py — concrete LLM backends for services.providers.
 
 Anthropic is the primary backend. An OpenAI-compatible backend is provided as a
 fallback seam: it targets any ``/chat/completions`` endpoint (OpenAI, OpenRouter,

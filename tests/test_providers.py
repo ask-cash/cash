@@ -1,5 +1,5 @@
 """
-test_providers.py — multi-provider LLM abstraction (Feature 8).
+test_providers.py — multi-provider LLM abstraction.
 
 Covers the layered config resolver (defaults → profile → per-call override),
 call-site dispatch, the pluggable-backend seam, system-block normalisation
