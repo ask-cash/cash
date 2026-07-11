@@ -156,6 +156,18 @@ async def cmd_decisions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text)
 
 
+async def cmd_approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Guardian says yes to the action Cash last held for approval (Feature 4)."""
+    from services import trust
+    approved = trust.approve_latest()
+    if not approved:
+        await update.message.reply_text("Nothing's waiting on your yes right now. 😺")
+        return
+    await update.message.reply_text(
+        f"Got it — approved *{approved['action']}*. Ask me again and I'll do it."
+    )
+
+
 async def cmd_memory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     memory = build_memory_context(days=14)
     if len(memory) > 4000:
