@@ -384,13 +384,19 @@ async def _start_google_oauth(update: Update, scopes: list[str], token_path: str
 
 async def cmd_connect_google(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Connect Google Calendar + Drive."""
-    token_path = os.getenv("GOOGLE_TOKEN_PATH", "token.json")
-    await _start_google_oauth(update, GOOGLE_CAL_SCOPES, token_path, "Google Calendar", secret_name="google_token")
+    # Feature 7: scopes + token location come from the integration registry, so
+    # every connect path shares one source of truth.
+    from services.integrations import registry
+    p = registry.get("google_calendar")
+    token_path = p.legacy_token_path or os.getenv("GOOGLE_TOKEN_PATH", "token.json")
+    await _start_google_oauth(update, list(p.scopes), token_path, "Google Calendar", secret_name=p.secret_name)
 
 
 async def cmd_connect_gmail(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Connect Gmail."""
-    await _start_google_oauth(update, GMAIL_SCOPES, GMAIL_TOKEN_PATH, "Gmail", secret_name="gmail_token")
+    from services.integrations import registry
+    p = registry.get("gmail")
+    await _start_google_oauth(update, list(p.scopes), p.legacy_token_path or GMAIL_TOKEN_PATH, "Gmail", secret_name=p.secret_name)
 
 
 async def cmd_connect_outlook(update: Update, context: ContextTypes.DEFAULT_TYPE):

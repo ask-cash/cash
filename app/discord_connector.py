@@ -219,6 +219,11 @@ async def _run_tenant_client(tenant_id: str, token: str, scheduler: AsyncIOSched
                         "[%s] DM from %s (id=%s): %r",
                         tenant_id, message.author, message.author.id, (message.content or "")[:80],
                     )
+                    # Feature 5: an owner DM opens an active-conversation window so
+                    # proactive pings don't interrupt it (see services.notifications).
+                    if owner_id and message.author.id == owner_id:
+                        from services import notifications
+                        notifications.touch_activity("discord")
                 # Dashboard "connect Discord" flow: a DM of "/link <phrase>" links
                 # this Discord account to the dashboard person. Handle before the
                 # normal proxy/identity path. Accept a leading slash or not.
