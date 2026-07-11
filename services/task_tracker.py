@@ -14,6 +14,18 @@ from services.user_profile import now as ist_now, today as ist_today
 
 NAMESPACE = "tasks"
 
+# Priority tiers, 0 = highest. Kept small and human ("do this first" → 0).
+_TIER_BADGE = {0: "🔴", 1: "🟠", 2: "", 3: "🔵"}
+
+
+def _age_days(first_seen: str) -> int:
+    """Whole days a task has been alive, from its first_seen ISO date."""
+    try:
+        seen = dt.date.fromisoformat((first_seen or "")[:10])
+        return max((ist_today() - seen).days, 0)
+    except ValueError:
+        return 0
+
 
 def _load_tasks(date: Optional[dt.date] = None) -> list[dict]:
     key = (date or ist_today()).isoformat()
@@ -37,11 +49,21 @@ def initialize_daily_tasks(default_tasks: list[dict]) -> list[dict]:
     yesterday = ist_today() - dt.timedelta(days=1)
     yesterday_tasks = _load_tasks(yesterday)
     rollover = [
-        {**t, "rolled_over": True, "done": False, "done_at": None}
+        {
+            **t,
+            "rolled_over": True,
+            "done": False,
+            "done_at": None,
+            # Formalized rollover history: count how many days it's followed you,
+            # and preserve when it first appeared so age is stable across days.
+            "rollover_count": t.get("rollover_count", 0) + 1,
+            "first_seen": t.get("first_seen", yesterday.isoformat()),
+        }
         for t in yesterday_tasks
         if not t.get("done", False)
     ]
 
+    today_str = ist_today().isoformat()
     today_tasks = []
     for i, t in enumerate(default_tasks):
         today_tasks.append({
@@ -49,9 +71,12 @@ def initialize_daily_tasks(default_tasks: list[dict]) -> list[dict]:
             "task": t["task"],
             "time": t.get("time", ""),
             "category": t.get("category", "general"),
+            "priority_tier": t.get("priority_tier", 2),
             "done": False,
             "done_at": None,
             "rolled_over": False,
+            "rollover_count": 0,
+            "first_seen": today_str,
             "source": "default",
         })
 
@@ -65,7 +90,8 @@ def initialize_daily_tasks(default_tasks: list[dict]) -> list[dict]:
     return today_tasks
 
 
-def add_task(task_text: str, time: str = "", category: str = "general") -> dict:
+def add_task(task_text: str, time: str = "", category: str = "general",
+             priority_tier: int = 2) -> dict:
     """Add a new ad-hoc task to today's list."""
     tasks = _load_tasks()
     new_task = {
@@ -73,9 +99,12 @@ def add_task(task_text: str, time: str = "", category: str = "general") -> dict:
         "task": task_text,
         "time": time,
         "category": category,
+        "priority_tier": priority_tier,
         "done": False,
         "done_at": None,
         "rolled_over": False,
+        "rollover_count": 0,
+        "first_seen": ist_today().isoformat(),
         "source": "manual",
     }
     tasks.append(new_task)
@@ -121,10 +150,21 @@ def format_tasks() -> str:
 
     if summary["pending"]:
         lines.append("⏳ PENDING:")
-        for t in summary["pending"]:
+        # Highest priority (lowest tier) first, then oldest first.
+        pending = sorted(
+            summary["pending"],
+            key=lambda t: (t.get("priority_tier", 2), -_age_days(t.get("first_seen", ""))),
+        )
+        for t in pending:
             time_str = f" ({t['time']})" if t.get("time") else ""
-            roll = " 🔄" if t.get("rolled_over") else ""
-            lines.append(f"  □ [{t['id']}] {t['task']}{time_str}{roll}")
+            badge = _TIER_BADGE.get(t.get("priority_tier", 2), "")
+            badge = f"{badge} " if badge else ""
+            age = _age_days(t.get("first_seen", ""))
+            if t.get("rolled_over") and age > 0:
+                roll = f" 🔄 day {age + 1}"
+            else:
+                roll = ""
+            lines.append(f"  □ {badge}[{t['id']}] {t['task']}{time_str}{roll}")
 
     if summary["done"]:
         lines.append("\n✅ DONE:")

@@ -19,6 +19,8 @@ from bot.jobs import (
     scheduled_directive_expiry,
     scheduled_email_check,
     scheduled_evening_summary,
+    scheduled_followup_sweep,
+    scheduled_heartbeat,
     scheduled_meeting_check,
     scheduled_morning_briefing,
     scheduled_summary_rollup,
@@ -127,6 +129,21 @@ def main():
         interval=email_check_interval,
         first=30,
         name="email_check",
+    )
+
+    # Proactivity (Feature 3) — hourly heartbeat + follow-up sweep. `first` is
+    # offset so no LLM work happens right at boot.
+    job_queue.run_repeating(
+        scheduled_heartbeat,
+        interval=3600,
+        first=300,
+        name="heartbeat",
+    )
+    job_queue.run_repeating(
+        scheduled_followup_sweep,
+        interval=1800,
+        first=120,
+        name="followup_sweep",
     )
 
     # Directive lifecycle (Step 7) — runs early morning local time.

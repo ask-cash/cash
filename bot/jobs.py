@@ -207,6 +207,48 @@ async def scheduled_email_check(context: ContextTypes.DEFAULT_TYPE):
 
 
 # ---------------------------------------------------------------------------
+# Proactivity (Feature 3) — heartbeat + follow-up sweep
+# ---------------------------------------------------------------------------
+
+async def scheduled_heartbeat(context: ContextTypes.DEFAULT_TYPE):
+    """Hourly pulse: let Cash decide whether to nudge, and deliver if she does.
+
+    The decision (and any LLM call) happens in services.heartbeat, off the event
+    loop. Boot-safe: this only runs when the JobQueue fires it, never at import.
+    """
+    owner_id = context.bot_data.get("owner_id", 0)
+    if owner_id == 0:
+        return
+    import asyncio
+    from services import heartbeat
+    try:
+        result = await asyncio.to_thread(heartbeat.run_heartbeat)
+        if result.get("spoke") and result.get("message"):
+            await context.bot.send_message(chat_id=owner_id, text=result["message"])
+            log_message("assistant", result["message"], {"type": "heartbeat"})
+    except Exception:
+        logger.exception("[jobs] heartbeat failed")
+
+
+async def scheduled_followup_sweep(context: ContextTypes.DEFAULT_TYPE):
+    """Surface overdue, unresolved follow-ups Cash is chasing."""
+    owner_id = context.bot_data.get("owner_id", 0)
+    if owner_id == 0:
+        return
+    from services import followups
+    try:
+        due = followups.sweep()
+        for f in due:
+            await context.bot.send_message(
+                chat_id=owner_id,
+                text=f"😼 Still waiting on this: {f['awaiting']} (re: {f['what']})",
+            )
+            followups.snooze(f["id"])  # re-surface later, don't spam every sweep
+    except Exception:
+        logger.exception("[jobs] follow-up sweep failed")
+
+
+# ---------------------------------------------------------------------------
 # Step 7 — directive lifecycle + per-person summary maintenance
 # ---------------------------------------------------------------------------
 
