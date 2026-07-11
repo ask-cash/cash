@@ -79,7 +79,40 @@ async def cmd_briefing(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     profile = load_profile()
     initialize_daily_tasks(profile.get("default_tasks", []))
-    await update.message.reply_text(format_tasks())
+    from services import cards
+    from services.task_tracker import get_tasks_summary
+    from bot.handlers.card_ui import send_card
+    await send_card(update.message, cards.tasks_card(get_tasks_summary()))
+
+
+async def handle_card_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Dispatch inline-button taps from services.cards (approve/deny/task_done)."""
+    from services import cards, trust
+    from services.task_tracker import mark_done, get_tasks_summary
+    from bot.handlers.card_ui import edit_card
+
+    query = update.callback_query
+    await query.answer()
+    decoded = cards.decode_callback(query.data or "")
+    if not decoded:
+        return
+    action, arg = decoded
+
+    if action == "approve":
+        approved = trust.approve_latest()
+        await query.edit_message_text(
+            f"✅ Approved “{approved['action']}” — ask me again and I'll do it."
+            if approved else "Nothing's waiting on your yes right now. 😺"
+        )
+    elif action == "deny":
+        trust.deny_latest()
+        await query.edit_message_text("🚫 Denied — I won't run it.")
+    elif action == "task_done":
+        try:
+            mark_done(task_id=int(arg))
+        except ValueError:
+            pass
+        await edit_card(query, cards.tasks_card(get_tasks_summary()))
 
 
 async def cmd_done(update: Update, context: ContextTypes.DEFAULT_TYPE):

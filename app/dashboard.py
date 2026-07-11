@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from services.config import settings
 from services import dashboard as svc
+from services.tenancy import tenant_context
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +77,39 @@ def connect_discord(request: Request):
     return HTMLResponse(_render_connect_discord(phrase))
 
 
+@router.get("/integrations", response_class=HTMLResponse)
+def integrations_view(request: Request):
+    s = _session(request)
+    if not s:
+        return HTMLResponse(_render_login_required(), status_code=401)
+    from services import integrations
+    tid = s.get("tid", "default")
+    with tenant_context(tid):
+        rows = [
+            {
+                "id": p.id,
+                "title": p.title,
+                "available": p.available,
+                "connected": integrations.is_connected(p.id),
+                "unlocks": list(p.unlocks),
+            }
+            for p in integrations.all_providers()
+        ]
+    return HTMLResponse(_render_integrations(rows))
+
+
+@router.get("/memory", response_class=HTMLResponse)
+def memory_view(request: Request):
+    s = _session(request)
+    if not s:
+        return HTMLResponse(_render_login_required(), status_code=401)
+    from services.memory import build_memory_context
+    tid = s.get("tid", "default")
+    with tenant_context(tid):
+        memory = build_memory_context(days=14)
+    return HTMLResponse(_render_memory(memory))
+
+
 # ---------------------------------------------------------------------------
 # Rendering
 # ---------------------------------------------------------------------------
@@ -115,10 +149,47 @@ def _render_overview(d: dict) -> str:
         "<h2>Connected platforms</h2>"
         f"<div class='card'>{plats}</div>"
         "<a class='btn' href='/dashboard/connect/discord'>+ Connect Discord</a>"
+        " <a class='btn' href='/dashboard/integrations'>All integrations</a>"
         "<h2>What Cash remembers</h2>"
         f"<div class='card'>{summary}<br><span class='muted'>"
         f"{d['conversation_count']} messages on record</span></div>"
+        "<a class='btn' href='/dashboard/memory'>View memory</a>"
         "<p class='muted'><a href='/dashboard/logout'>Sign out</a></p>"
+    )
+    return _PAGE.format(body=body)
+
+
+def _render_integrations(rows: list[dict]) -> str:
+    items = []
+    for r in rows:
+        if not r["available"]:
+            status = "<span class='muted'>coming soon</span>"
+        elif r["connected"]:
+            status = "<span class='pill'>✅ connected</span>"
+        else:
+            status = "<span class='pill'>not connected</span>"
+        unlocks = "".join(f"<span class='pill'>{html.escape(u)}</span>" for u in r["unlocks"])
+        if not unlocks:
+            unlocks = "<span class='muted'>—</span>"
+        items.append(
+            f"<div class='card'><b>{html.escape(r['title'])}</b> — {status}<br>"
+            f"<span class='muted'>unlocks:</span> {unlocks}</div>"
+        )
+    body = (
+        "<h1>Integrations</h1>"
+        "<p class='muted'>Connecting a provider unlocks its skills.</p>"
+        + "".join(items)
+        + "<p><a href='/dashboard'>← Back</a></p>"
+    )
+    return _PAGE.format(body=body)
+
+
+def _render_memory(memory: str) -> str:
+    shown = html.escape(memory) if memory else "<span class='muted'>nothing yet</span>"
+    body = (
+        "<h1>What Cash remembers</h1>"
+        f"<div class='card' style='white-space:pre-wrap'>{shown}</div>"
+        "<p><a href='/dashboard'>← Back</a></p>"
     )
     return _PAGE.format(body=body)
 

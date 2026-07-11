@@ -163,6 +163,19 @@ def approve_latest() -> Optional[dict]:
     return rec
 
 
+def deny_latest() -> Optional[dict]:
+    """Guardian says no: drop the most recent pending request without granting.
+
+    Returns the denied request, or None if nothing was pending.
+    """
+    pending = _pending()
+    if not pending:
+        return None
+    rec = pending.pop()
+    state_store.write_json(NAMESPACE, _PENDING_KEY, pending)
+    return rec
+
+
 def consume_grant(role: str, action: str) -> bool:
     """Spend a one-time grant for (role, action) if one exists. Returns True if used."""
     grants = _grants()

@@ -582,9 +582,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if decision == trust.REQUIRE_APPROVAL:
             trust.request_approval(role, action, note=user_msg[:120])
-            await update.message.reply_text(
-                "That one needs a yes. Send /approve, then ask me again and I'll do it."
-            )
+            from services import cards
+            from bot.handlers.card_ui import send_card
+            await send_card(update.message, cards.approval_card(action, note=user_msg[:80]))
             log_message("assistant", f"[needs approval: {action}]",
                         metadata={"surface": "telegram", "outcome": "trust-approval"})
             return
