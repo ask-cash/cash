@@ -47,13 +47,21 @@ def _session(request: Request):
     return svc.session_from_token(request.cookies.get(svc.SESSION_COOKIE))
 
 
-def _set_session_cookie(resp: Response, person_id: str, tenant_id: str) -> None:
+def _is_https(request: Request) -> bool:
+    # Honour the scheme the browser actually used (X-Forwarded-Proto behind
+    # nginx), so the cookie is only marked Secure on real HTTPS — otherwise a
+    # localhost/http session cookie would be silently dropped by the browser.
+    proto = request.headers.get("x-forwarded-proto", "").split(",")[0].strip()
+    return (proto or request.url.scheme) == "https"
+
+
+def _set_session_cookie(resp: Response, request: Request, person_id: str, tenant_id: str) -> None:
     token = svc.make_session_token(person_id, tenant_id)
     resp.set_cookie(
         svc.SESSION_COOKIE, token,
         max_age=svc.SESSION_TTL_HOURS * 3600,
         httponly=True, samesite="lax",
-        secure=(settings.public_base_url or "").startswith("https"),
+        secure=_is_https(request),
     )
 
 
@@ -104,7 +112,7 @@ class ProfileBody(BaseModel):
 
 
 @router.post("/auth/signup")
-def signup(body: SignUpBody):
+def signup(body: SignUpBody, request: Request):
     if len(body.password) < 6:
         return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
     try:
@@ -112,17 +120,17 @@ def signup(body: SignUpBody):
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     resp = JSONResponse({"user": _account_view(account)})
-    _set_session_cookie(resp, account["person_id"], account["tenant_id"])
+    _set_session_cookie(resp, request, account["person_id"], account["tenant_id"])
     return resp
 
 
 @router.post("/auth/login")
-def login(body: LoginBody):
+def login(body: LoginBody, request: Request):
     account = accounts.verify_login(body.email, body.password)
     if not account:
         return JSONResponse({"error": "Invalid email or password."}, status_code=401)
     resp = JSONResponse({"user": _account_view(account)})
-    _set_session_cookie(resp, account["person_id"], account["tenant_id"])
+    _set_session_cookie(resp, request, account["person_id"], account["tenant_id"])
     return resp
 
 
@@ -220,7 +228,7 @@ def google_auth_callback(request: Request):
 
     dest = "/app" if account["onboarded"] else "/onboarding"
     resp = RedirectResponse(url=f"{_CLIENT_BASE}{dest}", status_code=303)
-    _set_session_cookie(resp, account["person_id"], account["tenant_id"])
+    _set_session_cookie(resp, request, account["person_id"], account["tenant_id"])
     return resp
 
 
