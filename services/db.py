@@ -491,6 +491,14 @@ def _bootstrap_sqlite() -> None:
             "email": "TEXT",
             "is_admin": "INTEGER NOT NULL DEFAULT 0",
         })
+        # Backfill tenant_id on tables created before it existed, so every row is
+        # attributable to a tenant and explicit tenant_id filters work on SQLite
+        # (which has no RLS). New databases already have the column via the schema.
+        for _t in ("people", "platform_identities", "directives", "person_summaries",
+                   "person_aliases", "kv_documents", "event_log"):
+            _sqlite_add_missing_columns(conn, _t, {
+                "tenant_id": "TEXT NOT NULL DEFAULT 'default'",
+            })
         conn.commit()
     finally:
         conn.close()

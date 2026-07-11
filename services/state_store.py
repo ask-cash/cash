@@ -37,8 +37,8 @@ def read_json(namespace: str, key: str, default: Any = None) -> Any:
         return _file_read_json(namespace, key, default)
     with connect() as conn:
         row = conn.execute(
-            "SELECT body FROM kv_documents WHERE namespace = ? AND doc_key = ?",
-            (namespace, key),
+            "SELECT body FROM kv_documents WHERE tenant_id = ? AND namespace = ? AND doc_key = ?",
+            (current_tenant_id(), namespace, key),
         ).fetchone()
     if row is None:
         return default
@@ -54,12 +54,12 @@ def write_json(namespace: str, key: str, value: Any) -> None:
     with connect() as conn:
         conn.execute(
             """
-            INSERT INTO kv_documents (namespace, doc_key, body, updated_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO kv_documents (tenant_id, namespace, doc_key, body, updated_at)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT (tenant_id, namespace, doc_key)
             DO UPDATE SET body = excluded.body, updated_at = excluded.updated_at
             """,
-            (namespace, key, body, now),
+            (current_tenant_id(), namespace, key, body, now),
         )
 
 
@@ -74,10 +74,11 @@ def append_event(namespace: str, key: str, entry: dict) -> None:
     with connect() as conn:
         conn.execute(
             """
-            INSERT INTO event_log (namespace, log_key, body, created_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO event_log (tenant_id, namespace, log_key, body, created_at)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (namespace, key, json.dumps(entry), entry.get("timestamp") or _now_iso()),
+            (current_tenant_id(), namespace, key, json.dumps(entry),
+             entry.get("timestamp") or _now_iso()),
         )
 
 
@@ -95,10 +96,10 @@ def read_events(
             results = conn.execute(
                 """
                 SELECT body FROM event_log
-                 WHERE namespace = ? AND log_key = ?
+                 WHERE tenant_id = ? AND namespace = ? AND log_key = ?
                  ORDER BY id ASC
                 """,
-                (namespace, key),
+                (current_tenant_id(), namespace, key),
             ).fetchall()
         rows = [json.loads(r["body"]) for r in results]
     if limit is not None:
