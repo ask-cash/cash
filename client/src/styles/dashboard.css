@@ -61,7 +61,14 @@
 .auth-shell h1 { font-size: 26px; letter-spacing: -0.02em; color: var(--content-emphasised); }
 .auth-sub { color: var(--content-secondary); font-size: 14.5px; margin: 9px 0 26px; line-height: 1.5; }
 .auth-alt { text-align: center; font-size: 14px; color: var(--content-secondary); margin-top: 22px; }
-.auth-alt a { color: var(--content-emphasised); font-weight: 600; }
+.auth-alt a { color: var(--link-accent, var(--content-emphasised)); font-weight: 600; }
+
+/* Title-above-card layout (reference: centered heading over a dark card). */
+.auth-col { display: flex; flex-direction: column; align-items: stretch; width: 100%; max-width: 468px; }
+.auth-page-title { text-align: center; color: var(--content-emphasised); font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 22px; }
+.auth-col .auth-shell { max-width: none; }
+/* Social buttons stack with a small gap. */
+.social-stack { display: flex; flex-direction: column; gap: 10px; }
 .auth-err {
   background: rgba(218, 73, 26, 0.12); border: 1px solid rgba(218, 73, 26, 0.4);
   color: var(--content-default); font-size: 13.5px; border-radius: var(--radius-md);

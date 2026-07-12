@@ -43,23 +43,29 @@
 }
 
 :root[data-theme="dark"] {
-  --surface-base: #17191c;
-  --surface-overlay: #1c2024;
-  --surface-lift: #24292e;
-  --surface-active: #444d56;
-  --surface-hover: rgba(233, 230, 226, 0.06);
-  --content-default: #f6f5f4;
-  --content-emphasised: #fdfdfc;
-  --content-secondary: #a9b2bb;
-  --content-tertiary: #8d99a5;
-  --content-inset: #17191c;
-  --primary-base: #fdfdfc;
-  --primary-hover: #f2f0ee;
-  --border-base: #24292e;
-  --border-element: #5a6672;
-  --border-disabled: #1c2024;
-  --border-subtle: #2d3339;
-  --system-negative-strong: #da491a;
+  --surface-base: #000000;      /* near-pure-black page */
+  --surface-overlay: #141416;   /* the card */
+  --surface-lift: #1c1c1f;      /* inputs / secondary + social buttons */
+  --surface-active: #27272b;
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --content-default: #e8e8ea;
+  --content-emphasised: #ffffff;
+  --content-secondary: #9a9aa2;
+  --content-tertiary: #6f6f78;
+  --content-inset: #0a0a0c;     /* text on the white primary button */
+  --primary-base: #ffffff;
+  --primary-hover: #f0f0f0;
+  --border-base: #242428;
+  --border-element: #34343a;
+  --border-disabled: #1c1c1f;
+  --border-subtle: #1e1e22;
+  --system-negative-strong: #ff6b47;
+  /* Accent = white in the dark theme (primary buttons, active states). */
+  --cash-green: #ffffff;
+  --cash-green-hover: #f0f0f0;
+  --cash-green-ink: #0a0a0c;
+  /* Soft violet for auth text links (the one non-mono touch). */
+  --link-accent: #a5a1f0;
 }
 
 @media (prefers-color-scheme: dark) {

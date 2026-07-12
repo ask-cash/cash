@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import CashMark from '../components/CashMark'
 import GoogleButton from '../components/GoogleButton'
+import AppleButton from '../components/AppleButton'
 import { useAuth } from '../lib/auth'
 
 export default function SignUp() {
@@ -30,44 +30,44 @@ export default function SignUp() {
 
   return (
     <div className="auth-wrap">
-      <div className="auth-shell">
-        <div className="auth-brand"><span className="mark"><CashMark /></span> Cash</div>
-        <h1 className="serif">Meet your new Chief of Staff</h1>
-        <p className="auth-sub">
-          The sharp little cat who runs your calendar, inbox, and life admin — and gets
-          smarter every week. (She did NOT wake up at 4:30 AM for this.)
-        </p>
+      <div className="auth-col">
+        <h1 className="auth-page-title">Sign up</h1>
+        <div className="auth-shell">
+          {err && <div className="auth-err">{err}</div>}
 
-        {err && <div className="auth-err">{err}</div>}
-
-        <GoogleButton label="Sign up with Google" onClick={signInWithGoogle} />
-        <div className="divider">or</div>
-
-        <form onSubmit={submit}>
-          <div className="row-2">
-            <div className="field">
-              <label>First name</label>
-              <input value={f.firstName} onChange={set('firstName')} placeholder="Suhail" autoComplete="given-name" />
+          <form onSubmit={submit}>
+            <div className="row-2">
+              <div className="field">
+                <label>First name</label>
+                <input value={f.firstName} onChange={set('firstName')} placeholder="Your first name" autoComplete="given-name" />
+              </div>
+              <div className="field">
+                <label>Surname</label>
+                <input value={f.lastName} onChange={set('lastName')} placeholder="Your surname" autoComplete="family-name" />
+              </div>
             </div>
             <div className="field">
-              <label>Last name</label>
-              <input value={f.lastName} onChange={set('lastName')} placeholder="Khan" autoComplete="family-name" />
+              <label>Email</label>
+              <input type="email" value={f.email} onChange={set('email')} placeholder="Your email address" autoComplete="email" />
             </div>
-          </div>
-          <div className="field">
-            <label>Email</label>
-            <input type="email" value={f.email} onChange={set('email')} placeholder="you@company.com" autoComplete="email" />
-          </div>
-          <div className="field">
-            <label>Password</label>
-            <input type="password" value={f.password} onChange={set('password')} placeholder="At least 6 characters" autoComplete="new-password" />
-          </div>
-          <button className="btn btn-primary btn-block" disabled={busy}>
-            {busy ? 'Waking Cash up…' : 'Create account'}
-          </button>
-        </form>
+            <div className="field">
+              <label>Password</label>
+              <input type="password" value={f.password} onChange={set('password')} placeholder="At least 6 characters" autoComplete="new-password" />
+            </div>
+            <button className="btn btn-primary btn-block" disabled={busy}>
+              {busy ? 'Waking Cash up…' : 'Continue'}
+            </button>
+          </form>
 
-        <p className="auth-alt">Already have an account? <Link to="/signin">Sign in</Link></p>
+          <div className="divider">OR</div>
+
+          <div className="social-stack">
+            <GoogleButton label="Continue with Google" onClick={signInWithGoogle} />
+            <AppleButton onClick={() => setErr('Apple sign-in is coming soon — use Google or email for now. 🐾')} />
+          </div>
+
+          <p className="auth-alt">Already have an account? <Link to="/signin">Sign in</Link></p>
+        </div>
       </div>
     </div>
   )
