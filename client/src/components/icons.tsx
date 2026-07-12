@@ -26,6 +26,9 @@ export const GearIcon = (p: P) => (
 export const SendIcon = (p: P) => (
   <svg {...base} {...p}><path d="M22 2 11 13" /><path d="M22 2 15 22l-4-9-9-4z" /></svg>
 )
+export const PlusIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M12 5v14M5 12h14" /></svg>
+)
 export const CheckIcon = (p: P) => (
   <svg {...base} {...p}><path d="M20 6 9 17l-5-5" /></svg>
 )

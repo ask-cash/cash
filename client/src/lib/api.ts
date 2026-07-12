@@ -66,3 +66,33 @@ export async function sendChat(message: string): Promise<ChatResponse> {
   if (res.ok && typeof res.data.reply === 'string') return res.data
   return { reply: "😿 I couldn't reach the backend just now — try again in a moment." }
 }
+
+// --- conversations (persistent chat threads, addressed by id) ---
+export interface Conversation { id: string; title: string; created_at: string; updated_at: string }
+export interface Message { id: string; role: 'user' | 'assistant'; content: string; action?: string; createdAt: string }
+
+export async function listConversations(): Promise<Conversation[]> {
+  const res = await api<{ conversations: Conversation[] }>('GET', '/conversations')
+  return res.ok ? res.data.conversations : []
+}
+
+export async function createConversation(): Promise<Conversation | null> {
+  const res = await api<{ conversation: Conversation }>('POST', '/conversations')
+  return res.ok ? res.data.conversation : null
+}
+
+export async function getConversation(id: string): Promise<{ conversation: Conversation; messages: Message[] } | null> {
+  const res = await api<{ conversation: Conversation; messages: Message[] }>('GET', `/conversations/${id}/messages`)
+  return res.ok ? res.data : null
+}
+
+export async function sendConversationMessage(id: string, message: string): Promise<ChatResponse> {
+  const res = await api<ChatResponse>('POST', `/conversations/${id}/messages`, { message })
+  if (res.ok && typeof res.data.reply === 'string') return res.data
+  return { reply: "😿 I couldn't reach the backend just now — try again in a moment." }
+}
+
+export async function deleteConversation(id: string): Promise<boolean> {
+  const res = await api<{ deleted: boolean }>('DELETE', `/conversations/${id}`)
+  return res.ok && res.data.deleted
+}

@@ -46,6 +46,7 @@ export default function App() {
           <Route path="/app" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<Activity />} />
             <Route path="chat" element={<Chat />} />
+            <Route path="chat/:conversationId" element={<Chat />} />
             <Route path="integrations" element={<Integrations />} />
             <Route path="settings" element={<Settings />} />
           </Route>

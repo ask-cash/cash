@@ -77,6 +77,8 @@ _TENANT_TABLES = [
     "kv_documents",
     "event_log",
     "integration_connections",
+    "conversations",
+    "conversation_messages",
 ]
 
 _SQLITE_SCHEMA = """
@@ -130,6 +132,25 @@ CREATE TABLE IF NOT EXISTS integration_connections (
     updated_at   TEXT NOT NULL,
     PRIMARY KEY (tenant_id, provider_id)
 );
+
+CREATE TABLE IF NOT EXISTS conversations (
+    tenant_id  TEXT NOT NULL DEFAULT 'default',
+    id         TEXT PRIMARY KEY,
+    title      TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    tenant_id       TEXT NOT NULL DEFAULT 'default',
+    id              TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role            TEXT NOT NULL,
+    content         TEXT NOT NULL,
+    action          TEXT,
+    created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_conv_msg ON conversation_messages(conversation_id, created_at);
 
 CREATE TABLE IF NOT EXISTS people (
     tenant_id        TEXT NOT NULL DEFAULT 'default',
@@ -271,6 +292,25 @@ CREATE TABLE IF NOT EXISTS integration_connections (
     updated_at   TEXT NOT NULL,
     PRIMARY KEY (tenant_id, provider_id)
 );
+
+CREATE TABLE IF NOT EXISTS conversations (
+    tenant_id  TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    id         TEXT PRIMARY KEY,
+    title      TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS conversation_messages (
+    tenant_id       TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    id              TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    role            TEXT NOT NULL,
+    content         TEXT NOT NULL,
+    action          TEXT,
+    created_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_conv_msg ON conversation_messages(conversation_id, created_at);
 
 CREATE TABLE IF NOT EXISTS people (
     tenant_id        TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),

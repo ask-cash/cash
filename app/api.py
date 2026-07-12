@@ -328,3 +328,88 @@ async def chat(body: ChatBody, request: Request):
     import asyncio
     out = await asyncio.to_thread(svc.chat_reply, s["pid"], s.get("tid", "default"), message)
     return out
+
+
+# ---------------------------------------------------------------------------
+# Conversations (persistent chat threads, addressed by id)
+# ---------------------------------------------------------------------------
+
+class RenameBody(BaseModel):
+    title: str
+
+
+def _in_tenant(request: Request, fn, *args):
+    """Run a conversations call under the session's tenant context, in a thread."""
+    import asyncio
+    from services.tenancy import tenant_context
+
+    s = _session(request)
+    tid = s.get("tid", "default")
+
+    def _run():
+        with tenant_context(tid):
+            return fn(*args)
+    return asyncio.to_thread(_run)
+
+
+@router.get("/conversations")
+async def list_conversations(request: Request):
+    if not _session(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from services import conversations
+    return {"conversations": await _in_tenant(request, conversations.list_conversations)}
+
+
+@router.post("/conversations")
+async def create_conversation(request: Request):
+    if not _session(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from services import conversations
+    return {"conversation": await _in_tenant(request, conversations.create_conversation)}
+
+
+@router.get("/conversations/{cid}/messages")
+async def conversation_messages(cid: str, request: Request):
+    if not _session(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from services import conversations
+    conv = await _in_tenant(request, conversations.get_conversation, cid)
+    if conv is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    messages = await _in_tenant(request, conversations.get_messages, cid)
+    return {"conversation": conv, "messages": messages}
+
+
+@router.post("/conversations/{cid}/messages")
+async def send_conversation_message(cid: str, body: ChatBody, request: Request):
+    s = _session(request)
+    if not s:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    message = (body.message or "").strip()
+    if not message:
+        return JSONResponse({"error": "empty message"}, status_code=400)
+    import asyncio
+    from services import conversations
+    try:
+        out = await asyncio.to_thread(
+            conversations.send, s["pid"], s.get("tid", "default"), cid, message)
+    except ValueError:
+        return JSONResponse({"error": "conversation not found"}, status_code=404)
+    return out
+
+
+@router.patch("/conversations/{cid}")
+async def rename_conversation(cid: str, body: RenameBody, request: Request):
+    if not _session(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from services import conversations
+    await _in_tenant(request, conversations.rename_conversation, cid, body.title)
+    return {"ok": True}
+
+
+@router.delete("/conversations/{cid}")
+async def delete_conversation(cid: str, request: Request):
+    if not _session(request):
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from services import conversations
+    return {"deleted": await _in_tenant(request, conversations.delete_conversation, cid)}
