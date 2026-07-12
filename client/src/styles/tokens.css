@@ -19,10 +19,11 @@
   /* Brand / primary */
   --primary-base: #17191c;
   --primary-hover: #24292e;
-  /* Cash's signal green (the one intentional brand color, per §0.2) */
-  --cash-green: #46c178;
-  --cash-green-hover: #3ad17a;
-  --cash-green-ink: #0b1f12;
+  /* Cash's accent is monochrome — near-black on off-white, matching the landing
+     site's palette (no green). These names are kept so existing rules resolve. */
+  --cash-green: #0a0a0c;
+  --cash-green-hover: #24292e;
+  --cash-green-ink: #ffffff;
   /* Borders */
   --border-base: #f2f0ee;
   --border-element: #cfccc9;
@@ -30,8 +31,9 @@
   --border-subtle: #e9e6e2;
   /* System */
   --system-negative-strong: #da491a;
-  /* Type */
-  --font-serif: "Instrument Serif", Georgia, "Times New Roman", serif;
+  /* Type — the landing site's fonts (Inter for everything, JetBrains Mono for
+     numerals). No serif; headlines are Inter with tight tracking. */
+  --font-serif: "Inter", system-ui, -apple-system, sans-serif;
   /* Radii */
   --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-pill: 999px;
   /* Spacing */
@@ -90,7 +92,7 @@ body::before, body::after { display: none !important; }
 .text-title-large { font-size: 24px; font-weight: 400; line-height: 1.15; letter-spacing: -0.02em; }
 .text-body-small-default { font-size: 13px; line-height: 1.5; }
 .text-body-medium-default { font-size: 15px; line-height: 1.5; }
-.serif { font-family: var(--font-serif); }
+.serif { font-family: var(--font-serif); font-weight: 600; letter-spacing: -0.035em; }
 
 /* A forced-dark scope (login/signup live here regardless of app theme). */
 .force-dark {

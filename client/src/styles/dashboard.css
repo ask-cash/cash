@@ -52,7 +52,7 @@
 .auth-shell::before {
   content: ""; position: absolute; top: -140px; left: 50%; transform: translateX(-50%);
   width: 420px; height: 260px; opacity: 0.5; pointer-events: none;
-  background: radial-gradient(circle, rgba(70, 193, 120, 0.16), transparent 65%);
+  background: radial-gradient(circle, rgba(10, 10, 12, 0.16), transparent 65%);
 }
 .auth-shell > * { position: relative; }
 .auth-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 18px; letter-spacing: -0.03em; margin-bottom: 24px; color: var(--content-emphasised); }
@@ -80,7 +80,7 @@
   background: var(--surface-lift); border: 1px solid var(--border-element); color: var(--content-default);
 }
 .auth-wrap .field input:focus, .auth-wrap .field select:focus {
-  border-color: var(--cash-green); box-shadow: 0 0 0 3px rgba(70, 193, 120, 0.22);
+  border-color: var(--cash-green); box-shadow: 0 0 0 3px rgba(10, 10, 12, 0.22);
 }
 .auth-wrap .wl-track { background: var(--surface-active); }
 .auth-wrap .wl-track span { background: var(--cash-green); }
@@ -164,7 +164,7 @@
   background: var(--surface-lift); border: 1px solid var(--border-element); border-radius: var(--radius-lg); padding: 14px 16px;
 }
 .chat-input input::placeholder { color: var(--content-tertiary); }
-.chat-input input:focus { outline: none; border-color: var(--cash-green); box-shadow: 0 0 0 3px rgba(70, 193, 120, 0.2); }
+.chat-input input:focus { outline: none; border-color: var(--cash-green); box-shadow: 0 0 0 3px rgba(10, 10, 12, 0.2); }
 
 /* ---------- integrations ---------- */
 .integr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
@@ -238,7 +238,7 @@
 .sched-row .sr-body { flex: 1; }
 .sched-row .sr-title { font-size: 14.5px; font-weight: 500; color: var(--content-default); }
 .sched-row .sr-sub { font-size: 12.5px; color: var(--content-tertiary); margin-top: 2px; }
-.sched-row .sr-badge { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--cash-green); background: rgba(70, 193, 120, 0.12); border: 1px solid rgba(70, 193, 120, 0.3); padding: 4px 9px; border-radius: var(--radius-pill); }
+.sched-row .sr-badge { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--cash-green); background: rgba(10, 10, 12, 0.12); border: 1px solid rgba(10, 10, 12, 0.3); padding: 4px 9px; border-radius: var(--radius-pill); }
 
 /* ---------- responsive ---------- */
 @media (max-width: 860px) {

@@ -101,7 +101,7 @@
 .signup__input:focus {
   outline: none;
   border-color: var(--cash-green);
-  box-shadow: 0 0 0 3px rgba(70, 193, 120, 0.22);
+  box-shadow: 0 0 0 3px rgba(10, 10, 12, 0.22);
 }
 
 /* Buttons */
@@ -174,7 +174,7 @@
   overflow: hidden;
   position: relative;
   background:
-    radial-gradient(120% 90% at 50% 0%, rgba(70, 193, 120, 0.18), transparent 60%),
+    radial-gradient(120% 90% at 50% 0%, rgba(10, 10, 12, 0.18), transparent 60%),
     linear-gradient(160deg, #1c2024, #17191c);
   border: 1px solid var(--border-subtle);
   display: grid;
@@ -220,7 +220,7 @@
 .login-bg__glow {
   position: absolute; left: 50%; top: 30%; transform: translate(-50%, -50%);
   width: 620px; height: 620px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(70, 193, 120, 0.14), transparent 62%);
+  background: radial-gradient(circle, rgba(10, 10, 12, 0.14), transparent 62%);
 }
 .login-card {
   position: relative;
@@ -250,7 +250,7 @@
 .hatch__glow {
   position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%);
   width: 480px; height: 480px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(70, 193, 120, 0.18), transparent 62%);
+  background: radial-gradient(circle, rgba(10, 10, 12, 0.18), transparent 62%);
   animation: hatchGlow 2.4s ease-in-out infinite;
 }
 @keyframes hatchGlow { 0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); } }
