@@ -81,6 +81,11 @@
   }
 }
 
+/* The app is dark-first: paint the page surface and neutralise the light
+   dot-grid/aurora that ships in the shared landing styles.css. */
+html, body { background: var(--surface-base); color: var(--content-default); }
+body::before, body::after { display: none !important; }
+
 /* Type helpers used by name in the blueprint. */
 .text-title-large { font-size: 24px; font-weight: 400; line-height: 1.15; letter-spacing: -0.02em; }
 .text-body-small-default { font-size: 13px; line-height: 1.5; }
