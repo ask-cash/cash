@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/auth'
 import ProtectedRoute from './components/ProtectedRoute'
+import AppLoader from './components/AppLoader'
 import SignUp from './pages/SignUp'
 import SignIn from './pages/SignIn'
 import Onboarding from './pages/Onboarding'
@@ -15,7 +16,7 @@ import Settings from './pages/dashboard/Settings'
 // Send the visitor to the right place: signed-in → dashboard, else → sign in.
 function Landing() {
   const { user, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <AppLoader />
   return <Navigate to={user ? '/app' : '/signin'} replace />
 }
 

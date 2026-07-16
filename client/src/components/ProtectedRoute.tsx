@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate } from 'react-router-dom'
+import AppLoader from './AppLoader'
 import { useAuth } from '../lib/auth'
 
 // Gate a route behind auth. While the session hydrates we render nothing (a
@@ -14,7 +15,7 @@ export default function ProtectedRoute({
   requireOnboarded?: boolean
 }) {
   const { user, loading } = useAuth()
-  if (loading) return null
+  if (loading) return <AppLoader />
   if (!user) return <Navigate to="/signin" replace />
   if (requireOnboarded && !user.profile.onboarded) return <Navigate to="/onboarding" replace />
   return <>{children}</>

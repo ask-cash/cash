@@ -1,37 +1,51 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import CashMark from '../components/CashMark'
+import Brand from '../components/Brand'
+import { CheckIcon } from '../components/icons'
 
-// Final onboarding step: connect Google Calendar via the backend's real OAuth
-// flow (the callback stores the token in the per-tenant vault), or skip to the
-// dashboard. Onboarding already marked the profile onboarded before this step.
 export default function ConnectCalendar() {
   const navigate = useNavigate()
+  const [connecting, setConnecting] = useState(false)
 
   function connect() {
+    setConnecting(true)
     window.location.href = '/api/connect/google/start'
   }
 
   return (
     <div className="auth-wrap">
-      <div className="auth-shell">
-        <div className="auth-brand"><span className="mark"><CashMark /></span> Cash</div>
+      <main className="auth-shell calendar-connect" aria-labelledby="calendar-title">
+        <Brand className="auth-brand" />
 
-        <div className="integr-logo" style={{ width: 56, height: 56, marginBottom: 18 }}>
-          <img src="/assets/logos/google-calendar.png" alt="Google Calendar" style={{ width: 34, height: 34 }} />
+        <div className="connect-logo">
+          <img src="/assets/logos/google-calendar.png" alt="" />
         </div>
-        <h1>Connect Google Calendar</h1>
+        <p className="eyebrow">Final setup step</p>
+        <h1 id="calendar-title">Connect Google Calendar</h1>
         <p className="auth-sub">
-          This is the big one. With your calendar, Cash can see your day, flag conflicts, protect
-          your focus time, and send you a morning brief. You can connect more later.
+          Give Cash the context to brief your day, spot conflicts, and protect focus time.
         </p>
 
-        <button className="btn btn-primary btn-block" onClick={connect}>
-          Connect Google Calendar
+        <ul className="benefit-list">
+          <li><CheckIcon /> Read your upcoming schedule</li>
+          <li><CheckIcon /> Flag conflicts before they become a problem</li>
+          <li><CheckIcon /> Prepare a useful morning brief</li>
+        </ul>
+
+        <button type="button" className="btn btn-primary btn-block" onClick={connect} disabled={connecting}>
+          {connecting && <span className="spinner spinner--button" aria-hidden="true" />}
+          {connecting ? 'Connecting…' : 'Connect Google Calendar'}
         </button>
-        <p className="auth-alt">
-          <a onClick={() => navigate('/hatching', { replace: true })} style={{ cursor: 'pointer' }}>Skip for now</a>
-        </p>
-      </div>
+        <p className="connection-note">You stay in control and can disconnect at any time.</p>
+        <button
+          type="button"
+          className="text-button auth-skip"
+          disabled={connecting}
+          onClick={() => navigate('/hatching', { replace: true })}
+        >
+          Skip for now
+        </button>
+      </main>
     </div>
   )
 }

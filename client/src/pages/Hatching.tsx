@@ -26,15 +26,15 @@ export default function Hatching() {
   }, [navigate])
 
   return (
-    <div className="hatch">
-      <span className="hatch__glow" />
-      <div>
+    <main className="hatch">
+      <span className="hatch__glow" aria-hidden="true" />
+      <div role="status" aria-live="polite" aria-atomic="true">
         <div className="hatch__cat"><CashMark /></div>
         <h1 className="hatch__title serif">
           {line < 2 ? LINES[line] : `You're all set, ${user?.profile.firstName || 'friend'}.`}
         </h1>
         <p className="hatch__sub">{line < 2 ? 'Just a moment…' : "I did NOT wake up at 4:30 AM for this. Let's go. 🐾"}</p>
       </div>
-    </div>
+    </main>
   )
 }

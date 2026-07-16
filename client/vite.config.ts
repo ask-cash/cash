@@ -1,10 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Cash dashboard client. Shares the landing site's stack (Vite + React + TS) and
-// its hand-authored design system: public/styles.css is served verbatim (copied
-// from landing/) so branding, gradients and typography match exactly. A dev
-// proxy forwards /api to the Python gateway so the browser chat reaches Cash.
+// Cash dashboard client. The token and component styles are bundled by Vite;
+// the dev proxy forwards /api to the Python gateway.
 export default defineConfig({
   plugins: [react()],
   server: {

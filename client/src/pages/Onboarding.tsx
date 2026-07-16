@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import CashMark from '../components/CashMark'
+import Brand from '../components/Brand'
 import { CheckIcon } from '../components/icons'
 import { ONBOARDING } from '../data/questions'
 import { logoSrc } from '../data/logos'
@@ -10,69 +10,100 @@ export default function Onboarding() {
   const { user, updateProfile } = useAuth()
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
-  const [role, setRole] = useState<string | null>(null)
+  const [role, setRole] = useState<string | null>(user?.profile.role || null)
   const [platforms, setPlatforms] = useState<string[]>(user?.profile.platforms || [])
+  const [busy, setBusy] = useState(false)
 
-  const q = ONBOARDING[step]
+  const question = ONBOARDING[step]
   const isLast = step === ONBOARDING.length - 1
-  const canNext = q.id === 'role' ? !!role : true // platforms are optional
+  const canNext = question.id === 'role' ? !!role : true
+  const totalSteps = ONBOARDING.length + 1
+  const progress = Math.round(((step + 1) / totalSteps) * 100)
 
-  function togglePlatform(opt: string) {
-    setPlatforms((s) => (s.includes(opt) ? s.filter((x) => x !== opt) : [...s, opt]))
+  function togglePlatform(option: string) {
+    setPlatforms((current) => (
+      current.includes(option) ? current.filter((item) => item !== option) : [...current, option]
+    ))
   }
 
   async function next() {
-    if (!canNext) return
-    if (!isLast) return setStep((s) => s + 1)
+    if (!canNext || busy) return
+    if (!isLast) {
+      setStep((current) => current + 1)
+      return
+    }
+
+    setBusy(true)
     await updateProfile({ role: role || undefined, platforms, onboarded: true })
     navigate('/connect-calendar')
   }
 
-  const pct = Math.round(((step + 1) / (ONBOARDING.length + 1)) * 100)
-
   return (
     <div className="auth-wrap">
-      <div className="auth-shell wide">
-        <div className="auth-brand"><span className="mark"><CashMark /></span> Cash</div>
+      <main className="auth-shell auth-shell--wide" aria-labelledby="onboarding-title">
+        <Brand className="auth-brand" />
 
-        <div className="wl-prog">
-          <div className="wl-track"><span style={{ width: `${pct}%` }} /></div>
-          <div className="wl-plabel">Step <b>{step + 1}</b> of {ONBOARDING.length + 1}</div>
+        <div
+          className="progress"
+          role="progressbar"
+          aria-label="Onboarding progress"
+          aria-valuemin={1}
+          aria-valuemax={totalSteps}
+          aria-valuenow={step + 1}
+        >
+          <div className="progress__meta">
+            <span>Personalise Cash</span>
+            <span>Step {step + 1} of {totalSteps}</span>
+          </div>
+          <div className="progress__track"><span style={{ width: `${progress}%` }} /></div>
         </div>
 
-        <h1 style={{ fontSize: 24 }}>{q.q}</h1>
-        <p className="auth-sub">{q.sub}</p>
+        <div className="onboarding-step" key={question.id}>
+          <p className="eyebrow">{question.type === 'single' ? 'About you' : 'Your workflow'}</p>
+          <h1 id="onboarding-title">{question.q}</h1>
+          <p className="auth-sub">{question.sub}</p>
 
-        <div className="pills">
-          {q.options.map((opt) => {
-            const on = q.id === 'role' ? role === opt : platforms.includes(opt)
-            const logo = q.logos ? logoSrc(opt) : ''
-            return (
-              <button
-                key={opt}
-                type="button"
-                className={'pill' + (on ? ' on' : '')}
-                onClick={() => (q.id === 'role' ? setRole(opt) : togglePlatform(opt))}
-              >
-                {logo && <img src={logo} alt="" width={16} height={16} style={{ borderRadius: 4 }} />}
-                {opt}
-                <span className="ck"><CheckIcon /></span>
-              </button>
-            )
-          })}
+          <fieldset className="option-fieldset" disabled={busy}>
+            <legend className="sr-only">{question.q}</legend>
+            <div className="pills">
+              {question.options.map((option) => {
+                const selected = question.id === 'role' ? role === option : platforms.includes(option)
+                const logo = question.logos ? logoSrc(option) : ''
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`pill${selected ? ' pill--selected' : ''}`}
+                    aria-pressed={selected}
+                    onClick={() => (question.id === 'role' ? setRole(option) : togglePlatform(option))}
+                  >
+                    {logo && <img src={logo} alt="" className="pill__logo" />}
+                    <span>{option}</span>
+                    <span className="pill__check" aria-hidden="true"><CheckIcon /></span>
+                  </button>
+                )
+              })}
+            </div>
+          </fieldset>
         </div>
 
         <div className="center-actions">
           {step > 0 && (
-            <button className="btn btn-ghost" style={{ flex: '0 0 auto' }} onClick={() => setStep((s) => s - 1)}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-back"
+              disabled={busy}
+              onClick={() => setStep((current) => current - 1)}
+            >
               Back
             </button>
           )}
-          <button className="btn btn-primary" disabled={!canNext} onClick={next}>
-            {isLast ? 'Continue' : 'Next'}
+          <button type="button" className="btn btn-primary" disabled={!canNext || busy} onClick={next}>
+            {busy && <span className="spinner spinner--button" aria-hidden="true" />}
+            {busy ? 'Saving…' : isLast ? 'Continue' : 'Next'}
           </button>
         </div>
-      </div>
+      </main>
     </div>
   )
 }
