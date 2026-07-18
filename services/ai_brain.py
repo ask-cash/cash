@@ -10,6 +10,7 @@ import re
 import json
 import logging
 import datetime
+from zoneinfo import ZoneInfo
 from services import persona
 from services import providers
 from services.user_profile import load_profile, now as ist_now
@@ -24,10 +25,27 @@ from services.files import (
 logger = logging.getLogger(__name__)
 
 
-def _upcoming_dates_table() -> str:
+def _profile_now(
+    profile: dict,
+    *,
+    now_utc: datetime.datetime | None = None,
+) -> datetime.datetime:
+    """One tenant-correct clock for prompt time and relative-date grounding."""
+    try:
+        timezone = ZoneInfo(profile.get("timezone") or "Asia/Kolkata")
+    except Exception:
+        timezone = ZoneInfo("Asia/Kolkata")
+    if now_utc is None:
+        return datetime.datetime.now(timezone)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=datetime.timezone.utc)
+    return now_utc.astimezone(timezone)
+
+
+def _upcoming_dates_table(reference: datetime.datetime | None = None) -> str:
     """Generate a lookup table of the next 14 days so Claude doesn't have to do date math."""
     lines = []
-    base = ist_now().date()
+    base = (reference or ist_now()).date()
     for i in range(14):
         d = base + datetime.timedelta(days=i)
         label = "today" if i == 0 else "tomorrow" if i == 1 else ""
@@ -141,7 +159,11 @@ def _build_system_prompt(surface: str = "telegram") -> str:
     return f"{persona.persona_system_block('owner')}\n\n{_build_action_contract(surface)}"
 
 
-def _profile_block(profile: dict) -> str:
+def _profile_block(
+    profile: dict,
+    *,
+    local_now: datetime.datetime | None = None,
+) -> str:
     """Render the USER PROFILE context — only what the user has actually told us.
 
     When no routine is on file, say so explicitly so the model asks for it
@@ -166,7 +188,9 @@ def _profile_block(profile: dict) -> str:
         lines.append(f"Wake: {profile.get('wake_time') or '?'} | Sleep: {profile.get('sleep_time') or '?'}")
     if gym.get("default_time") or gym.get("days"):
         lines.append(f"Gym: {gym.get('default_time') or '?'} ({gym.get('duration_minutes') or '?'}min), days: {gym.get('days') or []}")
-        today_gym = (gym.get("routine") or {}).get(ist_now().strftime('%a'))
+        today_gym = (gym.get("routine") or {}).get(
+            (local_now or _profile_now(profile)).strftime("%a")
+        )
         if today_gym:
             lines.append(f"Today's gym: {today_gym}")
     if trading.get("market_open") or trading.get("rules"):
@@ -193,6 +217,7 @@ def interpret_message(
     like "remind me an hour before my dentist appointment" on THIS, never a guess.
     """
     profile = load_profile()
+    local_now = _profile_now(profile)
     tasks = get_tasks_summary()
     # Memory v2: a bounded, freshly-compiled brief every turn (not a raw log
     # dump), plus gated archive recall only when the message reaches into the past.
@@ -208,7 +233,7 @@ def interpret_message(
 
     context = f"""
 === USER PROFILE ===
-{_profile_block(profile)}
+{_profile_block(profile, local_now=local_now)}
 
 === CALENDAR (real events — use these exact times for anything time-relative) ===
 {calendar_context or "(not provided)"}
@@ -231,10 +256,10 @@ Pending: {[t['task'] for t in tasks['pending']]}
 {uploads_context}
 
 === CURRENT TIME ===
-{ist_now().strftime('%Y-%m-%d %H:%M:%S %A %Z')}
+{local_now.strftime('%Y-%m-%d %H:%M:%S %A %Z')}
 
 === UPCOMING DATES (use these for scheduling — do NOT calculate dates yourself) ===
-{_upcoming_dates_table()}
+{_upcoming_dates_table(local_now)}
 """
     user_text = f"{context}\n\nUser message: {user_message or '(The user attached media without a typed message.)'}"
     messages = None

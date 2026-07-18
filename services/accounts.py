@@ -75,6 +75,11 @@ def _row_to_account(row) -> dict:
         "onboarded": bool(row["onboarded"]),
         "plan": (row["plan"] or "free") if "plan" in row.keys() else "free",
         "auth_provider": row["auth_provider"],
+        "timezone": (
+            row["tenant_timezone"] or "Asia/Kolkata"
+            if "tenant_timezone" in row.keys()
+            else "Asia/Kolkata"
+        ),
     }
 
 
@@ -84,7 +89,15 @@ def get_account(email: str) -> Optional[dict]:
         return None
     with system_context():
         with connect() as conn:
-            row = conn.execute("SELECT * FROM accounts WHERE email = ?", (email,)).fetchone()
+            row = conn.execute(
+                """
+                SELECT a.*, t.timezone AS tenant_timezone
+                  FROM accounts a
+                  LEFT JOIN tenants t ON t.tenant_id = a.tenant_id
+                 WHERE a.email = ?
+                """,
+                (email,),
+            ).fetchone()
     return _row_to_account(row) if row else None
 
 
@@ -94,7 +107,15 @@ def get_account_by_person(person_id: str) -> Optional[dict]:
         return None
     with system_context():
         with connect() as conn:
-            row = conn.execute("SELECT * FROM accounts WHERE person_id = ?", (person_id,)).fetchone()
+            row = conn.execute(
+                """
+                SELECT a.*, t.timezone AS tenant_timezone
+                  FROM accounts a
+                  LEFT JOIN tenants t ON t.tenant_id = a.tenant_id
+                 WHERE a.person_id = ?
+                """,
+                (person_id,),
+            ).fetchone()
     return _row_to_account(row) if row else None
 
 
@@ -112,6 +133,7 @@ def create_account(
     last_name: str = "",
     *,
     auth_provider: str = "password",
+    timezone: str = "Asia/Kolkata",
 ) -> dict:
     """Create a user + their tenant + their person. Raises ValueError if the
     email already exists. ``password`` may be None for OAuth-only accounts."""
@@ -121,12 +143,17 @@ def create_account(
     if get_account(email):
         raise ValueError("an account with that email already exists")
 
+    timezone = tenant_registry.normalize_timezone(timezone)
     display = " ".join(p for p in (first_name, last_name) if p).strip() or email
 
     # A dedicated tenant per user, then a person inside it.
     with system_context():
         tenant_id = tenant_registry.new_tenant_id()
-        tenant_registry.ensure_tenant(tenant_id, display_name=display, timezone="Asia/Kolkata")
+        tenant_registry.ensure_tenant(
+            tenant_id,
+            display_name=display,
+            timezone=timezone,
+        )
     with tenant_context(tenant_id):
         person_id = identity_people.resolve(
             platform="web", platform_user_id=email, display_name=display, handle=email,
@@ -166,8 +193,14 @@ def get_or_create_oauth_account(email: str, first_name: str = "", last_name: str
 
 
 def update_profile(email: str, **fields) -> Optional[dict]:
-    """Patch profile columns (first_name, last_name, role, platforms, onboarded)."""
+    """Atomically patch account fields and its tenant-owned timezone."""
     email = (email or "").strip().lower()
+    account = get_account(email)
+    if account is None:
+        return None
+    timezone = fields.pop("timezone", None)
+    if timezone is not None:
+        timezone = tenant_registry.normalize_timezone(timezone)
     allowed = {"first_name", "last_name", "role", "platforms", "onboarded"}
     sets, vals = [], []
     for k, v in fields.items():
@@ -179,10 +212,19 @@ def update_profile(email: str, **fields) -> Optional[dict]:
             v = bool(v)
         sets.append(f"{k} = ?")
         vals.append(v)
-    if not sets:
-        return get_account(email)
-    vals.append(email)
+    if not sets and timezone is None:
+        return account
     with system_context():
         with connect() as conn:
-            conn.execute(f"UPDATE accounts SET {', '.join(sets)} WHERE email = ?", vals)
+            if sets:
+                vals.append(email)
+                conn.execute(
+                    f"UPDATE accounts SET {', '.join(sets)} WHERE email = ?",
+                    vals,
+                )
+            if timezone is not None:
+                conn.execute(
+                    "UPDATE tenants SET timezone = ? WHERE tenant_id = ?",
+                    (timezone, account["tenant_id"]),
+                )
     return get_account(email)

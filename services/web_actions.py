@@ -32,17 +32,37 @@ def _tz(profile: dict) -> ZoneInfo:
         return ZoneInfo("Asia/Kolkata")
 
 
-def execute(action: str, params: dict, *, surface: str = "dashboard") -> Optional[str]:
+def execute(
+    action: str,
+    params: dict,
+    *,
+    surface: str = "dashboard",
+    person_id: str = "",
+    conversation_id: str = "",
+) -> Optional[str]:
     """Execute a brain action; return its text result, or None if unhandled."""
     params = params or {}
     try:
-        return _dispatch(action, params, surface=surface)
+        return _dispatch(
+            action,
+            params,
+            surface=surface,
+            person_id=person_id,
+            conversation_id=conversation_id,
+        )
     except Exception:
         logger.exception("[web_actions] %s failed", action)
         return "😿 I hit a snag running that — try again in a moment."
 
 
-def _dispatch(action: str, params: dict, *, surface: str = "dashboard") -> Optional[str]:
+def _dispatch(
+    action: str,
+    params: dict,
+    *,
+    surface: str = "dashboard",
+    person_id: str = "",
+    conversation_id: str = "",
+) -> Optional[str]:
     from services.user_profile import load_profile
     profile = load_profile()
 
@@ -71,16 +91,45 @@ def _dispatch(action: str, params: dict, *, surface: str = "dashboard") -> Optio
     # ---- reminders ----
     if action == "show_reminders":
         from services import reminders
-        pend = reminders.list_pending()
-        if not pend:
+        if surface == "dashboard":
+            reminders.migrate_legacy_dashboard(
+                person_id,
+                timezone=_tz(profile).key,
+            )
+            pend = reminders.list_dashboard_pending(person_id)
+        else:
+            pend = reminders.list_pending()
+        tz = _tz(profile)
+        now_utc = dt.datetime.now(dt.timezone.utc)
+        visible = []
+        for reminder in pend:
+            try:
+                when = dt.datetime.fromisoformat(reminder.get("when", ""))
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=tz)
+                if when.astimezone(dt.timezone.utc) <= now_utc:
+                    continue
+                visible.append((reminder, when.astimezone(tz)))
+            except (TypeError, ValueError):
+                continue
+        if not visible:
             return "You have no reminders set."
         lines = ["⏰ Your reminders:"]
-        for r in pend:
-            when = r.get("when", "")
-            lines.append(f"  • {r.get('text', '')} — {when[:16].replace('T', ' ')}")
+        for reminder, when in visible:
+            lines.append(
+                f"  • {reminder.get('text', '')} — "
+                f"{when.strftime('%b %d, %I:%M %p %Z')}"
+            )
         return "\n".join(lines)
     if action in ("set_reminder", "set_reminders"):
-        return _set_reminders(action, params)
+        return _set_reminders(
+            action,
+            params,
+            profile,
+            surface=surface,
+            person_id=person_id,
+            conversation_id=conversation_id,
+        )
 
     # ---- trading ----
     if action == "show_trading_rules":
@@ -182,26 +231,84 @@ def _calendar_write(action: str, params: dict, profile: dict) -> str:
     return ""
 
 
-def _set_reminders(action: str, params: dict) -> str:
+def _set_reminders(
+    action: str,
+    params: dict,
+    profile: dict,
+    *,
+    surface: str,
+    person_id: str,
+    conversation_id: str,
+) -> str:
     from services import reminders
+
     items = params.get("reminders") if action == "set_reminders" else [params]
-    saved = []
+    timezone = _tz(profile)
+    now = dt.datetime.now(dt.timezone.utc)
+    scheduled: list[tuple[str, dt.datetime]] = []
+    skipped: list[str] = []
     for it in items or []:
         text = (it.get("text") or "").strip()
         date = it.get("date")
         time = it.get("time")
         if not (text and date and time):
+            skipped.append(text or "Unnamed reminder")
             continue
         try:
-            when = dt.datetime.fromisoformat(f"{date}T{time}")
-        except ValueError:
+            local_date = dt.date.fromisoformat(str(date))
+            local_time = dt.time.fromisoformat(str(time))
+            when = dt.datetime.combine(local_date, local_time, tzinfo=timezone)
+            # ZoneInfo accepts nonexistent wall times during a DST jump. A UTC
+            # round trip detects those times instead of scheduling an hour away
+            # from what the user saw.
+            round_trip = when.astimezone(dt.timezone.utc).astimezone(timezone)
+            if (
+                round_trip.replace(tzinfo=None)
+                != when.replace(tzinfo=None)
+            ):
+                skipped.append(f"{text} — that local time does not exist")
+                continue
+            if when.astimezone(dt.timezone.utc) <= now:
+                skipped.append(f"{text} — that time has already passed")
+                continue
+        except (TypeError, ValueError):
+            skipped.append(text or "Unnamed reminder")
             continue
-        reminders.add(text, when.isoformat(), chat_id=0)
-        saved.append(f"{when.strftime('%b %d %I:%M %p')} — {text}")
+        if surface != "dashboard":
+            # This executor has no live platform transport handle. Messaging
+            # surfaces schedule through their native handlers instead.
+            skipped.append(f"{text} — use this chat's reminder command")
+            continue
+        scheduled.append((text, when))
+
+    if scheduled:
+        reminders.add_dashboard_batch(
+            [{"text": text, "when": when} for text, when in scheduled],
+            person_id=person_id,
+            conversation_id=conversation_id,
+            timezone=timezone.key,
+        )
+    saved = [
+        (
+            f"{when.strftime('%b %d, %I:%M %p %Z')} — {text}"
+        )
+        for text, when in scheduled
+    ]
     if not saved:
-        return "I need a what, a date and a time to set a reminder."
-    return "⏰ Reminder set:\n" + "\n".join(f"  • {s}" for s in saved) + \
-        "\n\n(I'll deliver these on your connected chat surfaces.)"
+        detail = f"\n\nSkipped: {skipped[0]}" if skipped else ""
+        return "I need a future date, time, and reminder text." + detail
+    response = (
+        "⏰ Reminder set:\n"
+        + "\n".join(f"  • {line}" for line in saved)
+        + (
+            "\n\nIt will appear in Activity at that time."
+            if len(saved) == 1
+            else "\n\nThey will appear in Activity at those times."
+        )
+    )
+    if skipped:
+        response += "\n\nSkipped:\n" + "\n".join(f"  • {line}" for line in skipped)
+    return response
 
 
 def _briefing(profile: dict, *, surface: str = "dashboard") -> str:

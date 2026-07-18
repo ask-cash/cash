@@ -17,6 +17,7 @@ import unittest
 
 import services.db as db
 from services.config import settings as _real_settings
+from services.tenancy import tenant_context
 
 
 class AccountsTest(unittest.TestCase):
@@ -35,8 +36,15 @@ class AccountsTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_signup_creates_user_tenant_and_person(self):
-        a = self.accounts.create_account("Alice@Example.com ", "hunter2!", "Alice", "Kaur")
+        a = self.accounts.create_account(
+            "Alice@Example.com ",
+            "hunter2!",
+            "Alice",
+            "Kaur",
+            timezone="America/New_York",
+        )
         self.assertEqual(a["email"], "alice@example.com")   # normalised
+        self.assertEqual(a["timezone"], "America/New_York")
         self.assertTrue(a["tenant_id"])
         self.assertTrue(a["person_id"])
         self.assertFalse(a["onboarded"])
@@ -79,6 +87,81 @@ class AccountsTest(unittest.TestCase):
         self.assertEqual(updated["role"], "Founder")
         self.assertEqual(updated["platforms"], ["Slack", "Telegram"])
         self.assertTrue(updated["onboarded"])
+
+    def test_timezone_update_is_validated_and_tenant_isolated(self):
+        alice = self.accounts.create_account(
+            "alice-tz@example.com",
+            "pw123456",
+            "Alice",
+            timezone="UTC",
+        )
+        bob = self.accounts.create_account(
+            "bob-tz@example.com",
+            "pw123456",
+            "Bob",
+            timezone="Europe/London",
+        )
+
+        updated = self.accounts.update_profile(
+            alice["email"],
+            timezone="Asia/Kolkata",
+        )
+        self.assertEqual(updated["timezone"], "Asia/Kolkata")
+        self.assertEqual(
+            self.accounts.get_account(bob["email"])["timezone"],
+            "Europe/London",
+        )
+
+        with self.assertRaisesRegex(ValueError, "valid IANA"):
+            self.accounts.update_profile(
+                alice["email"],
+                timezone="Mars/Olympus_Mons",
+            )
+        self.assertEqual(
+            self.accounts.get_account(alice["email"])["timezone"],
+            "Asia/Kolkata",
+        )
+
+    def test_signup_rejects_invalid_timezone_before_creating_account(self):
+        with self.assertRaisesRegex(ValueError, "valid IANA"):
+            self.accounts.create_account(
+                "invalid-tz@example.com",
+                "pw123456",
+                "Invalid",
+                timezone="../../etc/passwd",
+            )
+        self.assertIsNone(self.accounts.get_account("invalid-tz@example.com"))
+
+    def test_tenant_timezone_wins_over_legacy_profile_document(self):
+        from services import state_store, tenant_registry, user_profile
+
+        account = self.accounts.create_account(
+            "canonical-tz@example.com",
+            "pw123456",
+            "Canonical",
+            timezone="UTC",
+        )
+        with tenant_context(account["tenant_id"]):
+            state_store.write_json(
+                "profile",
+                "owner",
+                {"timezone": "Europe/Paris", "wake_time": "07:00"},
+            )
+            self.assertEqual(user_profile.load_profile()["timezone"], "UTC")
+
+            updated = user_profile.save_profile(
+                {"timezone": "Asia/Tokyo", "sleep_time": "22:00"}
+            )
+            stored = state_store.read_json("profile", "owner", default={})
+
+        self.assertEqual(updated["timezone"], "Asia/Tokyo")
+        self.assertNotIn("timezone", stored)
+        self.assertEqual(stored["wake_time"], "07:00")
+        self.assertEqual(stored["sleep_time"], "22:00")
+        self.assertEqual(
+            tenant_registry.get_tenant(account["tenant_id"]).timezone,
+            "Asia/Tokyo",
+        )
 
     def test_lookup_by_person_id(self):
         a = self.accounts.create_account("i@example.com", "pw123456", "I")

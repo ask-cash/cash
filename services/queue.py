@@ -37,6 +37,7 @@ DISCORD_EVENT = "discord_event"
 CRON = "cron"
 CHAT_MESSAGE = "chat_message"
 MEDIA_TRANSCRIPTION = "media_transcription"
+REMINDER_DUE = "reminder_due"
 
 _STREAM_SUFFIX = ":stream:v2"
 _GROUP = os.getenv("QUEUE_CONSUMER_GROUP", "cash-workers")

@@ -7,6 +7,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from pydantic import ValidationError
+from starlette.requests import Request
+
 from app import api
 
 
@@ -54,6 +57,66 @@ class GoogleOAuthConfigurationTest(unittest.TestCase):
                 ["openid"],
                 "https://cash.example/api/auth/google/callback",
             )
+
+
+class AuthTimezoneSchemaTest(unittest.TestCase):
+    def test_signup_and_profile_accept_valid_iana_timezone(self):
+        signup = api.SignUpBody(
+            email="a@example.com",
+            password="secret1",
+            timezone="America/Los_Angeles",
+        )
+        profile = api.ProfileBody(timezone="Asia/Kolkata")
+        self.assertEqual(signup.timezone, "America/Los_Angeles")
+        self.assertEqual(profile.timezone, "Asia/Kolkata")
+
+    def test_signup_and_profile_reject_invalid_timezone(self):
+        with self.assertRaises(ValidationError):
+            api.SignUpBody(
+                email="a@example.com",
+                password="secret1",
+                timezone="not/a-real-zone",
+            )
+        with self.assertRaises(ValidationError):
+            api.ProfileBody(timezone="../../etc/passwd")
+
+    def test_account_view_returns_flat_timezone(self):
+        account = {
+            "person_id": "pers_1",
+            "tenant_id": "tenant-1",
+            "email": "a@example.com",
+            "first_name": "A",
+            "last_name": "",
+            "role": None,
+            "platforms": [],
+            "onboarded": True,
+            "plan": "free",
+            "timezone": "Europe/Paris",
+        }
+        with patch.object(api.integrations, "is_connected", return_value=False):
+            view = api._account_view(account)
+        self.assertEqual(view["timezone"], "Europe/Paris")
+
+    def test_profile_mutation_origin_guard_rejects_cross_site(self):
+        request = Request(
+            {
+                "type": "http",
+                "method": "PATCH",
+                "path": "/api/auth/profile",
+                "query_string": b"",
+                "headers": [
+                    (b"host", b"cash.example"),
+                    (b"origin", b"https://evil.example"),
+                    (b"sec-fetch-site", b"cross-site"),
+                ],
+                "scheme": "https",
+                "server": ("cash.example", 443),
+                "client": ("127.0.0.1", 1234),
+            }
+        )
+        response = api._require_same_origin(request)
+        self.assertIsNotNone(response)
+        self.assertEqual(response.status_code, 403)
 
 
 if __name__ == "__main__":

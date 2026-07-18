@@ -84,6 +84,8 @@ _TENANT_TABLES = [
     "chat_outbox",
     "chat_action_runs",
     "chat_usage",
+    "reminders",
+    "activity_items",
 ]
 
 _SQLITE_SCHEMA = """
@@ -232,6 +234,9 @@ CREATE TABLE IF NOT EXISTS dispatch_outbox (
     payload_json  TEXT NOT NULL,
     status        TEXT NOT NULL DEFAULT 'pending',
     created_at    TEXT NOT NULL,
+    -- Nullable for rolling upgrades: an older writer does not know this
+    -- column and will omit it. Readers treat NULL as created_at (immediate).
+    available_at  TEXT,
     delivered_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_dispatch_outbox_pending
@@ -262,6 +267,53 @@ CREATE TABLE IF NOT EXISTS chat_usage (
     updated_at    TEXT NOT NULL,
     PRIMARY KEY (tenant_id, usage_date)
 );
+
+CREATE TABLE IF NOT EXISTS reminders (
+    tenant_id       TEXT NOT NULL DEFAULT 'default',
+    id              TEXT NOT NULL,
+    person_id       TEXT,
+    conversation_id TEXT,
+    text            TEXT NOT NULL,
+    due_at           TEXT NOT NULL,
+    timezone         TEXT NOT NULL,
+    source_surface   TEXT NOT NULL,
+    delivery_channel TEXT NOT NULL,
+    chat_id          TEXT,
+    status           TEXT NOT NULL DEFAULT 'pending',
+    created_at       TEXT NOT NULL,
+    delivered_at     TEXT,
+    last_error       TEXT,
+    PRIMARY KEY (tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_due
+    ON reminders(tenant_id, status, due_at, id);
+
+CREATE TABLE IF NOT EXISTS activity_items (
+    tenant_id    TEXT NOT NULL DEFAULT 'default',
+    id           TEXT NOT NULL,
+    person_id    TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    source_id    TEXT,
+    created_at   TEXT NOT NULL,
+    visible_at   TEXT NOT NULL,
+    read_at      TEXT,
+    dismissed_at TEXT,
+    PRIMARY KEY (tenant_id, id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_source
+    ON activity_items(tenant_id, source_id)
+    WHERE source_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_activity_person
+    ON activity_items(tenant_id, person_id, dismissed_at, created_at DESC, id);
+CREATE INDEX IF NOT EXISTS idx_activity_visible
+    ON activity_items(tenant_id, person_id, visible_at DESC, id)
+    WHERE dismissed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_activity_feed
+    ON activity_items(
+        tenant_id, person_id, dismissed_at, visible_at DESC, id
+    );
 
 CREATE TABLE IF NOT EXISTS people (
     tenant_id        TEXT NOT NULL DEFAULT 'default',
@@ -506,8 +558,14 @@ CREATE TABLE IF NOT EXISTS dispatch_outbox (
     payload_json  TEXT NOT NULL,
     status        TEXT NOT NULL DEFAULT 'pending',
     created_at    TEXT NOT NULL,
+    -- Nullable during the expand phase so old pods can keep inserting rows.
+    available_at  TEXT,
     delivered_at TEXT
 );
+ALTER TABLE dispatch_outbox ADD COLUMN IF NOT EXISTS available_at TEXT;
+-- Metadata-only repair for any environment that briefly received the earlier
+-- contract-phase v3 schema. Old writers must be allowed to omit this column.
+ALTER TABLE dispatch_outbox ALTER COLUMN available_at DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_dispatch_outbox_pending
     ON dispatch_outbox(status, created_at, id);
 CREATE INDEX IF NOT EXISTS idx_dispatch_outbox_resource
@@ -536,6 +594,56 @@ CREATE TABLE IF NOT EXISTS chat_usage (
     updated_at    TEXT NOT NULL,
     PRIMARY KEY (tenant_id, usage_date)
 );
+
+CREATE TABLE IF NOT EXISTS reminders (
+    tenant_id       TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    id              TEXT NOT NULL,
+    person_id       TEXT,
+    conversation_id TEXT,
+    text            TEXT NOT NULL,
+    due_at           TEXT NOT NULL,
+    timezone         TEXT NOT NULL,
+    source_surface   TEXT NOT NULL,
+    delivery_channel TEXT NOT NULL,
+    chat_id          TEXT,
+    status           TEXT NOT NULL DEFAULT 'pending',
+    created_at       TEXT NOT NULL,
+    delivered_at     TEXT,
+    last_error       TEXT,
+    PRIMARY KEY (tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_reminders_due
+    ON reminders(tenant_id, status, due_at, id);
+
+CREATE TABLE IF NOT EXISTS activity_items (
+    tenant_id    TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    id           TEXT NOT NULL,
+    person_id    TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    title        TEXT NOT NULL,
+    body         TEXT NOT NULL,
+    source_id    TEXT,
+    created_at   TEXT NOT NULL,
+    visible_at   TEXT NOT NULL,
+    read_at      TEXT,
+    dismissed_at TEXT,
+    PRIMARY KEY (tenant_id, id)
+);
+ALTER TABLE activity_items ADD COLUMN IF NOT EXISTS visible_at TEXT;
+UPDATE activity_items SET visible_at = created_at WHERE visible_at IS NULL;
+ALTER TABLE activity_items ALTER COLUMN visible_at SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_source
+    ON activity_items(tenant_id, source_id)
+    WHERE source_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_activity_person
+    ON activity_items(tenant_id, person_id, dismissed_at, created_at DESC, id);
+CREATE INDEX IF NOT EXISTS idx_activity_visible
+    ON activity_items(tenant_id, person_id, visible_at DESC, id)
+    WHERE dismissed_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_activity_feed
+    ON activity_items(
+        tenant_id, person_id, dismissed_at, visible_at DESC, id
+    );
 
 CREATE TABLE IF NOT EXISTS people (
     tenant_id        TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
@@ -814,12 +922,23 @@ def _bootstrap_sqlite() -> None:
             "input_tokens": "INTEGER NOT NULL DEFAULT 0",
             "output_tokens": "INTEGER NOT NULL DEFAULT 0",
         })
+        _sqlite_add_missing_columns(conn, "dispatch_outbox", {
+            "available_at": "TEXT",
+        })
+        _sqlite_add_missing_columns(conn, "activity_items", {
+            "visible_at": "TEXT",
+        })
+        conn.execute(
+            "UPDATE activity_items SET visible_at = created_at "
+            "WHERE visible_at IS NULL"
+        )
         # Backfill tenant_id on tables created before it existed, so every row is
         # attributable to a tenant and explicit tenant_id filters work on SQLite
         # (which has no RLS). New databases already have the column via the schema.
         for _t in ("people", "platform_identities", "directives", "person_summaries",
                    "person_aliases", "kv_documents", "event_log", "conversations",
-                   "conversation_messages", "attachments", "chat_jobs", "chat_usage"):
+                   "conversation_messages", "attachments", "chat_jobs", "chat_usage",
+                   "reminders", "activity_items"):
             _sqlite_add_missing_columns(conn, _t, {
                 "tenant_id": "TEXT NOT NULL DEFAULT 'default'",
             })
@@ -855,7 +974,7 @@ _BOOTSTRAP_LOCK_KEY = 911_002_001
 # Bump whenever the forward-only Postgres schema or RLS set changes. The
 # advisory lock plus this marker means one pod migrates while every other role
 # performs only a cheap version read during a rollout.
-_PG_SCHEMA_VERSION = "2026-07-18-dashboard-chat-v2"
+_PG_SCHEMA_VERSION = "2026-07-19-reminders-activity-v4"
 
 
 def _bootstrap_postgres() -> None:

@@ -170,6 +170,7 @@ def load_profile() -> dict:
     from services.config import settings as _settings
 
     profile = _env_profile() if _tid() == _settings.default_tenant_id else _empty_profile()
+    canonical_timezone = ""
     try:
         from services import state_store
         from services.tenancy import current_tenant_id
@@ -182,23 +183,44 @@ def load_profile() -> dict:
                 if rec.display_name and rec.display_name.strip().lower() != "default":
                     profile["name"] = rec.display_name
                 if getattr(rec, "timezone", ""):
-                    profile["timezone"] = rec.timezone
+                    canonical_timezone = rec.timezone
+                    profile["timezone"] = canonical_timezone
         except Exception:
             logger.debug("load_profile: tenant record overlay skipped", exc_info=True)
 
         stored = state_store.read_json(_PROFILE_NS, _PROFILE_KEY, default=None)
         if isinstance(stored, dict) and stored:
-            _merge(profile, stored)
+            # tenants.timezone is canonical. Ignore the legacy duplicate once a
+            # tenant row exists so stale profile documents cannot override it.
+            rich_profile = dict(stored)
+            if canonical_timezone:
+                rich_profile.pop("timezone", None)
+            _merge(profile, rich_profile)
+            if canonical_timezone:
+                profile["timezone"] = canonical_timezone
     except Exception:
         logger.debug("load_profile: DB overlay unavailable, using env defaults", exc_info=True)
     return profile
 
 
 def save_profile(updates: dict) -> dict:
-    """Persist owner-profile overrides to the per-tenant DB doc; return merged profile."""
-    from services import state_store
+    """Persist rich profile fields; route timezone to the canonical tenant row."""
+    from services import state_store, tenant_registry
+    from services.tenancy import current_tenant_id
 
+    updates = dict(updates or {})
+    timezone = updates.pop("timezone", None)
+    if timezone is not None:
+        timezone = tenant_registry.normalize_timezone(timezone)
+        tenant_id = current_tenant_id()
+        rec = tenant_registry.get_tenant(tenant_id)
+        if rec is None:
+            tenant_registry.ensure_tenant(tenant_id, timezone=timezone)
+        else:
+            tenant_registry.set_tenant_meta(tenant_id, timezone=timezone)
     stored = state_store.read_json(_PROFILE_NS, _PROFILE_KEY, default={}) or {}
+    # Clean up the legacy duplicate during any subsequent profile write.
+    stored.pop("timezone", None)
     _merge(stored, updates)
     state_store.write_json(_PROFILE_NS, _PROFILE_KEY, stored)
     return load_profile()

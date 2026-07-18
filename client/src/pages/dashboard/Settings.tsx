@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ChevronLeftIcon,
@@ -10,6 +10,12 @@ import {
   SlidersIcon,
 } from '../../components/icons'
 import { useAuth } from '../../lib/auth'
+import {
+  formatCurrentTimeInZone,
+  getBrowserTimeZone,
+  getSupportedTimeZones,
+  isValidTimeZone,
+} from '../../lib/timezone'
 
 type SettingsSection = 'general' | 'integrations' | 'permissions' | 'security'
 
@@ -21,11 +27,22 @@ const SETTINGS_NAV = [
 ] as const
 
 export default function Settings() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, updateProfile } = useAuth()
   const navigate = useNavigate()
   const [section, setSection] = useState<SettingsSection>('general')
   const [signingOut, setSigningOut] = useState(false)
   const profile = user?.profile
+  const [detectedTimezone] = useState(getBrowserTimeZone)
+  const savedTimezone = profile?.timezone || detectedTimezone
+  const [timezoneDraft, setTimezoneDraft] = useState(savedTimezone)
+  const [timezoneError, setTimezoneError] = useState<string | null>(null)
+  const [timezoneNotice, setTimezoneNotice] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+  const [savingTimezone, setSavingTimezone] = useState(false)
+  const timezoneOptions = useMemo(
+    () => getSupportedTimeZones(savedTimezone, detectedTimezone),
+    [savedTimezone, detectedTimezone],
+  )
+  const timezonePreview = formatCurrentTimeInZone(timezoneDraft.trim())
   const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'Not set'
   const initials = (
     (profile?.firstName?.[0] || user?.email?.[0] || 'C') +
@@ -36,6 +53,39 @@ export default function Settings() {
     setSigningOut(true)
     await signOut()
     navigate('/signin', { replace: true })
+  }
+
+  async function saveTimezone(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (savingTimezone) return
+
+    const timezone = timezoneDraft.trim()
+    setTimezoneNotice(null)
+    if (!isValidTimeZone(timezone)) {
+      setTimezoneError('Enter a valid IANA time zone, such as Asia/Kolkata.')
+      requestAnimationFrame(() => document.getElementById('settings-timezone')?.focus())
+      return
+    }
+
+    setTimezoneError(null)
+    setSavingTimezone(true)
+    const error = await updateProfile({ timezone })
+    setSavingTimezone(false)
+    if (error) {
+      setTimezoneNotice({ tone: 'error', message: error })
+      return
+    }
+    setTimezoneDraft(timezone)
+    setTimezoneNotice({
+      tone: 'success',
+      message: 'Time zone saved. New reminders will use this local time.',
+    })
+  }
+
+  function useDetectedTimezone() {
+    setTimezoneDraft(detectedTimezone)
+    setTimezoneError(null)
+    setTimezoneNotice(null)
   }
 
   return (
@@ -84,6 +134,7 @@ export default function Settings() {
                   <div><dt>Name</dt><dd>{name}</dd></div>
                   <div><dt>Status</dt><dd><span className="status-chip status-chip--success"><span className="status-chip__dot" />Active</span></dd></div>
                   <div><dt>Role</dt><dd>{profile?.role || 'Not set'}</dd></div>
+                  <div><dt>Time zone</dt><dd>{savedTimezone}</dd></div>
                   <div><dt>Onboarding</dt><dd>{profile?.onboarded ? 'Complete' : 'In progress'}</dd></div>
                 </dl>
               </section>
@@ -103,6 +154,71 @@ export default function Settings() {
                 <div className="settings-field">
                   <span>Email</span>
                   <strong>{profile?.email || user?.email || 'Not set'}</strong>
+                </div>
+                <div className="settings-field settings-field--timezone">
+                  <label htmlFor="settings-timezone">Time zone</label>
+                  <form className="settings-timezone" onSubmit={(event) => void saveTimezone(event)} noValidate>
+                    <div className={`field${timezoneError ? ' field--error' : ''}`}>
+                      <div className="settings-timezone__controls">
+                        <input
+                          id="settings-timezone"
+                          name="timezone"
+                          type="text"
+                          list="settings-timezone-options"
+                          value={timezoneDraft}
+                          placeholder="Area/City"
+                          autoComplete="off"
+                          spellCheck={false}
+                          disabled={savingTimezone}
+                          aria-invalid={!!timezoneError}
+                          aria-describedby={timezoneError
+                            ? 'settings-timezone-hint settings-timezone-error'
+                            : 'settings-timezone-hint'}
+                          onChange={(event) => {
+                            setTimezoneDraft(event.target.value)
+                            setTimezoneError(null)
+                            setTimezoneNotice(null)
+                          }}
+                        />
+                        <datalist id="settings-timezone-options">
+                          {timezoneOptions.map((timezone) => <option value={timezone} key={timezone} />)}
+                        </datalist>
+                        <button
+                          type="submit"
+                          className="btn btn-primary btn-small"
+                          disabled={
+                            savingTimezone
+                            || !timezoneDraft.trim()
+                            || timezoneDraft.trim() === savedTimezone
+                          }
+                        >
+                          {savingTimezone && <span className="spinner spinner--button" aria-hidden="true" />}
+                          {savingTimezone ? 'Saving…' : 'Save'}
+                        </button>
+                      </div>
+                      <p className="form-hint" id="settings-timezone-hint">
+                        {timezonePreview ? `Local time: ${timezonePreview}. ` : ''}
+                        Used for reminders and daily planning.
+                        {timezoneDraft.trim() !== detectedTimezone && (
+                          <>
+                            {' '}
+                            <button type="button" className="timezone-detect" onClick={useDetectedTimezone}>
+                              Use browser setting ({detectedTimezone})
+                            </button>
+                          </>
+                        )}
+                      </p>
+                      {timezoneError && <p className="field-error" id="settings-timezone-error">{timezoneError}</p>}
+                      {timezoneNotice && (
+                        <p
+                          className={`settings-timezone__notice settings-timezone__notice--${timezoneNotice.tone}`}
+                          role={timezoneNotice.tone === 'error' ? 'alert' : 'status'}
+                        >
+                          {timezoneNotice.message}
+                        </p>
+                      )}
+                    </div>
+                  </form>
                 </div>
                 <div className="settings-field">
                   <span>Platforms</span>

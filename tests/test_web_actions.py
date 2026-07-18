@@ -70,6 +70,31 @@ class WebActionsTest(unittest.TestCase):
             out = web_actions.execute("show_date", {"date": "not-a-date"})
         self.assertIsInstance(out, str)
 
+    def test_dashboard_reminder_is_timezone_aware_and_activity_specific(self):
+        import services.reminders as reminders
+
+        params = {
+            "text": "Drink water",
+            "date": "2099-07-19",
+            "time": "01:40",
+        }
+        with mock.patch.object(reminders, "add_dashboard_batch") as add:
+            out = web_actions.execute(
+                "set_reminder",
+                params,
+                surface="dashboard",
+                person_id="pers_1",
+                conversation_id="conv_1",
+            )
+
+        add.assert_called_once()
+        when = add.call_args.args[0][0]["when"]
+        self.assertEqual(when.tzinfo.key, "Asia/Kolkata")
+        self.assertEqual(add.call_args.kwargs["person_id"], "pers_1")
+        self.assertEqual(add.call_args.kwargs["conversation_id"], "conv_1")
+        self.assertIn("Activity", out)
+        self.assertNotIn("connected chat surfaces", out)
+
 
 if __name__ == "__main__":
     unittest.main()

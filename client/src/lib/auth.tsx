@@ -10,6 +10,7 @@ export interface Profile {
   platforms?: string[]
   onboarded?: boolean
   calendarConnected?: boolean
+  timezone?: string
 }
 
 export interface AuthUser {
@@ -21,11 +22,17 @@ export interface AuthUser {
 interface AuthState {
   user: AuthUser | null
   loading: boolean
-  signUp: (p: { firstName: string; lastName: string; email: string; password: string }) => Promise<string | null>
+  signUp: (p: {
+    firstName: string
+    lastName: string
+    email: string
+    password: string
+    timezone: string
+  }) => Promise<string | null>
   signIn: (email: string, password: string) => Promise<string | null>
   signInWithGoogle: () => void
   signOut: () => Promise<void>
-  updateProfile: (patch: Partial<Profile>) => Promise<void>
+  updateProfile: (patch: Partial<Profile>) => Promise<string | null>
   refresh: () => Promise<void>
 }
 
@@ -41,6 +48,7 @@ interface ApiUser {
   platforms?: string[]
   onboarded?: boolean
   calendarConnected?: boolean
+  timezone?: string
 }
 function toUser(u: ApiUser | null): AuthUser | null {
   if (!u) return null
@@ -55,6 +63,7 @@ function toUser(u: ApiUser | null): AuthUser | null {
       platforms: u.platforms,
       onboarded: u.onboarded,
       calendarConnected: u.calendarConnected,
+      timezone: u.timezone,
     },
   }
 }
@@ -103,7 +112,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async updateProfile(patch) {
       const res = await api<{ user: ApiUser }>('PATCH', '/auth/profile', patch)
-      if (res.ok) setUser(toUser(res.data.user))
+      if (!res.ok) return res.error || 'Your profile could not be updated.'
+      setUser(toUser(res.data.user))
+      return null
     },
 
     refresh: loadMe,

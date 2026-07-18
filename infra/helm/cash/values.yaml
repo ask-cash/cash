@@ -63,6 +63,12 @@ config:
   TRANSCRIPTION_CONCURRENCY_LEASE_SECONDS: "180"
   VOICE_MAX_SECONDS: "90"
   VOICE_MAX_BYTES: "8388608"
+  RETENTION_DISPATCH_OUTBOX_DAYS: "7"
+  RETENTION_DELIVERED_REMINDER_DAYS: "90"
+  RETENTION_DISMISSED_ACTIVITY_DAYS: "30"
+  RETENTION_READ_ACTIVITY_DAYS: "90"
+  RETENTION_TENANT_BATCH_SIZE: "500"
+  RETENTION_OUTBOX_BATCH_SIZE: "1000"
   WORKER_METRICS_PORT: "9000"
   PUBLIC_BASE_URL: "https://api.cash.example.com"
   LOG_LEVEL: INFO
@@ -169,6 +175,9 @@ cron:
     - name: summary-rollup
       schedule: "0 22 * * *"
       arg: summary_rollup
+    - name: retention-cleanup
+      schedule: "15 2 * * *"
+      arg: retention_cleanup
 
 serviceAccount:
   name: cash

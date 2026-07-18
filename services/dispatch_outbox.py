@@ -15,6 +15,10 @@ from services.db import connect
 from services.tenancy import current_tenant_id, system_context
 
 
+def _now_iso() -> str:
+    return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
 def add(
     conn,
     *,
@@ -24,13 +28,15 @@ def add(
     resource_id: str,
     payload: dict,
     created_at: str,
+    available_at: str | None = None,
 ) -> None:
+    available_at = available_at or created_at
     conn.execute(
         """
         INSERT INTO dispatch_outbox
             (id, tenant_id, job_type, resource_id, payload_json, status,
-             created_at, delivered_at)
-        VALUES (?, ?, ?, ?, ?, 'pending', ?, NULL)
+             created_at, available_at, delivered_at)
+        VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, NULL)
         ON CONFLICT(id) DO NOTHING
         """,
         (
@@ -40,6 +46,7 @@ def add(
             resource_id,
             json.dumps(payload, separators=(",", ":")),
             created_at,
+            available_at,
         ),
     )
 
@@ -60,18 +67,20 @@ def remove(
 
 def pending(limit: int = 200) -> list[dict]:
     limit = min(max(int(limit), 1), 1_000)
+    now = _now_iso()
     with system_context():
         with connect() as conn:
             rows = conn.execute(
                 """
                 SELECT id, tenant_id, job_type, resource_id, payload_json,
-                       created_at
+                       created_at, available_at
                   FROM dispatch_outbox
                  WHERE status = 'pending'
-                 ORDER BY created_at ASC, id ASC
+                   AND COALESCE(available_at, created_at) <= ?
+                 ORDER BY COALESCE(available_at, created_at) ASC, id ASC
                  LIMIT ?
                 """,
-                (limit,),
+                (now, limit),
             ).fetchall()
     return [
         {
@@ -81,6 +90,9 @@ def pending(limit: int = 200) -> list[dict]:
             "resourceId": row["resource_id"],
             "payload": json.loads(row["payload_json"]),
             "createdAt": row["created_at"],
+            # A NULL value was written by a pre-available_at pod and means the
+            # job is immediately available from its original creation time.
+            "availableAt": row["available_at"] or row["created_at"],
         }
         for row in rows
     ]

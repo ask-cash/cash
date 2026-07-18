@@ -43,10 +43,15 @@ logger = logging.getLogger(__name__)
 
 # Per-tenant initialized PTB Applications, reused across jobs.
 _apps: Dict[str, Application] = {}
-_apps_lock = asyncio.Lock()
+_apps_lock: asyncio.Lock | None = None
 
 
 async def _get_application(tenant_id: str) -> Application | None:
+    global _apps_lock
+    # Bind the lock to the worker's running loop, not whatever implicit loop
+    # happened to exist while the module was imported.
+    if _apps_lock is None:
+        _apps_lock = asyncio.Lock()
     async with _apps_lock:
         app = _apps.get(tenant_id)
         if app is not None:
@@ -161,6 +166,21 @@ async def _handle_media_transcription(tenant_id: str, payload: dict) -> None:
                 os.remove(path)
 
 
+async def _handle_reminder_due(tenant_id: str, payload: dict) -> None:
+    """Settle dashboard reminder bookkeeping.
+
+    The due Activity item was committed when the reminder was created and is
+    revealed by its ``visible_at`` timestamp, so dashboard delivery does not
+    depend on this worker being online at the exact due time.
+    """
+    from services import reminders
+
+    reminder_id = payload.get("reminder_id", "")
+    if not reminder_id:
+        raise ValueError("reminder job missing reminder_id")
+    await asyncio.to_thread(reminders.complete_dashboard_delivery, reminder_id)
+
+
 async def _dispatch(job: dict) -> None:
     job_type = job.get("type", "")
     tenant_id = job.get("tenant_id", "")
@@ -182,6 +202,8 @@ async def _dispatch(job: dict) -> None:
                     await _handle_chat_message(tenant_id, payload)
                 elif job_type == queue.MEDIA_TRANSCRIPTION:
                     await _handle_media_transcription(tenant_id, payload)
+                elif job_type == queue.REMINDER_DUE:
+                    await _handle_reminder_due(tenant_id, payload)
                 else:
                     raise ValueError(f"unknown job type {job_type!r}")
             JOBS_PROCESSED.labels(type=job_type, status="ok").inc()

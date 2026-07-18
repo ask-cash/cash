@@ -28,7 +28,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, File, Request, Response, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.background import BackgroundTask
 
 from services import accounts
@@ -38,6 +38,7 @@ from services import dashboard as svc
 from services import integrations
 from services import rate_limits
 from services import storage
+from services import tenant_registry
 from services import transcription
 from services.chat_runtime import ConversationBusyError
 from services.config import settings
@@ -88,6 +89,7 @@ def _account_view(account: dict) -> dict:
         "platforms": account["platforms"],
         "onboarded": account["onboarded"],
         "plan": account.get("plan", "free"),
+        "timezone": account.get("timezone", "Asia/Kolkata"),
         "calendarConnected": calendar_connected,
     }
 
@@ -180,6 +182,12 @@ class SignUpBody(BaseModel):
     lastName: str = ""
     email: str
     password: str
+    timezone: Optional[str] = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: Optional[str]) -> Optional[str]:
+        return tenant_registry.normalize_timezone(value) if value is not None else None
 
 
 class LoginBody(BaseModel):
@@ -193,6 +201,12 @@ class ProfileBody(BaseModel):
     role: Optional[str] = None
     platforms: Optional[list[str]] = None
     onboarded: Optional[bool] = None
+    timezone: Optional[str] = None
+
+    @field_validator("timezone")
+    @classmethod
+    def validate_timezone(cls, value: Optional[str]) -> Optional[str]:
+        return tenant_registry.normalize_timezone(value) if value is not None else None
 
 
 @router.post("/auth/signup")
@@ -200,7 +214,13 @@ def signup(body: SignUpBody, request: Request):
     if len(body.password) < 6:
         return JSONResponse({"error": "Password must be at least 6 characters."}, status_code=400)
     try:
-        account = accounts.create_account(body.email, body.password, body.firstName, body.lastName)
+        account = accounts.create_account(
+            body.email,
+            body.password,
+            body.firstName,
+            body.lastName,
+            timezone=body.timezone or "Asia/Kolkata",
+        )
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     resp = JSONResponse({"user": _account_view(account)})
@@ -238,12 +258,15 @@ def update_profile(body: ProfileBody, request: Request):
     account = _current_account(request)
     if not account:
         return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if rejected := _require_same_origin(request):
+        return rejected
     patch = {
         "first_name": body.firstName,
         "last_name": body.lastName,
         "role": body.role,
         "platforms": body.platforms,
         "onboarded": body.onboarded,
+        "timezone": body.timezone,
     }
     patch = {k: v for k, v in patch.items() if v is not None}
     updated = accounts.update_profile(account["email"], **patch)
@@ -519,6 +542,86 @@ def _in_tenant(request: Request, fn, *args):
         with tenant_context(tid):
             return fn(*args)
     return asyncio.to_thread(_run)
+
+
+# ---------------------------------------------------------------------------
+# Activity inbox
+# ---------------------------------------------------------------------------
+
+@router.get("/activity")
+async def activity_feed(request: Request):
+    s = _session(request)
+    if not s:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    from services import activity, reminders
+
+    def _load_feed():
+        try:
+            reminders.migrate_legacy_dashboard(s["pid"])
+        except Exception:
+            # Compatibility migration failure must not make the current
+            # Activity inbox unavailable. The legacy record remains durable
+            # and the next feed request retries it.
+            logger.exception("could not migrate legacy dashboard reminders")
+        return activity.list_items(s["pid"])
+
+    return await _in_tenant(request, _load_feed)
+
+
+@router.post("/activity/read-all")
+async def read_all_activity(request: Request):
+    s = _session(request)
+    if not s:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if rejected := _require_same_origin(request):
+        return rejected
+    from services import activity
+
+    count = await _in_tenant(request, activity.mark_all_read, s["pid"])
+    return {"updated": count}
+
+
+@router.post("/activity/{item_id}/read")
+async def read_activity_item(item_id: str, request: Request):
+    s = _session(request)
+    if not s:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if rejected := _require_same_origin(request):
+        return rejected
+    from services import activity
+
+    item = await _in_tenant(request, activity.mark_read, s["pid"], item_id)
+    if item is None:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"item": item}
+
+
+@router.delete("/activity/{item_id}")
+async def dismiss_activity_item(item_id: str, request: Request):
+    s = _session(request)
+    if not s:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if rejected := _require_same_origin(request):
+        return rejected
+    from services import activity
+
+    dismissed = await _in_tenant(request, activity.dismiss, s["pid"], item_id)
+    if not dismissed:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    return {"dismissed": True}
+
+
+@router.delete("/activity")
+async def clear_activity(request: Request):
+    s = _session(request)
+    if not s:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if rejected := _require_same_origin(request):
+        return rejected
+    from services import activity
+
+    count = await _in_tenant(request, activity.clear, s["pid"])
+    return {"dismissed": count}
 
 
 @router.get("/conversations")

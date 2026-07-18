@@ -4,6 +4,7 @@ import AppleButton from '../components/AppleButton'
 import Brand from '../components/Brand'
 import GoogleButton from '../components/GoogleButton'
 import { useAuth } from '../lib/auth'
+import { getBrowserTimeZone } from '../lib/timezone'
 
 interface SignUpForm {
   firstName: string
@@ -60,6 +61,7 @@ export default function SignUp() {
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
       email: form.email.trim(),
+      timezone: getBrowserTimeZone(),
     })
     setBusy(false)
     if (signUpError) {

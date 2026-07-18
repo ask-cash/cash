@@ -319,6 +319,8 @@ def chat_reply(
                         action,
                         result.get("params") or {},
                         surface="dashboard",
+                        person_id=person_id,
+                        conversation_id=conversation_id,
                     ),
                 )
                 if action_result is not None:

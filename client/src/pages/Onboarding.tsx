@@ -5,6 +5,7 @@ import { CheckIcon } from '../components/icons'
 import { ONBOARDING } from '../data/questions'
 import { logoSrc } from '../data/logos'
 import { useAuth } from '../lib/auth'
+import { getBrowserTimeZone } from '../lib/timezone'
 
 export default function Onboarding() {
   const { user, updateProfile } = useAuth()
@@ -12,7 +13,9 @@ export default function Onboarding() {
   const [step, setStep] = useState(0)
   const [role, setRole] = useState<string | null>(user?.profile.role || null)
   const [platforms, setPlatforms] = useState<string[]>(user?.profile.platforms || [])
+  const [timezone] = useState(getBrowserTimeZone)
   const [busy, setBusy] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const question = ONBOARDING[step]
   const isLast = step === ONBOARDING.length - 1
@@ -34,7 +37,18 @@ export default function Onboarding() {
     }
 
     setBusy(true)
-    await updateProfile({ role: role || undefined, platforms, onboarded: true })
+    setSaveError(null)
+    const error = await updateProfile({
+      role: role || undefined,
+      platforms,
+      timezone,
+      onboarded: true,
+    })
+    if (error) {
+      setSaveError(error)
+      setBusy(false)
+      return
+    }
     navigate('/connect-calendar')
   }
 
@@ -57,6 +71,8 @@ export default function Onboarding() {
           </div>
           <div className="progress__track"><span style={{ width: `${progress}%` }} /></div>
         </div>
+
+        {saveError && <div className="status-banner status-banner--error" role="alert">{saveError}</div>}
 
         <div className="onboarding-step" key={question.id}>
           <p className="eyebrow">{question.type === 'single' ? 'About you' : 'Your workflow'}</p>

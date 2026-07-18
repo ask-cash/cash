@@ -21,6 +21,7 @@ import logging
 import secrets as _secrets
 from dataclasses import dataclass
 from typing import Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from services.config import settings
 from services.db import connect
@@ -48,6 +49,19 @@ class BotRecord:
 
 def _now_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
+def normalize_timezone(value: str) -> str:
+    """Validate and canonicalize an IANA timezone name."""
+    clean = (value or "").strip()
+    if not clean:
+        raise ValueError("timezone must be a valid IANA name")
+    try:
+        return ZoneInfo(clean).key
+    except (ZoneInfoNotFoundError, ValueError, TypeError) as exc:
+        raise ValueError(
+            "timezone must be a valid IANA name such as Asia/Kolkata"
+        ) from exc
 
 
 def _token_hash(token: str) -> str:
@@ -84,6 +98,7 @@ def ensure_tenant(
 ) -> None:
     """Create the tenant if absent. Existing rows are left untouched — use
     ``set_tenant_meta`` to change email/admin/display_name on an existing tenant."""
+    timezone = normalize_timezone(timezone)
     now = _now_iso()
     with connect() as conn:
         conn.execute(
@@ -102,6 +117,7 @@ def set_tenant_meta(
     email: Optional[str] = None,
     is_admin: Optional[bool] = None,
     display_name: Optional[str] = None,
+    timezone: Optional[str] = None,
 ) -> None:
     """Update mutable tenant metadata. Only provided fields change."""
     sets: list[str] = []
@@ -115,6 +131,9 @@ def set_tenant_meta(
     if display_name is not None:
         sets.append("display_name = ?")
         params.append(display_name)
+    if timezone is not None:
+        sets.append("timezone = ?")
+        params.append(normalize_timezone(timezone))
     if not sets:
         return
     params.append(tenant_id)

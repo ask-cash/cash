@@ -98,6 +98,28 @@ def get_profile(person_id: str) -> Optional[CustomerProfile]:
 
 def save_profile(profile: CustomerProfile) -> CustomerProfile:
     """Persist a profile (upsert). Stamps created_at/updated_at."""
+    if profile.timezone:
+        try:
+            from services import tenant_registry
+            from services.tenancy import current_tenant_id
+
+            profile.timezone = tenant_registry.normalize_timezone(profile.timezone)
+            tenant_id = current_tenant_id()
+            tenant = tenant_registry.get_tenant(tenant_id)
+            if tenant is None:
+                tenant_registry.ensure_tenant(tenant_id, timezone=profile.timezone)
+            elif tenant.timezone != profile.timezone:
+                tenant_registry.set_tenant_meta(
+                    tenant_id,
+                    timezone=profile.timezone,
+                )
+        except Exception:
+            # Customer profile persistence remains available during a transient
+            # control-plane issue; the next save/activation retries convergence.
+            logger.exception(
+                "[onboarding] could not sync timezone for %s",
+                profile.person_id,
+            )
     now = _now_iso()
     if not profile.created_at:
         profile.created_at = now

@@ -9,6 +9,15 @@ Discord  ◀─gateway socket─▶ connector (StatefulSet) ──enqueue──�
 CronJobs ──fan-out per tenant──▶ Redis ──▶ worker
 ```
 
+The daily `retention-cleanup` CronJob keeps production data bounded. Its
+launcher removes one capped batch of delivered global dispatch-outbox rows,
+then fans out RLS-scoped cleanup work to each active tenant. Defaults retain
+delivered outbox records for 7 days, delivered reminders and read Activity for
+90 days, and read+dismissed Activity for 30 days. Pending or future reminders,
+future Activity, and unread Activity are never deleted. Tune the
+`RETENTION_*_DAYS` and `RETENTION_*_BATCH_SIZE` values in Helm for observed
+volume; each subsequent daily run continues from the oldest eligible rows.
+
 ## 1. Provision infrastructure (Terraform)
 
 ```bash

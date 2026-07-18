@@ -103,6 +103,83 @@ export async function disconnectConnector(id: string): Promise<boolean> {
   return res.ok && res.data.disconnected
 }
 
+// --- activity ---
+export interface ActivityItem {
+  id: string
+  type: string
+  title: string
+  text: string
+  createdAt: string
+  readAt: string | null
+}
+
+export interface ActivityFeed {
+  items: ActivityItem[]
+  unreadCount: number
+}
+
+function validateActivityFeed(data: unknown): ActivityFeed {
+  const feed = data as Partial<ActivityFeed> | null
+  if (!feed || !Array.isArray(feed.items)) {
+    throw new ApiError('The activity response was incomplete.', 502)
+  }
+
+  const items = feed.items.filter((item): item is ActivityItem => (
+    !!item
+    && typeof item.id === 'string'
+    && typeof item.type === 'string'
+    && typeof item.title === 'string'
+    && typeof item.text === 'string'
+    && typeof item.createdAt === 'string'
+    && (item.readAt === null || typeof item.readAt === 'string')
+  ))
+  if (items.length !== feed.items.length) {
+    throw new ApiError('Some activity updates were incomplete.', 502)
+  }
+
+  return {
+    items,
+    unreadCount: typeof feed.unreadCount === 'number' && Number.isFinite(feed.unreadCount)
+      ? Math.max(0, Math.floor(feed.unreadCount))
+      : items.filter((item) => !item.readAt).length,
+  }
+}
+
+export async function getActivity(signal?: AbortSignal): Promise<ActivityFeed> {
+  const res = await api<ActivityFeed>('GET', '/activity', undefined, { signal })
+  return validateActivityFeed(requireData(res, 'Your activity could not be loaded.'))
+}
+
+export async function markActivityRead(id: string, signal?: AbortSignal): Promise<void> {
+  const res = await api<unknown>(
+    'POST',
+    `/activity/${encodeURIComponent(id)}/read`,
+    undefined,
+    { signal },
+  )
+  requireData(res, 'This update could not be marked as read.')
+}
+
+export async function markAllActivityRead(signal?: AbortSignal): Promise<void> {
+  const res = await api<unknown>('POST', '/activity/read-all', undefined, { signal })
+  requireData(res, 'Your updates could not be marked as read.')
+}
+
+export async function deleteActivity(id: string, signal?: AbortSignal): Promise<void> {
+  const res = await api<unknown>(
+    'DELETE',
+    `/activity/${encodeURIComponent(id)}`,
+    undefined,
+    { signal },
+  )
+  requireData(res, 'This update could not be dismissed.')
+}
+
+export async function clearActivity(signal?: AbortSignal): Promise<void> {
+  const res = await api<unknown>('DELETE', '/activity', undefined, { signal })
+  requireData(res, 'Your activity could not be cleared.')
+}
+
 // --- chat ---
 export interface ChatResponse {
   reply: string

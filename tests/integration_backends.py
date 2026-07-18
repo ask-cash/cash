@@ -7,10 +7,18 @@ an empty test database and Redis instance.
 
 from __future__ import annotations
 
+import datetime as dt
 import os
 import uuid
 
-from services import conversations, queue, rate_limits
+from services import (
+    activity,
+    conversations,
+    queue,
+    rate_limits,
+    reminders,
+    state_store,
+)
 from services.config import settings
 from services.db import bootstrap, connect
 from services.tenancy import tenant_context
@@ -55,18 +63,59 @@ def _postgres_smoke(suffix: str) -> None:
         )
         assert result["reply"] == "processed: postgres integration"
         assert conversations.get_job(job["id"])["status"] == "complete"
+
+        legacy_due = dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=5)
+        state_store.write_json(
+            reminders.NAMESPACE,
+            reminders.KEY,
+            [
+                {
+                    "id": f"legacy-{suffix}",
+                    "text": "Migrated PostgreSQL reminder",
+                    "when": legacy_due.replace(tzinfo=None).isoformat(),
+                    "chat_id": 0,
+                    "tenant_id": tenant_a,
+                    "created": legacy_due.isoformat(),
+                }
+            ],
+        )
+        assert reminders.migrate_legacy_dashboard(
+            f"legacy-person-{suffix}",
+            timezone="UTC",
+        ) == 1
+        migrated_feed = activity.list_items(f"legacy-person-{suffix}")
+        assert len(migrated_feed["items"]) == 1
+        assert migrated_feed["items"][0]["text"] == "Migrated PostgreSQL reminder"
+
+        reminder = reminders.add_dashboard(
+            "PostgreSQL reminder isolation",
+            dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5),
+            person_id=f"person-{suffix}",
+            conversation_id=conversation["id"],
+            timezone="UTC",
+        )
+        assert activity.list_items(f"person-{suffix}") == {
+            "items": [],
+            "unreadCount": 0,
+        }
         with connect() as conn:
             assert conn.execute("SELECT COUNT(*) FROM conversations").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM reminders").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM activity_items").fetchone()[0] == 2
 
     with tenant_context(tenant_b):
         assert conversations.get_conversation(conversation["id"]) is None
+        assert reminders.get_dashboard(reminder["id"]) is None
+        assert activity.list_items(f"person-{suffix}")["items"] == []
         with connect() as conn:
             assert conn.execute("SELECT COUNT(*) FROM conversations").fetchone()[0] == 0
+            assert conn.execute("SELECT COUNT(*) FROM reminders").fetchone()[0] == 0
+            assert conn.execute("SELECT COUNT(*) FROM activity_items").fetchone()[0] == 0
             policies = conn.execute(
                 "SELECT COUNT(*) FROM pg_policies "
                 "WHERE policyname = 'tenant_isolation'"
             ).fetchone()[0]
-            assert policies >= 15
+            assert policies >= 17
 
 
 def _redis_smoke(suffix: str) -> None:
