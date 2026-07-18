@@ -14,7 +14,12 @@ tenant's job.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
+import os
+import signal
+import socket
+import time
 from typing import Dict
 
 from telegram import Update
@@ -23,8 +28,12 @@ from telegram.ext import Application
 from app.observability import JOB_DURATION, JOBS_PROCESSED, configure_logging
 from bot.app_factory import build_application
 from services import queue
+from services import rate_limits
+from services.conversations import ChatJobDeferred, ChatJobTerminalError
 from services import secrets as secret_vault
 from services import tenant_registry
+from services.chat_runtime import ConversationBusyError
+from services.config import settings
 from services.db import bootstrap
 from services.memory import log_message
 from services.tenancy import tenant_context
@@ -34,10 +43,15 @@ logger = logging.getLogger(__name__)
 
 # Per-tenant initialized PTB Applications, reused across jobs.
 _apps: Dict[str, Application] = {}
-_apps_lock = asyncio.Lock()
+_apps_lock: asyncio.Lock | None = None
 
 
 async def _get_application(tenant_id: str) -> Application | None:
+    global _apps_lock
+    # Bind the lock to the worker's running loop, not whatever implicit loop
+    # happened to exist while the module was imported.
+    if _apps_lock is None:
+        _apps_lock = asyncio.Lock()
     async with _apps_lock:
         app = _apps.get(tenant_id)
         if app is not None:
@@ -88,6 +102,85 @@ async def _handle_cron(tenant_id: str, payload: dict) -> None:
     await cron.run_job(payload.get("job", ""), tenant_id)
 
 
+async def _handle_chat_message(tenant_id: str, payload: dict) -> None:
+    from services import conversations
+
+    job_id = payload.get("job_id", "")
+    if not job_id:
+        raise ValueError("chat job missing job_id")
+    with rate_limits.concurrency(
+        "chat-provider",
+        limit=int(os.getenv("CHAT_GLOBAL_CONCURRENCY", "80")),
+        lease_seconds=int(os.getenv("CHAT_CONCURRENCY_LEASE_SECONDS", "720")),
+    ):
+        await asyncio.to_thread(conversations.process_job, tenant_id, job_id)
+
+
+async def _handle_media_transcription(tenant_id: str, payload: dict) -> None:
+    from services import attachments, storage, transcription
+
+    attachment_id = payload.get("attachment_id", "")
+    if not attachment_id:
+        raise ValueError("media transcription job missing attachment_id")
+    record = attachments.get_attachment(attachment_id, include_private=True)
+    if record is None or record.get("status") in {"ready", "failed"}:
+        return
+    attachments.mark_transcription_enqueued(attachment_id)
+    path = await asyncio.to_thread(
+        storage.local_path_for,
+        record["storage_key"],
+        suffix=os.path.splitext(record["name"])[1],
+    )
+    if path is None:
+        # A user may delete a draft while a worker is picking it up.
+        if attachments.get_attachment(attachment_id) is None:
+            return
+        raise FileNotFoundError("media attachment object is unavailable")
+    cleanup = settings.storage_backend.lower() in {"s3", "gcs"}
+    try:
+        await asyncio.to_thread(transcription.validate_media_duration, path)
+        with rate_limits.concurrency(
+            "transcription",
+            limit=int(os.getenv("TRANSCRIPTION_GLOBAL_CONCURRENCY", "20")),
+            lease_seconds=int(
+                os.getenv("TRANSCRIPTION_CONCURRENCY_LEASE_SECONDS", "180")
+            ),
+        ):
+            transcript = await asyncio.to_thread(
+                transcription.transcribe_path,
+                path,
+                filename=record["name"],
+                mime_type=record["mimeType"],
+            )
+        try:
+            attachments.set_transcript(attachment_id, transcript)
+        except attachments.AttachmentError:
+            # Deletion won the race after the provider completed; there is no
+            # remaining attachment to retry or mark failed.
+            if attachments.get_attachment(attachment_id) is None:
+                return
+            raise
+    finally:
+        if cleanup:
+            with contextlib.suppress(OSError):
+                os.remove(path)
+
+
+async def _handle_reminder_due(tenant_id: str, payload: dict) -> None:
+    """Settle dashboard reminder bookkeeping.
+
+    The due Activity item was committed when the reminder was created and is
+    revealed by its ``visible_at`` timestamp, so dashboard delivery does not
+    depend on this worker being online at the exact due time.
+    """
+    from services import reminders
+
+    reminder_id = payload.get("reminder_id", "")
+    if not reminder_id:
+        raise ValueError("reminder job missing reminder_id")
+    await asyncio.to_thread(reminders.complete_dashboard_delivery, reminder_id)
+
+
 async def _dispatch(job: dict) -> None:
     job_type = job.get("type", "")
     tenant_id = job.get("tenant_id", "")
@@ -105,24 +198,176 @@ async def _dispatch(job: dict) -> None:
                     await _handle_discord_event(tenant_id, payload)
                 elif job_type == queue.CRON:
                     await _handle_cron(tenant_id, payload)
+                elif job_type == queue.CHAT_MESSAGE:
+                    await _handle_chat_message(tenant_id, payload)
+                elif job_type == queue.MEDIA_TRANSCRIPTION:
+                    await _handle_media_transcription(tenant_id, payload)
+                elif job_type == queue.REMINDER_DUE:
+                    await _handle_reminder_due(tenant_id, payload)
                 else:
-                    logger.warning("unknown job type %r", job_type)
-                    return
+                    raise ValueError(f"unknown job type {job_type!r}")
             JOBS_PROCESSED.labels(type=job_type, status="ok").inc()
+        except Exception as exc:
+            status = (
+                "deferred"
+                if isinstance(
+                    exc,
+                    (
+                        ChatJobDeferred,
+                        ConversationBusyError,
+                        rate_limits.ConcurrencyLimitExceeded,
+                    ),
+                )
+                else "error"
+            )
+            JOBS_PROCESSED.labels(type=job_type, status=status).inc()
+            raise
+
+
+async def _renew_delivery(job: dict, consumer_name: str) -> None:
+    interval = max(5, int(os.getenv("QUEUE_HEARTBEAT_SECONDS", "60")))
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await asyncio.to_thread(queue.touch, job, consumer_name)
         except Exception:
-            logger.exception("job failed: type=%s tenant=%s", job_type, tenant_id)
-            JOBS_PROCESSED.labels(type=job_type, status="error").inc()
+            logger.exception("failed to renew queue delivery lease")
+
+
+def _flush_dispatch_outbox() -> None:
+    """Publish committed work with one bounded control-plane query."""
+    from services import dispatch_outbox
+
+    for entry in dispatch_outbox.pending(limit=200):
+        queue.enqueue(
+            entry["jobType"],
+            entry["tenantId"],
+            entry["payload"],
+            idempotency_key=entry["id"],
+        )
+        dispatch_outbox.mark_delivered(entry["id"])
+
+
+async def _consumer(index: int, stopping: asyncio.Event) -> None:
+    consumer_name = f"{socket.gethostname()}-{os.getpid()}-{index}"
+    loop = asyncio.get_running_loop()
+    last_outbox_flush = 0.0
+    while not stopping.is_set():
+        if index == 0 and time.monotonic() - last_outbox_flush >= 5:
+            try:
+                await asyncio.to_thread(_flush_dispatch_outbox)
+            except Exception:
+                logger.exception("failed to flush durable background work")
+            last_outbox_flush = time.monotonic()
+        job = await loop.run_in_executor(
+            None,
+            queue.dequeue,
+            5,
+            consumer_name,
+        )
+        if job is None:
+            continue
+        lease_task = (
+            asyncio.create_task(_renew_delivery(job, consumer_name))
+            if job.get("_queue_id")
+            else None
+        )
+        try:
+            try:
+                await _dispatch(job)
+            except (
+                ChatJobDeferred,
+                ConversationBusyError,
+                rate_limits.ConcurrencyLimitExceeded,
+            ):
+                # Redis transactions atomically ACK the current delivery and put
+                # it behind earlier turns without spending its retry budget.
+                await asyncio.sleep(
+                    float(os.getenv("CAPACITY_DEFER_SECONDS", "1"))
+                )
+                queue.defer(job)
+            except ChatJobTerminalError:
+                queue.ack(job)
+            except Exception as exc:
+                logger.exception(
+                    "job failed: type=%s tenant=%s attempt=%s",
+                    job.get("type"),
+                    job.get("tenant_id"),
+                    job.get("attempt", 0),
+                )
+                try:
+                    await asyncio.sleep(
+                        min(10.0, float(2 ** int(job.get("attempt", 0))))
+                    )
+                    requeued = queue.retry_or_dead_letter(job, str(exc))
+                except Exception:
+                    # Leave the message pending; XAUTOCLAIM will recover it after
+                    # the worker or Redis connection stabilises.
+                    logger.exception("failed to retry/dead-letter queue job")
+                    continue
+                if not requeued and job.get("type") == queue.CHAT_MESSAGE:
+                    try:
+                        from services import conversations
+
+                        with tenant_context(job.get("tenant_id", "")):
+                            conversations.fail_job(
+                                (job.get("payload") or {}).get("job_id", ""),
+                                "Cash could not complete this message after several attempts.",
+                            )
+                    except Exception:
+                        logger.exception("failed to mark exhausted chat job")
+                elif not requeued and job.get("type") == queue.MEDIA_TRANSCRIPTION:
+                    try:
+                        from services import attachments
+
+                        with tenant_context(job.get("tenant_id", "")):
+                            attachments.set_failed(
+                                (job.get("payload") or {}).get(
+                                    "attachment_id",
+                                    "",
+                                )
+                            )
+                    except Exception:
+                        logger.exception(
+                            "failed to mark exhausted media transcription"
+                        )
+            else:
+                try:
+                    queue.ack(job)
+                except Exception:
+                    # Processing is idempotent; leave pending for recovery rather
+                    # than deleting a response we cannot prove was acknowledged.
+                    logger.exception("failed to acknowledge queue job")
+        finally:
+            if lease_task is not None:
+                lease_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await lease_task
 
 
 async def run() -> None:
     bootstrap()
-    logger.info("worker started — consuming %s", queue.settings.queue_name)
+    from prometheus_client import start_http_server
+
+    # This endpoint doubles as the worker's lightweight process-health socket.
+    start_http_server(int(os.getenv("WORKER_METRICS_PORT", "9000")))
+    concurrency = max(1, int(os.getenv("WORKER_CONCURRENCY", "8")))
+    logger.info(
+        "worker started — consuming %s with concurrency=%d",
+        settings.queue_name,
+        concurrency,
+    )
+    stopping = asyncio.Event()
     loop = asyncio.get_running_loop()
-    while True:
-        # queue.dequeue blocks on Redis; run it off the event loop.
-        job = await loop.run_in_executor(None, queue.dequeue, 5)
-        if job is not None:
-            await _dispatch(job)
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(signum, stopping.set)
+        except (NotImplementedError, RuntimeError):
+            pass
+    await asyncio.gather(
+        *(_consumer(index, stopping) for index in range(concurrency))
+    )
+    logger.info("worker drained and stopped")
 
 
 def main() -> None:

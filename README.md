@@ -139,6 +139,6 @@ context — so she genuinely knows what you said 5 days ago and references it na
 
 ## One brain, every platform
 
-Cash works across Telegram, Discord, and (via adapters) Slack and Teams, with per-person memory and
+Cash works across Telegram, Discord, Slack and Teams, with per-person memory and
 enforceable directives ("ignore X", "auto-reply to Y"). One person's memory is shared across every
 platform they use — talk to Cash on Telegram, pick up the thread on Discord.

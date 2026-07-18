@@ -16,10 +16,79 @@ permissions:
 
 env:
   IMAGE: ghcr.io/${{ github.repository }}
+  CLIENT_IMAGE: ghcr.io/${{ github.repository }}-client
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: cash
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d cash"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Verify backend
+        env:
+          DATABASE_URL: ""
+          REDIS_URL: ""
+          SECRETS_BACKEND: env
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt ruff
+          ruff check app services bot tests --select E9,F63,F7,F82
+          python -m unittest discover -s tests -v
+          python -c "import app.gateway, app.worker, app.cron, app.discord_connector, bot.app_factory"
+      - name: Verify client
+        working-directory: client
+        run: |
+          npm ci
+          npm run build
+      - name: Create non-RLS-bypass application role
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker cp infra/docker/postgres-init.sql "$POSTGRES_CONTAINER:/tmp/postgres-init.sql"
+          docker exec "$POSTGRES_CONTAINER" psql -U postgres -d cash -v ON_ERROR_STOP=1 -f /tmp/postgres-init.sql
+      - name: Verify PostgreSQL and Redis integration
+        env:
+          CASH_INTEGRATION_TEST: "1"
+          DATABASE_URL: postgresql://cash:cash@127.0.0.1:5432/cash
+          REDIS_URL: redis://127.0.0.1:6379/15
+          QUEUE_NAME: cash:release:${{ github.run_id }}
+          QUEUE_CONSUMER_GROUP: cash-release
+          ENFORCE_TENANT: "true"
+          SECRETS_BACKEND: env
+          LOCAL_STORAGE_DIR: /tmp/cash-release-uploads
+        run: python -m tests.integration_backends
+
   build-push:
     runs-on: ubuntu-latest
+    needs: verify
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
     steps:
@@ -30,7 +99,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        run: echo "tag=${GITHUB_REF_NAME:-${{ github.event.inputs.tag }}}" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -38,6 +109,13 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ steps.meta.outputs.tag }}
             ${{ env.IMAGE }}:latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./client
+          push: true
+          tags: |
+            ${{ env.CLIENT_IMAGE }}:${{ steps.meta.outputs.tag }}
+            ${{ env.CLIENT_IMAGE }}:latest
 
   deploy:
     runs-on: ubuntu-latest
@@ -53,10 +131,38 @@ jobs:
           cluster_name: cash-prod
           location: us-central1
       - uses: azure/setup-helm@v4
+      - name: Validate deployment configuration
+        env:
+          CASH_HOST: ${{ vars.CASH_HOST }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_WORKLOAD_SERVICE_ACCOUNT: ${{ vars.GCP_WORKLOAD_SERVICE_ACCOUNT }}
+          REDIS_KEDA_ADDRESS: ${{ vars.REDIS_KEDA_ADDRESS }}
+        run: |
+          test -n "$CASH_HOST"
+          test -n "$GCS_BUCKET"
+          test -n "$GCP_PROJECT_ID"
+          test -n "$GCP_WORKLOAD_SERVICE_ACCOUNT"
+          test -n "$REDIS_KEDA_ADDRESS"
       - name: Helm upgrade
+        env:
+          CASH_HOST: ${{ vars.CASH_HOST }}
+          GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GCP_WORKLOAD_SERVICE_ACCOUNT: ${{ vars.GCP_WORKLOAD_SERVICE_ACCOUNT }}
+          REDIS_KEDA_ADDRESS: ${{ vars.REDIS_KEDA_ADDRESS }}
         run: |
           helm upgrade --install cash infra/helm/cash \
             --namespace cash --create-namespace \
             --set image.repository=${{ env.IMAGE }} \
             --set image.tag=${{ needs.build-push.outputs.tag }} \
-            --wait --timeout 5m
+            --set client.image.repository=${{ env.CLIENT_IMAGE }} \
+            --set client.image.tag=${{ needs.build-push.outputs.tag }} \
+            --set-string config.GCS_BUCKET="$GCS_BUCKET" \
+            --set-string config.GCS_PROJECT="$GCP_PROJECT_ID" \
+            --set-string config.PUBLIC_BASE_URL="https://$CASH_HOST" \
+            --set-string ingress.host="$CASH_HOST" \
+            --set-string serviceAccount.annotations."iam\\.gke\\.io/gcp-service-account"="$GCP_WORKLOAD_SERVICE_ACCOUNT" \
+            --set worker.keda.enabled=true \
+            --set-string worker.keda.address="$REDIS_KEDA_ADDRESS" \
+            --atomic --wait --timeout 10m

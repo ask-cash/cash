@@ -13,6 +13,10 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 {{ .Values.image.repository }}:{{ .Values.image.tag }}
 {{- end -}}
 
+{{- define "cash.clientImage" -}}
+{{ .Values.client.image.repository }}:{{ .Values.client.image.tag }}
+{{- end -}}
+
 {{/*
 Standard env for every role: ConfigMap (non-secret) + Secret (sensitive) +
 the POD_NAME downward-api var the connector uses to derive its shard ordinal.

@@ -49,32 +49,54 @@ def _outlook_connected(p: registry.Provider) -> bool:
     return bool(path and os.path.exists(path) and os.path.getsize(path) > 0)
 
 
-def _discord_connected(p: registry.Provider) -> bool:
-    # Discord is "connected" once a Discord account has been seen/linked for this
-    # tenant — i.e. a discord platform_identity row exists. Best-effort; any
-    # identity/DB hiccup reports "not connected" rather than raising.
+def _linked_platform(p: registry.Provider) -> bool:
+    # An account-link provider is "connected" once an identity for that platform
+    # has been linked for THIS tenant (a platform_identities row exists). We filter
+    # by tenant_id explicitly rather than relying only on Postgres RLS, so the
+    # check is also correct on SQLite (dev), where RLS doesn't exist and an
+    # unscoped query would leak identities from other tenants.
+    # Best-effort; any identity/DB hiccup reports "not connected" rather than raising.
     try:
         from services.identity.store import connect
+        from services.tenancy import current_tenant_id
         with connect() as conn:
             row = conn.execute(
-                "SELECT 1 FROM platform_identities WHERE platform = 'discord' LIMIT 1"
+                "SELECT 1 FROM platform_identities WHERE platform = ? AND tenant_id = ? LIMIT 1",
+                (p.id, current_tenant_id()),
             ).fetchone()
         return row is not None
     except Exception:
         return False
 
 
+# Back-compat alias (tests patch this name).
+_discord_connected = _linked_platform
+
+
 def is_connected(provider_id: str) -> bool:
-    """True if the provider currently has usable credentials for this tenant."""
+    """True if the provider is connected for the active tenant.
+
+    The per-tenant connection ledger (services.integrations.connections) is the
+    source of truth: an explicit connect/disconnect there wins. Only when the
+    ledger has no record do we auto-detect from the real credentials (a stored
+    OAuth token, an MSAL cache, or a linked platform identity) — this keeps
+    already-connected accounts working before the ledger is populated.
+    """
     p = registry.get(provider_id)
     if p is None or not p.available:
         return False
+
+    from services.integrations import connections
+    ledger = connections.get_status(provider_id)
+    if ledger is not None:
+        return ledger
+
     if p.is_oauth:
         return _token_blob(p.secret_name, p.legacy_token_path) is not None
     if p.auth == registry.AUTH_DEVICE_CODE:
         return _outlook_connected(p)
     if p.auth == registry.AUTH_ACCOUNT_LINK:
-        return _discord_connected(p)
+        return _discord_connected(p)  # aliased to _linked_platform; patchable in tests
     return False
 
 

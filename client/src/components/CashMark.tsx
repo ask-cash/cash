@@ -1,0 +1,14 @@
+// The Cash brand glyph — identical to the landing site's mark.
+export default function CashMark() {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <g fill="currentColor">
+        <polygon points="18,19 21,3 32,16" />
+        <polygon points="46,19 43,3 32,16" />
+        <circle cx="32" cy="27" r="13" />
+        <path d="M21,35 C16,46 15,55 21,59 L43,59 C49,55 48,46 43,35 Z" />
+        <path d="M43,58 C57,57 60,43 51,38 C57,45 50,53 42,51 Z" />
+      </g>
+    </svg>
+  )
+}

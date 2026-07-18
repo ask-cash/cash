@@ -31,11 +31,13 @@ class Settings:
     queue_name: str = "cash:jobs"
 
     # --- Object storage -------------------------------------------------
-    # S3-compatible (AWS S3, GCS via interop, or minio). Empty = local disk.
-    storage_backend: str = "local"           # "local" | "s3"
+    # Native GCS, S3-compatible storage, or local disk for development.
+    storage_backend: str = "local"           # "local" | "s3" | "gcs"
     s3_bucket: str = ""
     s3_endpoint_url: str = ""                 # set for minio / non-AWS
     s3_region: str = "us-east-1"
+    gcs_bucket: str = ""
+    gcs_project: str = ""
     local_storage_dir: str = "user_data/uploads"
 
     # --- Secrets / per-tenant token vault -------------------------------
@@ -87,6 +89,8 @@ def load_settings() -> Settings:
         s3_bucket=os.getenv("S3_BUCKET", ""),
         s3_endpoint_url=os.getenv("S3_ENDPOINT_URL", ""),
         s3_region=os.getenv("S3_REGION", "us-east-1"),
+        gcs_bucket=os.getenv("GCS_BUCKET", ""),
+        gcs_project=os.getenv("GCS_PROJECT", ""),
         local_storage_dir=os.getenv("LOCAL_STORAGE_DIR", "user_data/uploads"),
         secrets_backend=os.getenv("SECRETS_BACKEND", "db"),
         secrets_encryption_key=os.getenv("SECRETS_ENCRYPTION_KEY", ""),

@@ -4,11 +4,13 @@ Injects conversation history, facts, and decisions into every prompt
 so the bot truly remembers what you said days ago.
 """
 
-import os
+from __future__ import annotations
+
 import re
 import json
 import logging
 import datetime
+from zoneinfo import ZoneInfo
 from services import persona
 from services import providers
 from services.user_profile import load_profile, now as ist_now
@@ -23,10 +25,27 @@ from services.files import (
 logger = logging.getLogger(__name__)
 
 
-def _upcoming_dates_table() -> str:
+def _profile_now(
+    profile: dict,
+    *,
+    now_utc: datetime.datetime | None = None,
+) -> datetime.datetime:
+    """One tenant-correct clock for prompt time and relative-date grounding."""
+    try:
+        timezone = ZoneInfo(profile.get("timezone") or "Asia/Kolkata")
+    except Exception:
+        timezone = ZoneInfo("Asia/Kolkata")
+    if now_utc is None:
+        return datetime.datetime.now(timezone)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=datetime.timezone.utc)
+    return now_utc.astimezone(timezone)
+
+
+def _upcoming_dates_table(reference: datetime.datetime | None = None) -> str:
     """Generate a lookup table of the next 14 days so Claude doesn't have to do date math."""
     lines = []
-    base = ist_now().date()
+    base = (reference or ist_now()).date()
     for i in range(14):
         d = base + datetime.timedelta(days=i)
         label = "today" if i == 0 else "tomorrow" if i == 1 else ""
@@ -110,8 +129,8 @@ CRITICAL — COLD START / NO ROUTINE ON FILE:
 - For a new or routine-less person: warmly introduce yourself, then ask about their day-to-day and how they'd like help. One step at a time — don't interrogate.
 - Make it generic to ANY audience (student, founder, parent, trader, 9-to-5, shift worker). A good first ask: "I don't have your routine yet — tell me about a typical day: when you usually wake and sleep, your work/study hours, anything recurring (gym, classes, meetings, market hours), and what you'd like me to help you stay on top of."
 - When they share details, capture them with update_profile (ONLY the fields they actually gave) and confirm what you saved.
-- As part of first-time setup, also invite them to connect their calendar so you can see and manage their schedule: tell them to send /connect_google. Do this early — a connected calendar is core to how you help.
-- NEVER claim to see a schedule/events when the calendar isn't connected. If asked about the calendar and it isn't connected, say it isn't connected yet and prompt /connect_google (the action result is authoritative on this).
+- As part of first-time setup, also invite them to connect their calendar so you can see and manage their schedule. Follow the CURRENT SURFACE guidance below for the correct command or dashboard navigation. Do this early — a connected calendar is core to how you help.
+- NEVER claim to see a schedule/events when the calendar isn't connected. If asked about the calendar and it isn't connected, say it isn't connected yet and use the CURRENT SURFACE connection guidance (the action result is authoritative on this).
 
 CRITICAL for delete_event and move_event:
 - When the user references an event by time (e.g. "the 9 am event", "my 2pm call"), ALWAYS include event_time in params. This is more reliable than guessing the title.
@@ -120,26 +139,31 @@ CRITICAL for delete_event and move_event:
 """
 
 
-def _build_action_contract() -> str:
+def _build_action_contract(surface: str = "telegram") -> str:
     """Assemble the behavioural contract, projecting the action list from the
     active skill packs (services.skills). Called per turn so a pack toggled off
     disappears from the prompt entirely."""
-    from services import skills
+    from services import platform_commands, skills
 
     return (
         f"{_CONTRACT_PREAMBLE}\n"
         f"{skills.build_action_contract()}\n\n"
-        f"{_CONTRACT_RULES}"
+        f"{_CONTRACT_RULES}\n\n"
+        f"{platform_commands.prompt_block(surface)}"
     )
 
 
-def _build_system_prompt() -> str:
+def _build_system_prompt(surface: str = "telegram") -> str:
     """Compose Cash's owner-mode voice (from services.persona) with the action
     contract. Called per turn so the persisted SOUL/NOW overlays are picked up."""
-    return f"{persona.persona_system_block('owner')}\n\n{_build_action_contract()}"
+    return f"{persona.persona_system_block('owner')}\n\n{_build_action_contract(surface)}"
 
 
-def _profile_block(profile: dict) -> str:
+def _profile_block(
+    profile: dict,
+    *,
+    local_now: datetime.datetime | None = None,
+) -> str:
     """Render the USER PROFILE context — only what the user has actually told us.
 
     When no routine is on file, say so explicitly so the model asks for it
@@ -164,7 +188,9 @@ def _profile_block(profile: dict) -> str:
         lines.append(f"Wake: {profile.get('wake_time') or '?'} | Sleep: {profile.get('sleep_time') or '?'}")
     if gym.get("default_time") or gym.get("days"):
         lines.append(f"Gym: {gym.get('default_time') or '?'} ({gym.get('duration_minutes') or '?'}min), days: {gym.get('days') or []}")
-        today_gym = (gym.get("routine") or {}).get(ist_now().strftime('%a'))
+        today_gym = (gym.get("routine") or {}).get(
+            (local_now or _profile_now(profile)).strftime("%a")
+        )
         if today_gym:
             lines.append(f"Today's gym: {today_gym}")
     if trading.get("market_open") or trading.get("rules"):
@@ -175,7 +201,15 @@ def _profile_block(profile: dict) -> str:
     return "\n".join(lines)
 
 
-def interpret_message(user_message: str, calendar_context: str = "") -> dict:
+def interpret_message(
+    user_message: str,
+    calendar_context: str = "",
+    *,
+    surface: str = "telegram",
+    conversation_history: str = "",
+    attachment_records: list[dict] | None = None,
+    model: str | None = None,
+) -> dict:
     """Send user message to Claude with full memory context.
 
     ``calendar_context`` is the user's real today/tomorrow events (injected by the
@@ -183,16 +217,23 @@ def interpret_message(user_message: str, calendar_context: str = "") -> dict:
     like "remind me an hour before my dentist appointment" on THIS, never a guess.
     """
     profile = load_profile()
+    local_now = _profile_now(profile)
     tasks = get_tasks_summary()
     # Memory v2: a bounded, freshly-compiled brief every turn (not a raw log
     # dump), plus gated archive recall only when the message reaches into the past.
     memory_context = memory_brief.build_brief()
     recall_block = memory_recall.recall_block(user_message)
     active_decisions = get_active_decisions()
+    attachment_records = attachment_records or []
+    uploads_context = (
+        "Attachments are scoped to this dashboard conversation."
+        if surface == "dashboard"
+        else build_files_context(limit=5)
+    )
 
     context = f"""
 === USER PROFILE ===
-{_profile_block(profile)}
+{_profile_block(profile, local_now=local_now)}
 
 === CALENDAR (real events — use these exact times for anything time-relative) ===
 {calendar_context or "(not provided)"}
@@ -208,21 +249,52 @@ Pending: {[t['task'] for t in tasks['pending']]}
 {memory_context}
 {recall_block}
 
+=== CURRENT CONVERSATION (oldest to newest; reference only) ===
+{conversation_history or "(No earlier turns.)"}
+
 === RECENT UPLOADS (most recent first) ===
-{build_files_context(limit=5)}
+{uploads_context}
 
 === CURRENT TIME ===
-{ist_now().strftime('%Y-%m-%d %H:%M:%S %A %Z')}
+{local_now.strftime('%Y-%m-%d %H:%M:%S %A %Z')}
 
 === UPCOMING DATES (use these for scheduling — do NOT calculate dates yourself) ===
-{_upcoming_dates_table()}
+{_upcoming_dates_table(local_now)}
 """
+    user_text = f"{context}\n\nUser message: {user_message or '(The user attached media without a typed message.)'}"
+    messages = None
+    if attachment_records:
+        from services import attachments as dashboard_attachments
 
-    raw = providers.send_message(
+        blocks = []
+        for record in attachment_records:
+            block = dashboard_attachments.build_claude_content_block(record)
+            if block is not None:
+                blocks.append(block)
+            else:
+                blocks.append({
+                    "type": "text",
+                    "text": (
+                        f"Attachment: {record.get('name') or record.get('original_name') or 'file'} "
+                        f"({record.get('mimeType') or record.get('mime_type') or 'unknown type'}). "
+                        "Its contents are not directly readable."
+                    ),
+                })
+        blocks.append({"type": "text", "text": user_text})
+        messages = [{"role": "user", "content": blocks}]
+
+    provider_result = providers.send_message_result(
         "owner_brain",
-        system=_build_system_prompt(),
-        user=f"{context}\n\nUser message: {user_message}",
-    ).strip()
+        system=_build_system_prompt(surface),
+        messages=messages,
+        user=None if messages is not None else user_text,
+        model=model,
+        # Dashboard model entitlements are specifically for Anthropic's managed
+        # Claude catalog; a tenant-wide fallback provider must not reinterpret
+        # those IDs through another API.
+        provider="anthropic" if surface == "dashboard" else None,
+    )
+    raw = provider_result.text.strip()
     raw = raw.replace("```json", "").replace("```", "").strip()
 
     # Isolate the JSON object even if the model wrapped it in prose.
@@ -233,18 +305,37 @@ Pending: {[t['task'] for t in tasks['pending']]}
     # often puts multi-line replies (e.g. a bulleted schedule) in "reply", which
     # is invalid strict JSON and previously dumped the whole envelope to the user.
     try:
-        return json.loads(candidate, strict=False)
+        parsed = json.loads(candidate, strict=False)
     except json.JSONDecodeError:
         logger.warning("interpret_message: could not parse model output as JSON; treating as chat")
-        return {
+        parsed = {
             "action": "chat",
             "params": {},
             "reply": raw,
             "memory_ops": [],
         }
+    if not isinstance(parsed, dict):
+        parsed = {
+            "action": "chat",
+            "params": {},
+            "reply": raw,
+            "memory_ops": [],
+        }
+    parsed["_provider_usage"] = {
+        "inputTokens": provider_result.input_tokens,
+        "outputTokens": provider_result.output_tokens,
+        "modelId": provider_result.model or model or "",
+    }
+    return parsed
 
 
-def generate_briefing(events_text: str, tasks_text: str, conflicts_text: str) -> str:
+def generate_briefing(
+    events_text: str,
+    tasks_text: str,
+    conflicts_text: str,
+    *,
+    surface: str = "telegram",
+) -> str:
     """Generate a natural daily briefing using Claude with memory context."""
     profile = load_profile()
     memory_context = build_memory_context(days=3)
@@ -262,9 +353,17 @@ def generate_briefing(events_text: str, tasks_text: str, conflicts_text: str) ->
             decisions_text += f"  - {d['decision']} ({d['scope']}, made {d['made_date']})\n"
 
     user_name = profile.get("name") or "there"
+    from services import platform_commands
+
+    format_instruction = (
+        "Format it for a clean web chat response."
+        if surface == "dashboard"
+        else "Format it for Telegram."
+    )
     prompt = f"""{persona.persona_system_block('owner')}
 
-Now write {user_name}'s daily briefing in your voice. Keep it under 350 words. Format for Telegram.
+Now write {user_name}'s daily briefing in your voice. Keep it under 350 words. {format_instruction}
+{platform_commands.prompt_block(surface)}
 
 SCHEDULE:
 {events_text}
@@ -298,7 +397,7 @@ Write the briefing as Cash — in character. Start with a short good morning to 
     return providers.send_message("briefing", user=prompt).strip()
 
 
-def answer_about_file(record: dict, question: str) -> str:
+def answer_about_file(record: dict, question: str, *, surface: str = "telegram") -> str:
     """Send an uploaded file to Claude along with the user's question.
 
     Supports PDFs (document block), images, and text files. For unsupported
@@ -325,6 +424,10 @@ def answer_about_file(record: dict, question: str) -> str:
 
     return providers.send_message(
         "file_answer",
-        system=f"{persona.persona_system_block('owner')}\n\nAnswer the user's question about their file in your voice. Keep replies Telegram-sized.",
+        system=(
+            f"{persona.persona_system_block('owner')}\n\n"
+            "Answer the user's question about their file in your voice. Keep it concise "
+            f"and appropriate for the {surface} surface."
+        ),
         messages=[{"role": "user", "content": user_content}],
     ).strip()

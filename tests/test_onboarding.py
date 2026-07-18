@@ -148,6 +148,8 @@ class RuntimeRoutingTest(_TempDBTest):
         self.assertFalse(runtime.route(self._ev("hi", is_direct=False), "pers_a").handled)
 
     def test_new_user_is_onboarded_and_link_issued(self):
+        from services import tenant_registry
+        from services.config import settings
         from services.onboarding import runtime, profiles
         # Walk the new user through onboarding.
         for msg in ["hi", "Bob", "bob@example.com", "America/New_York", "reminders"]:
@@ -156,6 +158,10 @@ class RuntimeRoutingTest(_TempDBTest):
         last = res.reply
         self.assertIn("/onboard/", last)  # link appended
         self.assertEqual(profiles.get_profile("pers_b").status, profiles.STATUS_AWAITING_SETUP)
+        self.assertEqual(
+            tenant_registry.get_tenant(settings.default_tenant_id).timezone,
+            "America/New_York",
+        )
 
     def test_active_customer_passes_to_assistant(self):
         from services.onboarding import runtime, profiles

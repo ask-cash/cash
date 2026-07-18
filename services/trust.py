@@ -58,6 +58,7 @@ SENSITIVE_ACTIONS = {
     "attach_file_to_event",
     "add_trading_rule",
     "update_profile",
+    "run_routine",  # fanning out many sub-agents spends real money — consent once
 }
 
 # What a trusted (non-guardian) contact may do. They converse with Cash via the
@@ -160,6 +161,19 @@ def approve_latest() -> Optional[dict]:
     grants = _grants()
     grants.append({"role": rec["role"], "action": rec["action"]})
     state_store.write_json(NAMESPACE, _GRANTS_KEY, grants)
+    return rec
+
+
+def deny_latest() -> Optional[dict]:
+    """Guardian says no: drop the most recent pending request without granting.
+
+    Returns the denied request, or None if nothing was pending.
+    """
+    pending = _pending()
+    if not pending:
+        return None
+    rec = pending.pop()
+    state_store.write_json(NAMESPACE, _PENDING_KEY, pending)
     return rec
 
 

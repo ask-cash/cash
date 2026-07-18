@@ -18,17 +18,58 @@ spec:
         app.kubernetes.io/component: worker
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
+      terminationGracePeriodSeconds: 360
       containers:
         - name: worker
           image: {{ include "cash.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: ["worker"]
+          ports:
+            - name: metrics
+              containerPort: 9000
           envFrom:
             {{- include "cash.envFrom" . | nindent 12 }}
+          readinessProbe:
+            tcpSocket: {port: metrics}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: metrics}
+            initialDelaySeconds: 15
+            periodSeconds: 20
           resources:
             {{- toYaml .Values.worker.resources | nindent 12 }}
 ---
-{{- if .Values.worker.hpa.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "cash.name" . }}-worker
+  labels:
+    {{- include "cash.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  selector:
+    app.kubernetes.io/name: {{ include "cash.name" . }}
+    app.kubernetes.io/component: worker
+  ports:
+    - name: metrics
+      port: 9000
+      targetPort: metrics
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "cash.name" . }}-worker
+  labels:
+    {{- include "cash.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "cash.name" . }}
+      app.kubernetes.io/component: worker
+---
+{{- if and .Values.worker.hpa.enabled (not .Values.worker.keda.enabled) }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -49,4 +90,52 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ .Values.worker.hpa.targetCPUUtilizationPercentage }}
+{{- end }}
+{{- if .Values.worker.keda.enabled }}
+{{- if .Values.worker.keda.auth.enabled }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ include "cash.name" . }}-worker-redis
+  labels:
+    {{- include "cash.labels" . | nindent 4 }}
+spec:
+  secretTargetRef:
+    - parameter: username
+      name: {{ include "cash.name" . }}-secrets
+      key: {{ .Values.worker.keda.auth.usernameSecretKey }}
+    - parameter: password
+      name: {{ include "cash.name" . }}-secrets
+      key: {{ .Values.worker.keda.auth.passwordSecretKey }}
+{{- end }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "cash.name" . }}-worker
+  labels:
+    {{- include "cash.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "cash.name" . }}-worker
+  pollingInterval: {{ .Values.worker.keda.pollingInterval }}
+  cooldownPeriod: {{ .Values.worker.keda.cooldownPeriod }}
+  minReplicaCount: {{ .Values.worker.keda.minReplicas }}
+  maxReplicaCount: {{ .Values.worker.keda.maxReplicas }}
+  fallback:
+    failureThreshold: 3
+    replicas: {{ .Values.worker.keda.fallbackReplicas }}
+  triggers:
+    - type: redis-streams
+      metadata:
+        address: {{ required "worker.keda.address is required when KEDA is enabled" .Values.worker.keda.address | quote }}
+        stream: {{ printf "%s:stream:v2" .Values.config.QUEUE_NAME | quote }}
+        streamLength: {{ .Values.worker.keda.streamLengthPerReplica | quote }}
+        enableTLS: {{ .Values.worker.keda.enableTLS | quote }}
+        databaseIndex: {{ .Values.worker.keda.databaseIndex | quote }}
+{{ if .Values.worker.keda.auth.enabled }}
+      authenticationRef:
+        name: {{ include "cash.name" . }}-worker-redis
+{{ end }}
 {{- end }}

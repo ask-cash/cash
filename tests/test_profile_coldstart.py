@@ -7,6 +7,7 @@ brain context says "NONE ON FILE" so Cash asks instead of inventing one.
 Run:  ./venv/bin/python -m unittest tests.test_profile_coldstart -v
 """
 
+import datetime as dt
 import os
 import unittest
 from unittest import mock
@@ -59,6 +60,34 @@ class TestProfileBlock(unittest.TestCase):
         self.assertNotIn("NONE ON FILE", block)
         self.assertIn("18:00", block)
         self.assertIn("06:00", block)
+
+    def test_prompt_clock_and_dates_use_tenant_profile_timezone(self):
+        instant = dt.datetime(2026, 7, 18, 23, 30, tzinfo=dt.timezone.utc)
+        india_now = ai_brain._profile_now(
+            {"timezone": "Asia/Kolkata"},
+            now_utc=instant,
+        )
+        la_now = ai_brain._profile_now(
+            {"timezone": "America/Los_Angeles"},
+            now_utc=instant,
+        )
+
+        self.assertEqual(
+            india_now.strftime("%Y-%m-%d %H:%M %Z"),
+            "2026-07-19 05:00 IST",
+        )
+        self.assertEqual(
+            la_now.strftime("%Y-%m-%d %H:%M %Z"),
+            "2026-07-18 16:30 PDT",
+        )
+        self.assertIn(
+            "Sunday = 2026-07-19  (today)",
+            ai_brain._upcoming_dates_table(india_now),
+        )
+        self.assertIn(
+            "Saturday = 2026-07-18  (today)",
+            ai_brain._upcoming_dates_table(la_now),
+        )
 
 
 if __name__ == "__main__":

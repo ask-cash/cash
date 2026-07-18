@@ -12,12 +12,14 @@ prod, local files in dev) rather than raw user_data/*.json files:
 
 import datetime as dt
 import hashlib
+import logging
 from typing import Optional
 
 from services import state_store
 from services.user_profile import now as ist_now, today as ist_today
 
 NAMESPACE = "memory"
+logger = logging.getLogger(__name__)
 
 # Memory "kinds" — Cash's practical subset of the documented eight-type model.
 # Facts map onto durable kinds; decisions are always prospective.
@@ -145,6 +147,42 @@ def search_facts(query: str) -> list[dict]:
     facts = _load_facts()
     q = query.lower()
     return [f for f in facts if q in f.get("fact", "").lower()]
+
+
+def forget_fact(fingerprint: str) -> int:
+    """Remove any stored fact with this fingerprint. Returns the count removed."""
+    facts = _load_facts()
+    kept = [f for f in facts if f.get("fingerprint") != fingerprint]
+    if len(kept) != len(facts):
+        _save_facts(kept)
+    return len(facts) - len(kept)
+
+
+def apply_ops(ops: list[dict]) -> None:
+    """Execute the memory operations returned by the brain (store_fact /
+    store_decision / fulfill_decision / log_trade). Shared by every surface —
+    Telegram, Discord, and the web dashboard — so a turn on any of them updates
+    the same memory. Best-effort: a malformed op is logged and skipped."""
+    if not ops:
+        return
+    for op in ops:
+        try:
+            kind = op.get("op")
+            if kind == "store_fact":
+                store_fact(op.get("fact", ""), op.get("category", "general"))
+            elif kind == "store_decision":
+                store_decision(op.get("decision", ""), op.get("scope", "today"))
+            elif kind == "fulfill_decision":
+                fulfill_decision(op.get("decision_text", ""))
+            elif kind == "log_trade":
+                log_trade({
+                    "symbol": op.get("symbol", ""),
+                    "action": op.get("action", ""),
+                    "result": op.get("result", ""),
+                    "notes": op.get("notes", ""),
+                })
+        except Exception as e:
+            logger.error(f"Memory op error: {e}")
 
 
 # =====================================================================

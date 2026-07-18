@@ -27,6 +27,7 @@ from typing import Optional
 
 from services.db import from_row
 from services.identity.store import connect
+from services.tenancy import current_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -124,22 +125,23 @@ def resolve(
 
         person_id = _new_person_id()
         canonical_name = display_name or handle or pu_id
+        tid = current_tenant_id()
         conn.execute(
             """
-            INSERT INTO people (person_id, canonical_name, created_at, updated_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO people (tenant_id, person_id, canonical_name, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (person_id, canonical_name, now, now),
+            (tid, person_id, canonical_name, now, now),
         )
         conn.execute(
             """
             INSERT INTO platform_identities (
-                platform_identity_id, person_id, platform, workspace_id,
+                tenant_id, platform_identity_id, person_id, platform, workspace_id,
                 platform_user_id, display_name, handle, first_seen, last_seen
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                _new_platform_identity_id(),
+                tid, _new_platform_identity_id(),
                 person_id, platform, norm_workspace, pu_id,
                 display_name, handle, now, now,
             ),

@@ -52,12 +52,23 @@ class _IntegBase(unittest.TestCase):
             registry._PROVIDERS[pid] = dataclasses.replace(p, legacy_token_path=None)
         self._orig_discord = tokens._discord_connected
         tokens._discord_connected = lambda p: False
+        # Neutralise the DB-backed connection ledger so connectivity is a pure
+        # function of the fake vault (these tests cover the credential-detection
+        # path; the ledger has its own test).
+        from services.integrations import connections
+        self._connections = connections
+        self._orig_get_status = connections.get_status
+        self._orig_set_status = connections.set_status
+        connections.get_status = lambda pid: None
+        connections.set_status = lambda pid, connected: None
 
     def tearDown(self):
         tokens.secret_vault = self._orig_vault
         for pid, p in self._orig_providers.items():
             registry._PROVIDERS[pid] = p
         tokens._discord_connected = self._orig_discord
+        self._connections.get_status = self._orig_get_status
+        self._connections.set_status = self._orig_set_status
 
     def _connect_google(self):
         self.vault.json["google_token"] = {"refresh_token": "r", "token": "t"}

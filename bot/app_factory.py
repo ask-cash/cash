@@ -29,6 +29,7 @@ from bot.handlers.commands import (
     cmd_connect_google, cmd_connect_gmail, cmd_connect_outlook,
     cmd_approve,
     handle_email_feedback,
+    handle_card_callback,
 )
 from bot.handlers.directives_commands import (
     cmd_directives, cmd_forget, cmd_revoke, cmd_unignore,
@@ -75,6 +76,7 @@ def register_handlers(app: Application, owner_id: int = 0) -> None:
     app.add_handler(CommandHandler("connect_gmail", guard(cmd_connect_gmail)))
     app.add_handler(CommandHandler("connect_outlook", guard(cmd_connect_outlook)))
     app.add_handler(CallbackQueryHandler(handle_email_feedback, pattern=r"^email_fb:"))
+    app.add_handler(CallbackQueryHandler(guard(handle_card_callback), pattern=r"^card:"))
 
     app.add_handler(CommandHandler("directives", guard(cmd_directives)))
     app.add_handler(CommandHandler("unignore", guard(cmd_unignore)))

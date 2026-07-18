@@ -202,26 +202,13 @@ def _extract_time_from_text(text: str) -> str:
 
 
 def process_memory_ops(ops: list[dict]):
-    """Execute memory operations returned by the AI brain."""
-    if not ops:
-        return
-    for op in ops:
-        try:
-            if op["op"] == "store_fact":
-                store_fact(op.get("fact", ""), op.get("category", "general"))
-            elif op["op"] == "store_decision":
-                store_decision(op.get("decision", ""), op.get("scope", "today"))
-            elif op["op"] == "fulfill_decision":
-                fulfill_decision(op.get("decision_text", ""))
-            elif op["op"] == "log_trade":
-                log_trade({
-                    "symbol": op.get("symbol", ""),
-                    "action": op.get("action", ""),
-                    "result": op.get("result", ""),
-                    "notes": op.get("notes", ""),
-                })
-        except Exception as e:
-            logger.error(f"Memory op error: {e}")
+    """Execute memory operations returned by the AI brain.
+
+    Delegates to services.memory.apply_ops so every surface (Telegram, Discord,
+    web dashboard) shares one implementation and one memory.
+    """
+    from services.memory import apply_ops
+    apply_ops(ops)
 
 
 async def _resolve_telegram_author(update: Update) -> "str | None":
@@ -544,7 +531,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Doing this inline froze the loop, so typing only appeared once the reply
         # was already ready. to_thread copies contextvars, so tenant scoping holds.
         result = await asyncio.to_thread(
-            lambda: interpret_message(user_msg, calendar_context=_calendar_context())
+            lambda: interpret_message(
+                user_msg,
+                calendar_context=_calendar_context(),
+                surface="telegram",
+            )
         )
         action = result.get("action", "chat")
         params = result.get("params", {})
@@ -582,9 +573,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if decision == trust.REQUIRE_APPROVAL:
             trust.request_approval(role, action, note=user_msg[:120])
-            await update.message.reply_text(
-                "That one needs a yes. Send /approve, then ask me again and I'll do it."
-            )
+            from services import cards
+            from bot.handlers.card_ui import send_card
+            await send_card(update.message, cards.approval_card(action, note=user_msg[:80]))
             log_message("assistant", f"[needs approval: {action}]",
                         metadata={"surface": "telegram", "outcome": "trust-approval"})
             return

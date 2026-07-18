@@ -12,10 +12,28 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 
-from services.providers import register_backend
+from services.providers import ProviderResult, register_backend
 
 logger = logging.getLogger(__name__)
+_anthropic_client = None
+_anthropic_lock = threading.Lock()
+
+
+def _get_anthropic_client():
+    global _anthropic_client
+    if _anthropic_client is None:
+        with _anthropic_lock:
+            if _anthropic_client is None:
+                import anthropic
+
+                _anthropic_client = anthropic.Anthropic(
+                    api_key=os.getenv("ANTHROPIC_API_KEY"),
+                    timeout=float(os.getenv("ANTHROPIC_TIMEOUT_SECONDS", "90")),
+                    max_retries=int(os.getenv("ANTHROPIC_MAX_RETRIES", "2")),
+                )
+    return _anthropic_client
 
 
 def _system_value(system: object, cache_system: bool):
@@ -35,10 +53,8 @@ def _system_value(system: object, cache_system: bool):
     return system
 
 
-def anthropic_backend(cfg: dict, system: object, messages: list, cache_system: bool) -> str:
-    import anthropic
-
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+def anthropic_backend(cfg: dict, system: object, messages: list, cache_system: bool) -> ProviderResult:
+    client = _get_anthropic_client()
     kwargs: dict = {
         "model": cfg["model"],
         "max_tokens": cfg["max_tokens"],
@@ -51,7 +67,24 @@ def anthropic_backend(cfg: dict, system: object, messages: list, cache_system: b
         kwargs["temperature"] = cfg["temperature"]
 
     resp = client.messages.create(**kwargs)
-    return resp.content[0].text
+    text = "".join(
+        getattr(block, "text", "")
+        for block in (resp.content or [])
+        if getattr(block, "type", "") == "text"
+    )
+    usage = getattr(resp, "usage", None)
+    input_tokens = (
+        int(getattr(usage, "input_tokens", 0) or 0)
+        + int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+        + int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+    )
+    return ProviderResult(
+        text=text,
+        input_tokens=input_tokens,
+        output_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+        model=str(getattr(resp, "model", "") or cfg.get("model") or ""),
+        stop_reason=str(getattr(resp, "stop_reason", "") or ""),
+    )
 
 
 def _flatten_content(content) -> str:
@@ -68,7 +101,7 @@ def _flatten_content(content) -> str:
     return str(content)
 
 
-def openai_backend(cfg: dict, system: object, messages: list, cache_system: bool) -> str:
+def openai_backend(cfg: dict, system: object, messages: list, cache_system: bool) -> ProviderResult:
     """OpenAI-compatible chat-completions backend (fallback seam).
 
     Configured via ``OPENAI_API_KEY`` and optionally ``OPENAI_BASE_URL`` (defaults
@@ -110,7 +143,15 @@ def openai_backend(cfg: dict, system: object, messages: list, cache_system: bool
         timeout=60,
     )
     resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
+    body = resp.json()
+    usage = body.get("usage") or {}
+    return ProviderResult(
+        text=body["choices"][0]["message"]["content"],
+        input_tokens=int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0),
+        output_tokens=int(usage.get("completion_tokens") or usage.get("output_tokens") or 0),
+        model=str(body.get("model") or cfg.get("model") or ""),
+        stop_reason=str(body["choices"][0].get("finish_reason") or ""),
+    )
 
 
 register_backend("anthropic", anthropic_backend)

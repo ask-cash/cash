@@ -9,16 +9,15 @@ the tenant count grows.
 
 Supported jobs mirror the original scheduler:
   morning_briefing, trading_reminder, evening_summary, email_check,
-  directive_expiry, summary_rollup
+  directive_expiry, summary_rollup, retention_cleanup
 """
 
 from __future__ import annotations
 
 import logging
 
-from services import queue
+from services import queue, retention, tenant_registry
 from services import secrets as secret_vault
-from services import tenant_registry
 from services.db import bootstrap
 from services.tenancy import system_context, tenant_context
 from services.user_profile import load_profile
@@ -32,6 +31,7 @@ JOBS = {
     "email_check",
     "directive_expiry",
     "summary_rollup",
+    "retention_cleanup",
 }
 
 
@@ -41,8 +41,15 @@ JOBS = {
 
 def fan_out(job_name: str) -> int:
     if job_name not in JOBS:
-        raise SystemExit(f"unknown cron job {job_name!r}; expected one of {sorted(JOBS)}")
+        raise SystemExit(
+            f"unknown cron job {job_name!r}; expected one of {sorted(JOBS)}"
+        )
     bootstrap()
+    # dispatch_outbox is a global control-plane table. Prune it exactly once in
+    # the launcher, never once per tenant in the worker fan-out below.
+    if job_name == "retention_cleanup":
+        deleted = retention.prune_global_outbox()
+        logger.info("[cron] pruned %d delivered dispatch-outbox row(s)", deleted)
     count = 0
     with system_context():
         tenants = tenant_registry.list_tenants(active_only=True)
@@ -86,8 +93,8 @@ async def _send(tenant_id: str, text: str) -> None:
 async def _morning_briefing(tenant_id: str) -> None:
     from calendars.unified import UnifiedCalendar
     from services.ai_brain import generate_briefing
-    from services.scheduler import resolve_conflicts, format_suggestions
-    from services.task_tracker import initialize_daily_tasks, format_tasks
+    from services.scheduler import format_suggestions, resolve_conflicts
+    from services.task_tracker import format_tasks, initialize_daily_tasks
 
     profile = load_profile()
     cal = UnifiedCalendar()
@@ -109,11 +116,15 @@ async def _trading_reminder(tenant_id: str) -> None:
     text = "📈 Market opens soon. The rules:\n\n" + "\n".join(
         f"{i}. {r}" for i, r in enumerate(rules, 1)
     )
-    await _send(tenant_id, text + "\n\nNo revenge trading. Stay disciplined and stick to your rules.")
+    await _send(
+        tenant_id,
+        text
+        + "\n\nNo revenge trading. Stay disciplined and stick to your rules.",
+    )
 
 
 async def _evening_summary(tenant_id: str) -> None:
-    from services.task_tracker import initialize_daily_tasks, get_tasks_summary
+    from services.task_tracker import get_tasks_summary, initialize_daily_tasks
 
     profile = load_profile()
     initialize_daily_tasks(profile.get("default_tasks", []))
@@ -121,12 +132,18 @@ async def _evening_summary(tenant_id: str) -> None:
     ratio = f"{summary['done_count']}/{summary['total']}"
     text = f"🌙 End of day — {ratio} tasks done."
     if summary["pending"]:
-        text += "\n\nRolling over:\n" + "\n".join(f"  • {t['task']}" for t in summary["pending"])
+        text += "\n\nRolling over:\n" + "\n".join(
+            f"  • {task['task']}" for task in summary["pending"]
+        )
     await _send(tenant_id, text)
 
 
 async def _email_check(tenant_id: str) -> None:
-    from services.email_classifier import classify_emails, is_email_seen, mark_email_seen
+    from services.email_classifier import (
+        classify_emails,
+        is_email_seen,
+        mark_email_seen,
+    )
     from services.gmail import GmailManager
 
     try:
@@ -169,6 +186,20 @@ async def _summary_rollup(tenant_id: str) -> None:
     logger.info("[cron] summary rollup for %s rebuilt %d", tenant_id, rebuilt)
 
 
+async def _retention_cleanup(tenant_id: str) -> None:
+    import asyncio
+
+    result = await asyncio.to_thread(retention.prune_tenant)
+    logger.info(
+        "[cron] retention for %s pruned %d reminder(s), %d dismissed "
+        "Activity item(s), and %d read Activity item(s)",
+        tenant_id,
+        result.reminders,
+        result.dismissed_activity,
+        result.read_activity,
+    )
+
+
 _HANDLERS = {
     "morning_briefing": _morning_briefing,
     "trading_reminder": _trading_reminder,
@@ -176,4 +207,5 @@ _HANDLERS = {
     "email_check": _email_check,
     "directive_expiry": _directive_expiry,
     "summary_rollup": _summary_rollup,
+    "retention_cleanup": _retention_cleanup,
 }

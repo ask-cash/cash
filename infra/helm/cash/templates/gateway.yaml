@@ -99,6 +99,9 @@ metadata:
   labels:
     {{- include "cash.labels" . | nindent 4 }}
   annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "210"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "210"
     {{- if .Values.ingress.tls.enabled }}
     cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.clusterIssuer }}
     {{- end }}
@@ -114,11 +117,46 @@ spec:
     - host: {{ .Values.ingress.host }}
       http:
         paths:
-          - path: /
+          - path: /api
             pathType: Prefix
             backend:
               service:
                 name: {{ include "cash.name" . }}-gateway
+                port:
+                  number: 80
+          - path: /dashboard
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "cash.name" . }}-gateway
+                port:
+                  number: 80
+          - path: /onboard
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "cash.name" . }}-gateway
+                port:
+                  number: 80
+          - path: /oauth2callback
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "cash.name" . }}-gateway
+                port:
+                  number: 80
+          - path: /tg
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "cash.name" . }}-gateway
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "cash.name" . }}-client
                 port:
                   number: 80
 {{- end }}
