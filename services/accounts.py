@@ -73,6 +73,7 @@ def _row_to_account(row) -> dict:
         "role": row["role"],
         "platforms": json.loads(row["platforms"]) if row["platforms"] else [],
         "onboarded": bool(row["onboarded"]),
+        "plan": (row["plan"] or "free") if "plan" in row.keys() else "free",
         "auth_provider": row["auth_provider"],
     }
 

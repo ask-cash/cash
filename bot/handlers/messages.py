@@ -531,7 +531,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Doing this inline froze the loop, so typing only appeared once the reply
         # was already ready. to_thread copies contextvars, so tenant scoping holds.
         result = await asyncio.to_thread(
-            lambda: interpret_message(user_msg, calendar_context=_calendar_context())
+            lambda: interpret_message(
+                user_msg,
+                calendar_context=_calendar_context(),
+                surface="telegram",
+            )
         )
         action = result.get("action", "chat")
         params = result.get("params", {})

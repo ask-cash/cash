@@ -164,6 +164,7 @@ export default function DashboardLayout() {
           </button>
         </div>
         <button type="button" className="workspace-title" onClick={() => navigate('/app/chat')}>
+          <span className="workspace-title__mark" aria-hidden="true"><CashMark /></span>
           <span>{utilityTitle}</span>
           <ChevronDownIcon />
         </button>
@@ -185,7 +186,7 @@ export default function DashboardLayout() {
               to={to}
               end={end}
               title={collapsed ? label : undefined}
-              className={({ isActive }) => `side-link${isActive ? ' active' : ''}`}
+              className={({ isActive }) => `side-link${label === 'Cash' ? ' side-link--cash' : ''}${isActive ? ' active' : ''}`}
             >
               <span className="side-link__icon"><Icon /></span>
               <span className="side-link__label">{label}</span>

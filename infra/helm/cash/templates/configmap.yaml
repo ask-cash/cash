@@ -5,7 +5,9 @@ metadata:
   labels:
     {{- include "cash.labels" . | nindent 4 }}
 data:
+  {{- if .Values.redis.url }}
   REDIS_URL: {{ .Values.redis.url | quote }}
+  {{- end }}
   CONNECTOR_SHARD_TOTAL: {{ .Values.connector.replicas | quote }}
   {{- range $k, $v := .Values.config }}
   {{ $k }}: {{ $v | quote }}

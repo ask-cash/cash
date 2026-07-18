@@ -12,12 +12,14 @@ prod, local files in dev) rather than raw user_data/*.json files:
 
 import datetime as dt
 import hashlib
+import logging
 from typing import Optional
 
 from services import state_store
 from services.user_profile import now as ist_now, today as ist_today
 
 NAMESPACE = "memory"
+logger = logging.getLogger(__name__)
 
 # Memory "kinds" — Cash's practical subset of the documented eight-type model.
 # Facts map onto durable kinds; decisions are always prospective.

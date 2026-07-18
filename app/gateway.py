@@ -80,7 +80,12 @@ def _startup() -> None:
 
 @app.get("/oauth2callback", response_class=HTMLResponse)
 def oauth2callback_proxy(request: Request):
-    target = os.getenv("OAUTH_INTERNAL_URL", "http://telegram:8401/oauth2callback")
+    target = os.getenv("OAUTH_INTERNAL_URL", "").strip()
+    if not target:
+        # Webhook workers are stateless and do not host the legacy in-process
+        # Telegram OAuth callback. Direct users to the dashboard's stateless
+        # connector flow instead of exposing a guaranteed 502.
+        return RedirectResponse(url="/app/integrations", status_code=303)
     try:
         r = requests.get(target, params=dict(request.query_params), timeout=30)
         return Response(
@@ -88,9 +93,13 @@ def oauth2callback_proxy(request: Request):
             status_code=r.status_code,
             media_type=r.headers.get("content-type", "text/html; charset=utf-8"),
         )
-    except Exception as e:
+    except Exception:
         logger.exception("oauth2callback proxy failed")
-        return HTMLResponse(f"<h1>OAuth proxy error</h1><p>{e}</p>", status_code=502)
+        return HTMLResponse(
+            "<h1>Connection unavailable</h1>"
+            "<p>Return to Cash and try the connection again.</p>",
+            status_code=502,
+        )
 
 
 # ---------------------------------------------------------------------------

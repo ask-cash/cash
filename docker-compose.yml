@@ -28,26 +28,47 @@ x-app-env: &app-env
   ADMIN_API_TOKEN: dev-admin
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+  GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+  TRANSCRIPTION_API_KEY: ${TRANSCRIPTION_API_KEY:-}
+  TRANSCRIPTION_MODEL: ${TRANSCRIPTION_MODEL:-gpt-4o-mini-transcribe}
+  FREE_CHAT_CONTEXT_TOKENS: ${FREE_CHAT_CONTEXT_TOKENS:-32000}
+  FREE_CHAT_MODELS: ${FREE_CHAT_MODELS:-claude-haiku-4-5-20251001}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+  CHAT_LOCK_TTL_SECONDS: ${CHAT_LOCK_TTL_SECONDS:-600}
+  CHAT_GLOBAL_CONCURRENCY: ${CHAT_GLOBAL_CONCURRENCY:-80}
+  CHAT_CONCURRENCY_LEASE_SECONDS: ${CHAT_CONCURRENCY_LEASE_SECONDS:-720}
+  TRANSCRIPTION_GLOBAL_CONCURRENCY: ${TRANSCRIPTION_GLOBAL_CONCURRENCY:-20}
+  TRANSCRIPTION_CONCURRENCY_LEASE_SECONDS: ${TRANSCRIPTION_CONCURRENCY_LEASE_SECONDS:-180}
+  QUEUE_HEARTBEAT_SECONDS: ${QUEUE_HEARTBEAT_SECONDS:-60}
+  QUEUE_ENQUEUE_DEDUPE_SECONDS: ${QUEUE_ENQUEUE_DEDUPE_SECONDS:-604800}
+  REDIS_CONNECT_TIMEOUT_SECONDS: ${REDIS_CONNECT_TIMEOUT_SECONDS:-5}
+  REDIS_SOCKET_TIMEOUT_SECONDS: ${REDIS_SOCKET_TIMEOUT_SECONDS:-10}
   LOG_LEVEL: INFO
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: cash
-      POSTGRES_PASSWORD: cash
+      # Keep the bootstrap superuser separate from the application role.
+      # PostgreSQL superusers bypass RLS, which would hide tenant-isolation bugs
+      # during local testing. docker/postgres-init.sql creates the `cash` role
+      # used by DATABASE_URL without SUPERUSER or BYPASSRLS.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: cash
     # Host ports are env-overridable so the stack comes up even if you already
     # run Postgres/Redis/minio locally. Containers talk to each other over the
     # compose network (postgres:5432, redis:6379) regardless of these.
     ports: ["${POSTGRES_PORT_HOST:-5432}:5432"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cash"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 3s
       retries: 10
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./infra/docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-cash-app-role.sql:ro
 
   redis:
     image: redis:7-alpine
@@ -88,6 +109,7 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8090}
       CLIENT_BASE_URL: ${CLIENT_BASE_URL:-http://localhost:8090}
       GOOGLE_CREDENTIALS_PATH: ${GOOGLE_CREDENTIALS_PATH:-credentials.json}
+      OAUTH_INTERNAL_URL: http://telegram:8401/oauth2callback
     volumes:
       # Google OAuth client for browser-initiated calendar/login connect.
       - ./credentials.json:/app/credentials.json:ro

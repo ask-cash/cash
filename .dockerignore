@@ -10,6 +10,9 @@ __pycache__/
 user_data/
 landing/node_modules/
 landing/dist/
+client/node_modules/
+client/dist/
+doc/
 *.db
 *.db-shm
 *.db-wal

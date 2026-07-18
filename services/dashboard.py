@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import inspect
 import logging
 from typing import Optional
 
@@ -22,6 +23,23 @@ from services.identity import history as identity_history
 from services.identity.summaries import get_summary_md
 
 logger = logging.getLogger(__name__)
+
+_ATTACHMENT_READ_ONLY_ACTIONS = {
+    "chat",
+    "show_schedule",
+    "show_tomorrow",
+    "show_date",
+    "check_conflicts",
+    "show_calendars",
+    "show_tasks",
+    "show_reminders",
+    "show_trading_rules",
+    "show_decisions",
+    "search_memory",
+    "show_briefing",
+    "answer_file",
+    "analyze_file",
+}
 
 SESSION_COOKIE = "cash_session"
 SESSION_TTL_HOURS = 24 * 7  # a week; refreshed by re-opening a magic link
@@ -103,6 +121,8 @@ def connectors_status(tenant_id: str) -> list[dict]:
     from services import integrations
     with tenant_context(tenant_id):
         rows = []
+        from services.platform_commands import dashboard_connect_hint
+
         for p in integrations.all_providers():
             rows.append({
                 "id": p.id,
@@ -110,7 +130,7 @@ def connectors_status(tenant_id: str) -> list[dict]:
                 "available": p.available,
                 "connected": integrations.is_connected(p.id),
                 "unlocks": list(p.unlocks),
-                "connect_hint": p.connect_hint,
+                "connect_hint": dashboard_connect_hint(p.id, p.connect_hint),
             })
     return rows
 
@@ -160,12 +180,40 @@ def redact_fact(tenant_id: str, fingerprint: str) -> int:
 # Web chat — the same owner brain + memory as Telegram/Discord
 # ---------------------------------------------------------------------------
 
-def _default_interpret(message: str) -> dict:
+def _default_interpret(message: str, **kwargs) -> dict:
     from services.ai_brain import interpret_message
-    return interpret_message(message)
+    return interpret_message(message, **kwargs)
 
 
-def chat_reply(person_id: str, tenant_id: str, message: str, *, interpret=None) -> dict:
+def _invoke_interpreter(interpret, message: str, kwargs: dict) -> dict:
+    """Keep lightweight one-argument test/custom interpreters compatible."""
+    try:
+        signature = inspect.signature(interpret)
+        accepts_kwargs = any(
+            p.kind == inspect.Parameter.VAR_KEYWORD
+            for p in signature.parameters.values()
+        )
+        supported = kwargs if accepts_kwargs else {
+            key: value for key, value in kwargs.items()
+            if key in signature.parameters
+        }
+    except (TypeError, ValueError):
+        supported = kwargs
+    return interpret(message, **supported)
+
+
+def chat_reply(
+    person_id: str,
+    tenant_id: str,
+    message: str,
+    *,
+    interpret=None,
+    conversation_history: str = "",
+    attachments: list[dict] | None = None,
+    model: str | None = None,
+    conversation_id: str = "",
+    request_id: str = "",
+) -> dict:
     """Handle one browser chat turn through the owner brain.
 
     Logs the turn and applies memory ops under the tenant context — the same
@@ -173,27 +221,118 @@ def chat_reply(person_id: str, tenant_id: str, message: str, *, interpret=None) 
     memory. ``interpret`` is injectable for tests; it defaults to the real brain.
     Returns ``{"reply", "action"}``.
     """
-    from services import memory, web_actions
+    from services import (
+        action_idempotency,
+        memory,
+        platform_commands,
+        security,
+        skills,
+        trust,
+        web_actions,
+    )
     message = (message or "").strip()
-    if not message:
+    attachments = attachments or []
+    if not message and not attachments:
         return {"reply": "", "action": "chat"}
     interpret = interpret or _default_interpret
     with tenant_context(tenant_id):
         memory.log_message("user", message,
-                           metadata={"surface": "dashboard", "person_id": person_id})
-        result = interpret(message) or {}
+                           metadata={
+                               "surface": "dashboard",
+                               "person_id": person_id,
+                               "attachment_ids": [a.get("id") for a in attachments],
+                           })
+
+        command_reply = platform_commands.dashboard_command_reply(message)
+        if command_reply:
+            memory.log_message(
+                "assistant",
+                command_reply,
+                metadata={
+                    "surface": "dashboard",
+                    "person_id": person_id,
+                    "outcome": "dashboard-command-guidance",
+                    "action": "chat",
+                },
+            )
+            return {
+                "reply": command_reply,
+                "action": "chat",
+                "providerUsage": {"inputTokens": 0, "outputTokens": 0, "modelId": model or ""},
+            }
+
+        result = _invoke_interpreter(
+            interpret,
+            message,
+            {
+                "surface": "dashboard",
+                "conversation_history": conversation_history,
+                "attachment_records": attachments,
+                "model": model,
+            },
+        ) or {}
         action = result.get("action", "chat")
         reply = (result.get("reply") or "").strip()
-        memory.apply_ops(result.get("memory_ops") or [])
+        # Attachment contents are untrusted reference data. They may inform the
+        # answer but may not silently write durable memory.
+        if not attachments:
+            memory.apply_ops(result.get("memory_ops") or [])
 
-        # Execute the action for real (calendar, tasks, reminders, memory, …) via
-        # the shared executor. Its result is authoritative and replaces the LLM's
-        # pre-written reply; conversational turns fall through to that reply.
-        action_result = web_actions.execute(action, result.get("params") or {})
-        if action_result is not None:
-            reply = action_result
+        # The dashboard is an authenticated guardian surface, but it still obeys
+        # skill flags and the same trust posture as the messaging transports.
+        if not skills.is_action_enabled(action):
+            reply = "That capability is switched off in your current Cash settings."
+            action = "chat"
+        else:
+            decision = trust.evaluate(security.ROLE_GUARDIAN, action)
+            if attachments and action not in _ATTACHMENT_READ_ONLY_ACTIONS:
+                # Attachment text is untrusted. It can be analysed and used for
+                # read-only lookups, but never becomes authority for a mutation.
+                reply = (
+                    "I can analyse the attachment, but I won’t run an action "
+                    "based on content inside it. Ask me explicitly in a new "
+                    "message after you’ve reviewed the result."
+                )
+                action = "chat"
+            elif decision == trust.DENY:
+                reply = "That action is blocked by your Cash trust settings."
+                action = "chat"
+            elif decision == trust.REQUIRE_APPROVAL:
+                trust.request_approval(
+                    security.ROLE_GUARDIAN,
+                    action,
+                    note=message[:120],
+                )
+                reply = (
+                    "That action needs approval under your careful-access settings. "
+                    "I’ve left it pending instead of running it."
+                )
+                action = "chat"
+            else:
+                # The action result is authoritative and replaces pre-written model
+                # prose. Conversational/file-analysis turns fall through.
+                action_result = action_idempotency.run_once(
+                    conversation_id,
+                    request_id,
+                    action,
+                    lambda: web_actions.execute(
+                        action,
+                        result.get("params") or {},
+                        surface="dashboard",
+                    ),
+                )
+                if action_result is not None:
+                    reply = action_result
 
         memory.log_message("assistant", reply,
                            metadata={"surface": "dashboard", "person_id": person_id,
                                      "outcome": "web-chat", "action": action})
-    return {"reply": reply, "action": action}
+    return {
+        "reply": reply,
+        "action": action,
+        "providerUsage": result.get("_provider_usage") or {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "modelId": model or "",
+        },
+    }

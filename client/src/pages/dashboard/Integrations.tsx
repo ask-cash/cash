@@ -21,6 +21,24 @@ const BLURB: Record<string, string> = {
 
 const MAP_ORDER = ['google_calendar', 'gmail', 'telegram', 'discord', 'slack', 'notion']
 
+const IDENTITY_PRINCIPLES = [
+  {
+    number: '01',
+    title: 'Connected context',
+    description: 'Brings your schedule, messages, and workspace knowledge into one useful view.',
+  },
+  {
+    number: '02',
+    title: 'Clear priorities',
+    description: 'Turns scattered inputs into focused next steps without adding more noise.',
+  },
+  {
+    number: '03',
+    title: 'Thoughtful follow-through',
+    description: 'Keeps decisions and commitments close so important work does not get lost.',
+  },
+]
+
 interface Notice {
   tone: 'success' | 'error'
   message: string
@@ -225,50 +243,83 @@ export default function Integrations() {
         ) : view === 'identity' ? (
           <section className="assistant-overview" aria-label="Cash identity and integration map">
             <article className="assistant-profile-card">
-              <div className="assistant-profile-card__heading">
-                <h2>Cash</h2>
-                <span className="status-chip status-chip--success"><span className="status-chip__dot" />Active</span>
-              </div>
-              <span className="assistant-profile-card__mark" aria-hidden="true"><CashMark /></span>
+              <header className="assistant-profile-card__intro">
+                <span className="assistant-profile-card__mark" aria-hidden="true"><CashMark /></span>
+                <div className="assistant-profile-card__identity">
+                  <p className="eyebrow">Personal AI chief of staff</p>
+                  <div className="assistant-profile-card__heading">
+                    <h2>Cash</h2>
+                    <span className="status-chip status-chip--success"><span className="status-chip__dot" />Active</span>
+                  </div>
+                </div>
+              </header>
               <p className="assistant-profile-card__role">
                 A steady, context-aware chief of staff that helps you plan, remember, follow up, and get work done.
               </p>
               <dl className="assistant-profile-stats">
-                <div><dt>Connected tools</dt><dd>{connected.length}</dd></div>
+                <div><dt>Tools</dt><dd>{connected.length}</dd></div>
                 <div><dt>Capabilities</dt><dd>{capabilityCount}</dd></div>
                 <div><dt>Memory</dt><dd>On</dd></div>
               </dl>
+              <div className="assistant-principles">
+                <p className="eyebrow">How Cash helps</p>
+                <div className="assistant-principles__list">
+                  {IDENTITY_PRINCIPLES.map((principle) => (
+                    <article className="assistant-principle" key={principle.number}>
+                      <span>{principle.number}</span>
+                      <div>
+                        <h3>{principle.title}</h3>
+                        <p>{principle.description}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </div>
             </article>
 
             <div className="capability-map">
-              <div className="capability-map__grid" aria-hidden="true" />
-              <svg className="capability-map__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-                <line x1="50" y1="50" x2="50" y2="16" />
-                <line x1="50" y1="50" x2="78" y2="32" />
-                <line x1="50" y1="50" x2="78" y2="68" />
-                <line x1="50" y1="50" x2="50" y2="84" />
-                <line x1="50" y1="50" x2="22" y2="68" />
-                <line x1="50" y1="50" x2="22" y2="32" />
-              </svg>
-              <span className="capability-map__center" aria-label="Cash">
-                <CashMark />
-              </span>
-              {mapConnectors.map((connector, index) => (
-                <button
-                  type="button"
-                  key={connector.id}
-                  className={`map-node map-node--${index + 1}${connector.connected ? ' is-connected' : ''}`}
-                  onClick={() => connector.available && !connector.connected && connect(connector)}
-                  disabled={!connector.available || connector.connected}
-                  title={connector.connected ? `${connector.title} is connected` : `Connect ${connector.title}`}
-                >
-                  <img src={logoSrc(connector.id)} alt="" />
-                  <span>{connector.title}</span>
-                </button>
-              ))}
-              <div className="capability-map__legend">
-                <span><i className="legend-dot legend-dot--connected" />Connected</span>
-                <span><i className="legend-dot" />Available</span>
+              <header className="capability-map__header">
+                <div>
+                  <p className="eyebrow">Connected context</p>
+                  <h2>Workspace map</h2>
+                  <p>Every connection gives Cash more context and more ways to help.</p>
+                </div>
+                <div className="capability-map__count" aria-label={`${connected.length} connected tools`}>
+                  <strong>{connected.length}</strong>
+                  <span>connected</span>
+                </div>
+              </header>
+              <div className="capability-map__canvas">
+                <div className="capability-map__grid" aria-hidden="true" />
+                <svg className="capability-map__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                  <line x1="50" y1="50" x2="50" y2="16" />
+                  <line x1="50" y1="50" x2="78" y2="32" />
+                  <line x1="50" y1="50" x2="78" y2="68" />
+                  <line x1="50" y1="50" x2="50" y2="84" />
+                  <line x1="50" y1="50" x2="22" y2="68" />
+                  <line x1="50" y1="50" x2="22" y2="32" />
+                </svg>
+                <span className="capability-map__center" aria-label="Cash">
+                  <CashMark />
+                  <strong>Cash</strong>
+                </span>
+                {mapConnectors.map((connector, index) => (
+                  <button
+                    type="button"
+                    key={connector.id}
+                    className={`map-node map-node--${index + 1}${connector.connected ? ' is-connected' : ''}`}
+                    onClick={() => connector.available && !connector.connected && connect(connector)}
+                    disabled={!connector.available || connector.connected}
+                    title={connector.connected ? `${connector.title} is connected` : `Connect ${connector.title}`}
+                  >
+                    <img src={logoSrc(connector.id)} alt="" />
+                    <span>{connector.title}</span>
+                  </button>
+                ))}
+                <div className="capability-map__legend">
+                  <span><i className="legend-dot legend-dot--connected" />Connected</span>
+                  <span><i className="legend-dot" />Available</span>
+                </div>
               </div>
             </div>
           </section>

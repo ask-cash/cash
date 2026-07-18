@@ -32,17 +32,17 @@ def _tz(profile: dict) -> ZoneInfo:
         return ZoneInfo("Asia/Kolkata")
 
 
-def execute(action: str, params: dict) -> Optional[str]:
+def execute(action: str, params: dict, *, surface: str = "dashboard") -> Optional[str]:
     """Execute a brain action; return its text result, or None if unhandled."""
     params = params or {}
     try:
-        return _dispatch(action, params)
+        return _dispatch(action, params, surface=surface)
     except Exception:
         logger.exception("[web_actions] %s failed", action)
         return "😿 I hit a snag running that — try again in a moment."
 
 
-def _dispatch(action: str, params: dict) -> Optional[str]:
+def _dispatch(action: str, params: dict, *, surface: str = "dashboard") -> Optional[str]:
     from services.user_profile import load_profile
     profile = load_profile()
 
@@ -117,7 +117,7 @@ def _dispatch(action: str, params: dict) -> Optional[str]:
 
     # ---- briefing ----
     if action == "show_briefing":
-        return _briefing(profile)
+        return _briefing(profile, surface=surface)
 
     # ---- profile ----
     if action == "update_profile":
@@ -204,7 +204,7 @@ def _set_reminders(action: str, params: dict) -> str:
         "\n\n(I'll deliver these on your connected chat surfaces.)"
 
 
-def _briefing(profile: dict) -> str:
+def _briefing(profile: dict, *, surface: str = "dashboard") -> str:
     try:
         from calendars.unified import UnifiedCalendar
         from services.task_tracker import initialize_daily_tasks, format_tasks
@@ -214,8 +214,12 @@ def _briefing(profile: dict) -> str:
         tz = profile.get("timezone", "Asia/Kolkata")
         events = cal.get_today_events(tz) if (getattr(cal, "google", None) or getattr(cal, "outlook", None)) else []
         initialize_daily_tasks(profile.get("default_tasks", []))
-        return generate_briefing(cal.format_events(events), format_tasks(),
-                                 format_suggestions(resolve_conflicts(events, profile)))
+        return generate_briefing(
+            cal.format_events(events),
+            format_tasks(),
+            format_suggestions(resolve_conflicts(events, profile)),
+            surface=surface,
+        )
     except Exception:
         logger.exception("[web_actions] briefing failed")
         return "😿 I couldn't put the briefing together right now."

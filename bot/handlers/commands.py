@@ -23,6 +23,7 @@ from services.email_classifier import (
 )
 from bot.jobs import get_cal, get_gmail, reset_cal, reset_gmail
 from services import oauth_server
+from services.config import settings
 from calendars.google_calendar import SCOPES as GOOGLE_CAL_SCOPES
 from services.gmail import GMAIL_SCOPES, GMAIL_TOKEN_PATH
 
@@ -400,11 +401,21 @@ async def _start_google_oauth(update: Update, scopes: list[str], token_path: str
         )
         return
     except RuntimeError as e:
-        await update.message.reply_text(f"😿 {e}")
+        base = (settings.public_base_url or "").rstrip("/")
+        if base:
+            await update.message.reply_text(
+                "Google connections are completed securely in the Cash "
+                f"dashboard:\n\n{base}/app/integrations",
+                disable_web_page_preview=True,
+            )
+        else:
+            await update.message.reply_text(f"😿 {e}")
         return
     except Exception as e:
         logger.error("create_auth_url for %s failed: %s", label, e)
-        await update.message.reply_text(f"😿 Couldn't start {label} OAuth: {e}")
+        await update.message.reply_text(
+            f"😿 Couldn't start the {label} connection. Please try again later."
+        )
         return
 
     await update.message.reply_text(

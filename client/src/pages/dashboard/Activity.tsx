@@ -2,12 +2,19 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import CashMark from '../../components/CashMark'
 import PageHeader from '../../components/PageHeader'
-import { XIcon } from '../../components/icons'
+import {
+  ActivityIcon,
+  ChatIcon,
+  ClockIcon,
+  RefreshIcon,
+  SparklesIcon,
+  XIcon,
+} from '../../components/icons'
 import { useAuth } from '../../lib/auth'
 
 interface FeedItem {
   id: string
-  emoji: string
+  icon: 'cash' | 'calendar' | 'chat'
   title: string
   text: string
   time: string
@@ -16,21 +23,21 @@ interface FeedItem {
 const STARTER_FEED: FeedItem[] = [
   {
     id: 'f1',
-    emoji: '🐈‍⬛',
+    icon: 'cash',
     title: 'Cash is on the clock',
     text: "I'm watching your calendar, inbox, and reminders. I'll surface anything that needs you here.",
     time: 'Just now',
   },
   {
     id: 'f2',
-    emoji: '📅',
+    icon: 'calendar',
     title: 'Connect your calendar',
     text: 'Hook up Google Calendar and I can flag conflicts and brief you every morning.',
     time: 'Tip',
   },
   {
     id: 'f3',
-    emoji: '💬',
+    icon: 'chat',
     title: 'Say hi in Chat',
     text: "Ask me anything — same brain and memory as Telegram. I don't forget.",
     time: 'Tip',
@@ -38,10 +45,16 @@ const STARTER_FEED: FeedItem[] = [
 ]
 
 const SCHEDULES = [
-  { emoji: '💓', title: 'Heartbeat', sub: 'Hourly — I check for anything worth a nudge', badge: 'On' },
-  { emoji: '🌅', title: 'Morning brief', sub: 'Your day, conflicts, and reminders — first thing', badge: 'On' },
-  { emoji: '🧹', title: 'Follow-up sweep', sub: 'I chase the things you said you’d do', badge: 'On' },
+  { Icon: ClockIcon, title: 'Heartbeat', sub: 'Hourly — I check for anything worth a nudge', badge: 'On' },
+  { Icon: SparklesIcon, title: 'Morning brief', sub: 'Your day, conflicts, and reminders — first thing', badge: 'On' },
+  { Icon: RefreshIcon, title: 'Follow-up sweep', sub: 'I chase the things you said you’d do', badge: 'On' },
 ]
+
+const FEED_ICONS = {
+  cash: CashMark,
+  calendar: ActivityIcon,
+  chat: ChatIcon,
+}
 
 export default function Activity() {
   const { user } = useAuth()
@@ -116,30 +129,33 @@ export default function Activity() {
                 </div>
               ) : (
                 <div className="feed-list" aria-live="polite">
-                  {feed.map((item) => (
-                    <article
-                      key={item.id}
-                      className={`feed-item${read[item.id] ? ' feed-item--read' : ''}`}
-                    >
-                      <span className="fi-icon" aria-hidden="true">{item.emoji}</span>
-                      <div className="fi-body">
-                        <div className="fi-title-row">
-                          <h2 className="fi-title">{item.title}</h2>
-                          {!read[item.id] && <span className="unread-dot"><span className="sr-only">Unread</span></span>}
-                        </div>
-                        <p className="fi-text">{item.text}</p>
-                        <span className="fi-time">{item.time}</span>
-                      </div>
-                      <button
-                        type="button"
-                        className="icon-button fi-close"
-                        onClick={() => setFeed((current) => current.filter((entry) => entry.id !== item.id))}
-                        aria-label={`Dismiss ${item.title}`}
+                  {feed.map((item) => {
+                    const FeedIcon = FEED_ICONS[item.icon]
+                    return (
+                      <article
+                        key={item.id}
+                        className={`feed-item${read[item.id] ? ' feed-item--read' : ''}`}
                       >
-                        <XIcon />
-                      </button>
-                    </article>
-                  ))}
+                        <span className="fi-icon" aria-hidden="true"><FeedIcon /></span>
+                        <div className="fi-body">
+                          <div className="fi-title-row">
+                            <h2 className="fi-title">{item.title}</h2>
+                            {!read[item.id] && <span className="unread-dot"><span className="sr-only">Unread</span></span>}
+                          </div>
+                          <p className="fi-text">{item.text}</p>
+                          <span className="fi-time">{item.time}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="icon-button fi-close"
+                          onClick={() => setFeed((current) => current.filter((entry) => entry.id !== item.id))}
+                          aria-label={`Dismiss ${item.title}`}
+                        >
+                          <XIcon />
+                        </button>
+                      </article>
+                    )
+                  })}
                 </div>
               )}
 
@@ -160,9 +176,9 @@ export default function Activity() {
               <div className="sched-group">
                 <h2>System tasks</h2>
                 <div className="schedule-list">
-                  {SCHEDULES.map((schedule) => (
+                  {SCHEDULES.map(({ Icon, ...schedule }) => (
                     <article className="sched-row" key={schedule.title}>
-                      <span className="sr-emoji" aria-hidden="true">{schedule.emoji}</span>
+                      <span className="sr-emoji" aria-hidden="true"><Icon /></span>
                       <div className="sr-body">
                         <h3 className="sr-title">{schedule.title}</h3>
                         <p className="sr-sub">{schedule.sub}</p>

@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Callable, Optional
+from dataclasses import dataclass
+from typing import Callable, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,19 @@ DEFAULTS: dict[str, dict] = {
 
 _FALLBACK_DEFAULT = {"model": "claude-sonnet-4-6", "max_tokens": 1000}
 
-# Backend signature: (cfg, system, messages, cache_system) -> str
-Backend = Callable[[dict, object, list, bool], str]
+@dataclass(frozen=True)
+class ProviderResult:
+    text: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    model: str = ""
+    stop_reason: str = ""
+
+
+# Backends may return ProviderResult or a legacy string. Keeping the latter
+# compatible lets local/test providers stay tiny while production providers
+# expose usage for metering.
+Backend = Callable[[dict, object, list, bool], Union[ProviderResult, str]]
 _BACKENDS: dict[str, Backend] = {}
 
 
@@ -86,7 +98,7 @@ def resolve_config(call_site: str, **overrides) -> dict:
     return cfg
 
 
-def send_message(
+def send_message_result(
     call_site: str,
     *,
     system: object = None,
@@ -97,8 +109,8 @@ def send_message(
     temperature: Optional[float] = None,
     provider: Optional[str] = None,
     cache_system: bool = False,
-) -> str:
-    """Run one model call for ``call_site`` and return the text reply.
+) -> ProviderResult:
+    """Run one model call and return text plus provider-reported usage.
 
     Provide either ``messages`` (raw provider message list — needed for content
     blocks like an uploaded file) or ``user`` (a single user-turn string).
@@ -118,7 +130,36 @@ def send_message(
             f"unknown LLM provider {cfg['provider']!r} for call site {call_site!r}; "
             f"available: {available_backends()}"
         )
-    return backend(cfg, system, messages, cache_system)
+    raw = backend(cfg, system, messages, cache_system)
+    if isinstance(raw, ProviderResult):
+        return raw
+    return ProviderResult(text=str(raw), model=str(cfg.get("model") or ""))
+
+
+def send_message(
+    call_site: str,
+    *,
+    system: object = None,
+    messages: Optional[list] = None,
+    user: Optional[str] = None,
+    model: Optional[str] = None,
+    max_tokens: Optional[int] = None,
+    temperature: Optional[float] = None,
+    provider: Optional[str] = None,
+    cache_system: bool = False,
+) -> str:
+    """Backward-compatible text-only wrapper around :func:`send_message_result`."""
+    return send_message_result(
+        call_site,
+        system=system,
+        messages=messages,
+        user=user,
+        model=model,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        provider=provider,
+        cache_system=cache_system,
+    ).text
 
 
 # The model catalog (providers × models + metadata) — the data companion callers

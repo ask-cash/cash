@@ -3,19 +3,67 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+client:
+  image:
+    repository: ghcr.io/alg0-labs/cash-client
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits:   {cpu: 250m, memory: 128Mi}
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
 redis:
-  # Point at your Redis service. With `helm install cash-redis bitnami/redis`
-  # the master service is `cash-redis-master`.
-  url: "redis://cash-redis-master:6379/0"
+  # Local/test override only. Production REDIS_URL is sourced from the External
+  # Secret below so credentials never land in a ConfigMap.
+  url: ""
 
 # Non-secret configuration -> rendered into a ConfigMap.
 config:
-  STORAGE_BACKEND: s3
-  S3_BUCKET: cash-uploads
-  S3_REGION: us-central1
+  STORAGE_BACKEND: gcs
+  GCS_BUCKET: cash-uploads
+  GCS_PROJECT: ""
   SECRETS_BACKEND: db
   ENFORCE_TENANT: "true"
+  PG_POOL_MIN: "1"
+  PG_POOL_MAX: "5"
+  PG_POOL_TIMEOUT_SECONDS: "10"
   QUEUE_NAME: "cash:jobs"
+  QUEUE_CONSUMER_GROUP: cash-workers
+  QUEUE_HEARTBEAT_SECONDS: "60"
+  QUEUE_STALE_AFTER_MS: "300000"
+  QUEUE_MAX_ATTEMPTS: "3"
+  QUEUE_ENQUEUE_DEDUPE_SECONDS: "604800"
+  REDIS_CONNECT_TIMEOUT_SECONDS: "5"
+  REDIS_SOCKET_TIMEOUT_SECONDS: "10"
+  WORKER_CONCURRENCY: "4"
+  FREE_CHAT_CONTEXT_TOKENS: "32000"
+  PRO_CHAT_CONTEXT_TOKENS: "200000"
+  FREE_CHAT_MODELS: claude-haiku-4-5-20251001
+  CHAT_REQUESTS_PER_MINUTE: "12"
+  CHAT_MAX_ATTACHMENTS: "4"
+  CHAT_MAX_ATTACHMENT_BYTES: "10485760"
+  CHAT_MAX_MESSAGE_ATTACHMENT_BYTES: "20971520"
+  CHAT_TENANT_STORAGE_BYTES: "104857600"
+  CHAT_MAX_PROVIDER_IMAGE_BYTES: "7340032"
+  CHAT_MAX_IMAGE_EDGE_PIXELS: "8000"
+  FREE_CHAT_MAX_PDF_PAGES: "15"
+  PRO_CHAT_MAX_PDF_PAGES: "100"
+  CHAT_LOCK_WAIT_SECONDS: "5"
+  CHAT_LOCK_TTL_SECONDS: "600"
+  CHAT_GLOBAL_CONCURRENCY: "80"
+  CHAT_CONCURRENCY_LEASE_SECONDS: "720"
+  TRANSCRIPTION_MODEL: gpt-4o-mini-transcribe
+  TRANSCRIPTION_GLOBAL_CONCURRENCY: "20"
+  TRANSCRIPTION_CONCURRENCY_LEASE_SECONDS: "180"
+  VOICE_MAX_SECONDS: "90"
+  VOICE_MAX_BYTES: "8388608"
+  WORKER_METRICS_PORT: "9000"
   PUBLIC_BASE_URL: "https://api.cash.example.com"
   LOG_LEVEL: INFO
   LOG_JSON: "true"
@@ -28,8 +76,14 @@ externalSecrets:
   secretStoreRef: gcp-secret-store          # ClusterSecretStore name
   remoteKeys:
     DATABASE_URL: cash-database-url
+    REDIS_URL: cash-redis-url
+    REDIS_USERNAME: cash-redis-username
+    REDIS_PASSWORD: cash-redis-password
     SECRETS_ENCRYPTION_KEY: cash-secrets-encryption-key
     ANTHROPIC_API_KEY: cash-anthropic-api-key
+    TRANSCRIPTION_API_KEY: cash-transcription-api-key
+    GOOGLE_OAUTH_CLIENT_ID: cash-google-oauth-client-id
+    GOOGLE_OAUTH_CLIENT_SECRET: cash-google-oauth-client-secret
     TELEGRAM_WEBHOOK_SECRET: cash-telegram-webhook-secret
     ADMIN_API_TOKEN: cash-admin-api-token
 
@@ -51,13 +105,30 @@ gateway:
 worker:
   replicas: 2
   resources:
-    requests: {cpu: 250m, memory: 512Mi}
-    limits:   {cpu: "1",  memory: 1Gi}
+    requests: {cpu: 250m, memory: 768Mi}
+    limits:   {cpu: "1",  memory: 2Gi}
   hpa:
     enabled: true
     minReplicas: 2
     maxReplicas: 20
     targetCPUUtilizationPercentage: 70
+  # Recommended for production: chat and transcription are network-bound, so
+  # scale workers on the acknowledged Redis Stream backlog instead of CPU.
+  keda:
+    enabled: false
+    address: ""             # host:port, without scheme or credentials
+    enableTLS: true
+    databaseIndex: "0"
+    pollingInterval: 15
+    cooldownPeriod: 120
+    minReplicas: 2
+    maxReplicas: 40
+    streamLengthPerReplica: "8"
+    fallbackReplicas: 4
+    auth:
+      enabled: true
+      usernameSecretKey: REDIS_USERNAME
+      passwordSecretKey: REDIS_PASSWORD
 
 connector:
   replicas: 1            # also sets CONNECTOR_SHARD_TOTAL

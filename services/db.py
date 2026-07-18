@@ -79,6 +79,11 @@ _TENANT_TABLES = [
     "integration_connections",
     "conversations",
     "conversation_messages",
+    "attachments",
+    "chat_jobs",
+    "chat_outbox",
+    "chat_action_runs",
+    "chat_usage",
 ]
 
 _SQLITE_SCHEMA = """
@@ -120,9 +125,11 @@ CREATE TABLE IF NOT EXISTS accounts (
     role          TEXT,
     platforms     TEXT,
     onboarded     INTEGER NOT NULL DEFAULT 0,
+    plan           TEXT NOT NULL DEFAULT 'free',
     auth_provider TEXT NOT NULL DEFAULT 'password',
     created_at    TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_accounts_person ON accounts(person_id);
 
 CREATE TABLE IF NOT EXISTS integration_connections (
     tenant_id    TEXT NOT NULL DEFAULT 'default',
@@ -137,9 +144,12 @@ CREATE TABLE IF NOT EXISTS conversations (
     tenant_id  TEXT NOT NULL DEFAULT 'default',
     id         TEXT PRIMARY KEY,
     title      TEXT,
+    model_id   TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_conversations_tenant_updated
+    ON conversations(tenant_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS conversation_messages (
     tenant_id       TEXT NOT NULL DEFAULT 'default',
@@ -148,9 +158,110 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
     role            TEXT NOT NULL,
     content         TEXT NOT NULL,
     action          TEXT,
+    request_id      TEXT,
+    model_id        TEXT,
+    input_tokens    INTEGER NOT NULL DEFAULT 0,
+    output_tokens   INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_conv_msg ON conversation_messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_conv_msg_tenant
+    ON conversation_messages(tenant_id, conversation_id, created_at, id);
+
+CREATE TABLE IF NOT EXISTS attachments (
+    tenant_id       TEXT NOT NULL DEFAULT 'default',
+    id              TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    message_id      TEXT,
+    original_name   TEXT NOT NULL,
+    storage_key     TEXT NOT NULL,
+    mime_type       TEXT NOT NULL,
+    size_bytes      INTEGER NOT NULL,
+    checksum        TEXT NOT NULL,
+    transcript      TEXT,
+    status          TEXT NOT NULL DEFAULT 'ready',
+    created_at      TEXT NOT NULL,
+    deleted_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_conversation
+    ON attachments(tenant_id, conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_attachments_message
+    ON attachments(tenant_id, message_id);
+
+CREATE TABLE IF NOT EXISTS chat_jobs (
+    tenant_id       TEXT NOT NULL DEFAULT 'default',
+    id              TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    person_id       TEXT NOT NULL,
+    user_message_id TEXT NOT NULL,
+    request_id      TEXT NOT NULL,
+    model_id        TEXT NOT NULL,
+    plan_id         TEXT NOT NULL DEFAULT 'free',
+    status          TEXT NOT NULL DEFAULT 'pending',
+    result_json     TEXT,
+    error_code      TEXT,
+    error_message   TEXT,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_jobs_request
+    ON chat_jobs(tenant_id, conversation_id, request_id);
+CREATE INDEX IF NOT EXISTS idx_chat_jobs_status
+    ON chat_jobs(tenant_id, status, created_at);
+
+CREATE TABLE IF NOT EXISTS chat_outbox (
+    tenant_id   TEXT NOT NULL DEFAULT 'default',
+    job_id      TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'pending',
+    created_at  TEXT NOT NULL,
+    delivered_at TEXT,
+    PRIMARY KEY (tenant_id, job_id)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_outbox_pending
+    ON chat_outbox(tenant_id, status, created_at);
+
+-- Control-plane dispatch records deliberately have no RLS. Workers must be
+-- able to recover committed queue work with one bounded query rather than
+-- issuing a query per tenant.
+CREATE TABLE IF NOT EXISTS dispatch_outbox (
+    id            TEXT PRIMARY KEY,
+    tenant_id     TEXT NOT NULL,
+    job_type      TEXT NOT NULL,
+    resource_id   TEXT NOT NULL,
+    payload_json  TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    created_at    TEXT NOT NULL,
+    delivered_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_dispatch_outbox_pending
+    ON dispatch_outbox(status, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_dispatch_outbox_resource
+    ON dispatch_outbox(tenant_id, job_type, resource_id);
+
+CREATE TABLE IF NOT EXISTS chat_action_runs (
+    tenant_id      TEXT NOT NULL DEFAULT 'default',
+    conversation_id TEXT NOT NULL,
+    request_id     TEXT NOT NULL,
+    action         TEXT NOT NULL,
+    status         TEXT NOT NULL DEFAULT 'started',
+    result_text    TEXT,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, conversation_id, request_id, action)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_action_request
+    ON chat_action_runs(tenant_id, conversation_id, request_id);
+
+CREATE TABLE IF NOT EXISTS chat_usage (
+    tenant_id     TEXT NOT NULL DEFAULT 'default',
+    usage_date    TEXT NOT NULL,
+    request_count INTEGER NOT NULL DEFAULT 0,
+    input_tokens  INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    updated_at    TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, usage_date)
+);
 
 CREATE TABLE IF NOT EXISTS people (
     tenant_id        TEXT NOT NULL DEFAULT 'default',
@@ -280,9 +391,12 @@ CREATE TABLE IF NOT EXISTS accounts (
     role          TEXT,
     platforms     TEXT,
     onboarded     BOOLEAN NOT NULL DEFAULT false,
+    plan           TEXT NOT NULL DEFAULT 'free',
     auth_provider TEXT NOT NULL DEFAULT 'password',
     created_at    TEXT NOT NULL
 );
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free';
+CREATE INDEX IF NOT EXISTS idx_accounts_person ON accounts(person_id);
 
 CREATE TABLE IF NOT EXISTS integration_connections (
     tenant_id    TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
@@ -297,9 +411,13 @@ CREATE TABLE IF NOT EXISTS conversations (
     tenant_id  TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
     id         TEXT PRIMARY KEY,
     title      TEXT,
+    model_id   TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS model_id TEXT;
+CREATE INDEX IF NOT EXISTS idx_conversations_tenant_updated
+    ON conversations(tenant_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS conversation_messages (
     tenant_id       TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
@@ -308,9 +426,116 @@ CREATE TABLE IF NOT EXISTS conversation_messages (
     role            TEXT NOT NULL,
     content         TEXT NOT NULL,
     action          TEXT,
+    request_id      TEXT,
+    model_id        TEXT,
+    input_tokens    INTEGER NOT NULL DEFAULT 0,
+    output_tokens   INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL
 );
+ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS request_id TEXT;
+ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS model_id TEXT;
+ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS input_tokens INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE conversation_messages ADD COLUMN IF NOT EXISTS output_tokens INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_conv_msg ON conversation_messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_conv_msg_tenant
+    ON conversation_messages(tenant_id, conversation_id, created_at, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_msg_request
+    ON conversation_messages(tenant_id, conversation_id, role, request_id)
+    WHERE request_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS attachments (
+    tenant_id       TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    id              TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    message_id      TEXT,
+    original_name   TEXT NOT NULL,
+    storage_key     TEXT NOT NULL,
+    mime_type       TEXT NOT NULL,
+    size_bytes      BIGINT NOT NULL,
+    checksum        TEXT NOT NULL,
+    transcript      TEXT,
+    status          TEXT NOT NULL DEFAULT 'ready',
+    created_at      TEXT NOT NULL,
+    deleted_at      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_conversation
+    ON attachments(tenant_id, conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_attachments_message
+    ON attachments(tenant_id, message_id);
+
+CREATE TABLE IF NOT EXISTS chat_jobs (
+    tenant_id       TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    id              TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    person_id       TEXT NOT NULL,
+    user_message_id TEXT NOT NULL,
+    request_id      TEXT NOT NULL,
+    model_id        TEXT NOT NULL,
+    plan_id         TEXT NOT NULL DEFAULT 'free',
+    status          TEXT NOT NULL DEFAULT 'pending',
+    result_json     TEXT,
+    error_code      TEXT,
+    error_message   TEXT,
+    attempts        INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_jobs_request
+    ON chat_jobs(tenant_id, conversation_id, request_id);
+CREATE INDEX IF NOT EXISTS idx_chat_jobs_status
+    ON chat_jobs(tenant_id, status, created_at);
+
+CREATE TABLE IF NOT EXISTS chat_outbox (
+    tenant_id    TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    job_id       TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    created_at   TEXT NOT NULL,
+    delivered_at TEXT,
+    PRIMARY KEY (tenant_id, job_id)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_outbox_pending
+    ON chat_outbox(tenant_id, status, created_at);
+
+-- Control-plane dispatch records deliberately have no RLS. The application
+-- only accesses this table through services.dispatch_outbox.
+CREATE TABLE IF NOT EXISTS dispatch_outbox (
+    id            TEXT PRIMARY KEY,
+    tenant_id     TEXT NOT NULL,
+    job_type      TEXT NOT NULL,
+    resource_id   TEXT NOT NULL,
+    payload_json  TEXT NOT NULL,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    created_at    TEXT NOT NULL,
+    delivered_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_dispatch_outbox_pending
+    ON dispatch_outbox(status, created_at, id);
+CREATE INDEX IF NOT EXISTS idx_dispatch_outbox_resource
+    ON dispatch_outbox(tenant_id, job_type, resource_id);
+
+CREATE TABLE IF NOT EXISTS chat_action_runs (
+    tenant_id       TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    conversation_id TEXT NOT NULL,
+    request_id      TEXT NOT NULL,
+    action          TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'started',
+    result_text     TEXT,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, conversation_id, request_id, action)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chat_action_request
+    ON chat_action_runs(tenant_id, conversation_id, request_id);
+
+CREATE TABLE IF NOT EXISTS chat_usage (
+    tenant_id     TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
+    usage_date    TEXT NOT NULL,
+    request_count INTEGER NOT NULL DEFAULT 0,
+    input_tokens  BIGINT NOT NULL DEFAULT 0,
+    output_tokens BIGINT NOT NULL DEFAULT 0,
+    updated_at    TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, usage_date)
+);
 
 CREATE TABLE IF NOT EXISTS people (
     tenant_id        TEXT NOT NULL DEFAULT current_setting('app.current_tenant', true),
@@ -396,20 +621,65 @@ CREATE INDEX IF NOT EXISTS idx_event_log_lookup ON event_log(tenant_id, namespac
 """
 
 
-def _pg_rls_statements() -> list[str]:
-    """Enable RLS + a tenant-isolation policy on every tenant-scoped table."""
-    stmts: list[str] = []
+def _ensure_pg_rls(cur) -> None:
+    """Create tenant RLS once without rewriting policies on every pod start."""
     for table in _TENANT_TABLES:
-        stmts.append(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
-        # FORCE so even the table owner is subject to the policy.
-        stmts.append(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
-        stmts.append(f"DROP POLICY IF EXISTS tenant_isolation ON {table}")
-        stmts.append(
-            f"CREATE POLICY tenant_isolation ON {table} "
-            f"USING (tenant_id = current_setting('app.current_tenant', true)) "
-            f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true))"
+        cur.execute(
+            """
+            SELECT c.relrowsecurity, c.relforcerowsecurity
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE n.nspname = current_schema() AND c.relname = %s
+            """,
+            (table,),
         )
-    return stmts
+        flags = cur.fetchone()
+        if not flags or not flags[0]:
+            cur.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
+        if not flags or not flags[1]:
+            # FORCE ensures the table owner is subject to the same policy.
+            cur.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
+        cur.execute(
+            """
+            SELECT 1
+              FROM pg_policies
+             WHERE schemaname = current_schema()
+               AND tablename = %s
+               AND policyname = 'tenant_isolation'
+            """,
+            (table,),
+        )
+        if cur.fetchone() is None:
+            cur.execute(
+                f"CREATE POLICY tenant_isolation ON {table} "
+                f"USING (tenant_id = current_setting('app.current_tenant', true)) "
+                f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true))"
+            )
+
+
+def _assert_pg_rls_role(cur) -> None:
+    """Fail closed when the application role can bypass tenant policies.
+
+    ``FORCE ROW LEVEL SECURITY`` subjects a normal table owner to RLS, but
+    PostgreSQL superusers and roles carrying ``BYPASSRLS`` always bypass it.
+    Running the web application with either attribute would turn an ordinary
+    missing tenant predicate into a cross-tenant data exposure.
+    """
+    cur.execute(
+        """
+        SELECT rolsuper, rolbypassrls
+          FROM pg_roles
+         WHERE rolname = current_user
+        """
+    )
+    flags = cur.fetchone()
+    if flags is None:
+        raise RuntimeError("Could not verify the PostgreSQL application role.")
+    if bool(flags[0]) or bool(flags[1]):
+        raise RuntimeError(
+            "DATABASE_URL must use a PostgreSQL role with NOSUPERUSER and "
+            "NOBYPASSRLS so tenant row-level security cannot be bypassed."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -498,8 +768,9 @@ def _get_pool():
 
         _pg_pool = ConnectionPool(
             settings.database_url,
-            min_size=1,
-            max_size=int(os.getenv("PG_POOL_MAX", "10")),
+            min_size=int(os.getenv("PG_POOL_MIN", "1")),
+            max_size=int(os.getenv("PG_POOL_MAX", "5")),
+            timeout=float(os.getenv("PG_POOL_TIMEOUT_SECONDS", "10")),
             configure=_configure,
             open=True,
         )
@@ -531,14 +802,34 @@ def _bootstrap_sqlite() -> None:
             "email": "TEXT",
             "is_admin": "INTEGER NOT NULL DEFAULT 0",
         })
+        _sqlite_add_missing_columns(conn, "accounts", {
+            "plan": "TEXT NOT NULL DEFAULT 'free'",
+        })
+        _sqlite_add_missing_columns(conn, "conversations", {
+            "model_id": "TEXT",
+        })
+        _sqlite_add_missing_columns(conn, "conversation_messages", {
+            "request_id": "TEXT",
+            "model_id": "TEXT",
+            "input_tokens": "INTEGER NOT NULL DEFAULT 0",
+            "output_tokens": "INTEGER NOT NULL DEFAULT 0",
+        })
         # Backfill tenant_id on tables created before it existed, so every row is
         # attributable to a tenant and explicit tenant_id filters work on SQLite
         # (which has no RLS). New databases already have the column via the schema.
         for _t in ("people", "platform_identities", "directives", "person_summaries",
-                   "person_aliases", "kv_documents", "event_log"):
+                   "person_aliases", "kv_documents", "event_log", "conversations",
+                   "conversation_messages", "attachments", "chat_jobs", "chat_usage"):
             _sqlite_add_missing_columns(conn, _t, {
                 "tenant_id": "TEXT NOT NULL DEFAULT 'default'",
             })
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_conv_msg_request
+                ON conversation_messages(tenant_id, conversation_id, role, request_id)
+                WHERE request_id IS NOT NULL
+            """
+        )
         conn.commit()
     finally:
         conn.close()
@@ -561,22 +852,50 @@ def _sqlite_add_missing_columns(conn, table: str, columns: dict[str, str]) -> No
 # Arbitrary constant identifying the bootstrap DDL critical section. All roles
 # use the same key so only one runs schema/RLS DDL at a time.
 _BOOTSTRAP_LOCK_KEY = 911_002_001
+# Bump whenever the forward-only Postgres schema or RLS set changes. The
+# advisory lock plus this marker means one pod migrates while every other role
+# performs only a cheap version read during a rollout.
+_PG_SCHEMA_VERSION = "2026-07-18-dashboard-chat-v2"
 
 
 def _bootstrap_postgres() -> None:
     pool = _get_pool()
     with pool.connection() as conn:
         with conn.cursor() as cur:
+            _assert_pg_rls_role(cur)
             # Serialize bootstrap across processes. When several roles
             # (gateway/worker/connector/telegram) start at once, running the
             # RLS DDL (ALTER TABLE ... ENABLE RLS / CREATE POLICY on the same
             # tables) concurrently deadlocks. A transaction-scoped advisory lock
             # makes the others wait, then run the idempotent DDL as a no-op.
             cur.execute("SELECT pg_advisory_xact_lock(%s)", (_BOOTSTRAP_LOCK_KEY,))
-            for stmt in _split_statements(_PG_SCHEMA):
-                cur.execute(stmt)
-            for stmt in _pg_rls_statements():
-                cur.execute(stmt)
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS cash_schema_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+            cur.execute(
+                "SELECT value FROM cash_schema_meta WHERE key = 'schema_version'"
+            )
+            version = cur.fetchone()
+            if version is None or version[0] != _PG_SCHEMA_VERSION:
+                for stmt in _split_statements(_PG_SCHEMA):
+                    cur.execute(stmt)
+                _ensure_pg_rls(cur)
+                cur.execute(
+                    """
+                    INSERT INTO cash_schema_meta (key, value, updated_at)
+                    VALUES ('schema_version', %s, now())
+                    ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        updated_at = excluded.updated_at
+                    """,
+                    (_PG_SCHEMA_VERSION,),
+                )
         conn.commit()
     logger.info("[db] Postgres schema + RLS ready")
 

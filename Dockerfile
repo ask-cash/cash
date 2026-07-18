@@ -32,8 +32,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
 
-# Non-root user
-RUN useradd --create-home --uid 10001 cash
+# ffprobe validates uploaded audio/video duration before any transcription work.
+# Keep the full ffmpeg toolchain out of the builder; the runtime package is
+# installed without recommendations and its apt cache is removed immediately.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 cash
 
 COPY --from=builder /opt/venv /opt/venv
 
