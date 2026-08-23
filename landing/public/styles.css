@@ -1359,10 +1359,12 @@ footer .foot-wordmark{ color:rgba(255,255,255,.045); }
      absolutely placed, so it washed straight through the chat bubbles. */
   .hero{ min-height:auto; padding:112px 0 0; }  /* clears the fixed nav pill */
   .hero-msg{ position:relative; top:0; right:0; margin:0 22px; max-width:none; font-size:12.5px; padding:21px; }
-  .hero-chat{ margin:0 20px; }
+  .hero-chat{ margin:0 22px; }
+  /* Mascot sits at the left margin, on the same 24px rag as the wordmark
+     below it — auto on the right keeps it there without floating. */
   .hero-art{
-    position:static; width:min(210px,54vw); height:auto;
-    margin:22px auto 4px; transform:none; opacity:.9;
+    position:static; width:min(164px,42vw); height:auto;
+    margin:20px auto 2px 24px; transform:none; opacity:.9;
   }
   .hero-foot{ padding-bottom:44px; }
   .hero-word{ padding-left:24px; font-size:26vw !important; }
@@ -1662,9 +1664,29 @@ footer .foot-wordmark{ color:rgba(255,255,255,.045); }
 
 @media(max-width:900px){
   /* Top spacing is owned by .hero's padding (it clears the fixed nav), so this
-     only unpins the card from its desktop absolute position. */
-  .hero-chat{ position:relative; top:0; right:0; width:auto; margin:0 20px; }
-  .hc-body{ min-height:0; }
+     only unpins the card from its desktop absolute position.
+
+     The card is reserved at its settled height (289px is the worst case, on a
+     320px screen) and the bubbles stack up from the bottom into that space.
+     Without the reserve the card grows as the thread types itself out and
+     shoves the mascot, wordmark and CTA down ~225px while you are reading. */
+  .hero-chat{ position:relative; top:0; right:0; width:auto; margin:0 22px; height:292px; display:flex; align-items:flex-end; }
+  .hc-body{
+    min-height:0; width:100%; height:100%; justify-content:flex-end; overflow:hidden;
+    /* older messages slide out of the top of the window rather than resizing it */
+    -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 30px);
+    mask-image:linear-gradient(180deg,transparent 0,#000 30px);
+  }
+}
+
+/* Short phones (SE-class): the same stack, tightened so the CTA is not buried.
+   The chat is a fixed window, so shrinking it costs no layout stability. */
+@media(max-width:900px) and (max-height:740px){
+  .hero{ padding-top:94px; }
+  .hero-chat{ height:188px; }
+  .hero-art{ width:min(118px,30vw); margin:12px auto 0 24px; }
+  .hero-word{ font-size:23vw !important; }
+  .hero-foot{ padding-bottom:28px; }
 }
 
 /* ---- Cash signature: lime accents on a bone canvas ---- */
@@ -1795,6 +1817,14 @@ footer .wrap{ max-width:var(--maxw); margin:0 auto; padding:0 34px; }
 @media(prefers-reduced-motion:reduce){
   .ha-dots circle{ animation:none; transform:none; transition:none; }
   .hero-art.scatter .ha-dots circle{ transform:none; }
+}
+/* The silhouette is ~900 circles, each running its own infinite transform.
+   That is fine alongside a cursor on a desktop GPU and is the single biggest
+   cause of scroll jank on a phone — where there is no cursor to scatter them
+   in the first place. Render it static on touch. */
+@media(hover:none),(max-width:900px){
+  .ha-dots circle{ animation:none; transition:none; transform:translate(var(--fx),var(--fy)); }
+  .hero-art{ pointer-events:none; }
 }
 
 /* ---- chat thread scrolls like a real messaging app ---- */
