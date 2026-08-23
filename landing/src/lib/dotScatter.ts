@@ -14,6 +14,10 @@ interface Options {
 export function initDotScatter(svg: SVGSVGElement | null, selector: string, opts: Options) {
   if (!svg) return
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  // Touch devices have no cursor to scatter from, and walking ~900 circles per
+  // frame is exactly the work a phone cannot spare while scrolling. Don't even
+  // attach the listener there — the stylesheet renders the dots static to match.
+  if (window.matchMedia('(hover: none)').matches) return
 
   const dots = [...svg.querySelectorAll<SVGCircleElement>(selector)]
   if (!dots.length) return

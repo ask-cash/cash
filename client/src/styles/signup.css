@@ -152,6 +152,11 @@
 .auth-alt a {
   color: var(--link-accent);
   font-weight: var(--weight-semibold);
+  /* inline-block + padding so the tap target clears 44px on a phone without
+     changing the type or the centred line it sits on */
+  display: inline-block;
+  padding: 13px 10px;
+  margin: -13px 0;
 }
 
 .auth-alt a:hover {
