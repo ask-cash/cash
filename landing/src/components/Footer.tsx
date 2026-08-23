@@ -1,52 +1,79 @@
-import CashMark from './CashMark'
+import footerMarkDots from '../assets/footer-mark-dots.svg?raw'
 
-// Contact / social links. Update these to the real destinations.
-const X_URL = 'https://x.com/suhaillahmadd'
-const GITHUB_URL = 'https://github.com/Alg0-labs/assistant-cash'
 const EMAIL = 'me@whysuhail.xyz'
 
+const PRODUCT = [
+  { href: '#problem', label: 'Why Cash' },
+  { href: '#how', label: 'How it works' },
+  { href: '#seq', label: 'Integrations' },
+  { href: '#compare', label: 'Comparison' },
+  { href: '#faq', label: 'FAQ' },
+]
+
+const COMPANY = [
+  { href: '#waitlist', label: 'Get access' },
+  { href: `mailto:${EMAIL}`, label: 'Contact' },
+]
+
+const FIND_US = [
+  { href: '#waitlist', label: 'Telegram' },
+  { href: `mailto:${EMAIL}`, label: 'Email' },
+]
+
+function Column({ title, links }: { title: string; links: { href: string; label: string }[] }) {
+  return (
+    <div className="ft-col">
+      <h4 className="ft-h">
+        <i />
+        {title}
+      </h4>
+      {links.map((l) => (
+        <a href={l.href} key={l.label}>
+          {l.label} <span className="ft-ar">→</span>
+        </a>
+      ))}
+    </div>
+  )
+}
+
+// Dark closing slab. The dot-matrix "cash" wordmark scatters in on reveal and
+// then drifts / pushes away from the cursor — see lib/footerMark.
 export default function Footer() {
   return (
     <footer>
       <div className="wrap">
-        <div className="foot-grid">
-          <div className="foot-brand">
-            <a href="#top" className="brand">
-              <span className="mark">
-                <CashMark />
-              </span>{' '}
-              Cash
+        <div className="ft-grid">
+          <div className="ft-say">
+            <h4 className="ft-h">
+              <i />
+              EVERYTHING ELSE, HANDLED
+            </h4>
+            <p>Cash runs your calendar, your inbox and your markets from a single Telegram thread.</p>
+            <a href="#waitlist" className="ft-cta">
+              GET ACCESS <span className="ft-ar">→</span>
             </a>
-            <p>
-              The AI operating system for your life. One intelligence for your calendar, capital,
-              communication, and code.
-            </p>
+          </div>
+
+          <div className="ft-cols">
+            <Column title="PRODUCT" links={PRODUCT} />
+            <Column title="COMPANY" links={COMPANY} />
+            <Column title="FIND US" links={FIND_US} />
           </div>
         </div>
       </div>
-      <div className="foot-meta">
+
+      <svg
+        className="ft-mark"
+        id="ftMark"
+        viewBox="0 0 2600 760"
+        role="img"
+        aria-label="Cash"
+        dangerouslySetInnerHTML={{ __html: footerMarkDots }}
+      />
+
+      <div className="ft-base">
         <span>© 2026 Cash. All rights reserved.</span>
-        <div className="soc">
-          <a href={X_URL} target="_blank" rel="noopener noreferrer" aria-label="X">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24h-6.66l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z" />
-            </svg>
-          </a>
-          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" aria-label="GitHub">
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
-            </svg>
-          </a>
-          <a href={`mailto:${EMAIL}`} aria-label="Email">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="3" y="5" width="18" height="14" rx="2" />
-              <path d="m3 7 9 6 9-6" />
-            </svg>
-          </a>
-        </div>
-      </div>
-      <div className="foot-wordmark" aria-hidden="true">
-        Cash
+        <a href={`mailto:${EMAIL}`}>{EMAIL}</a>
       </div>
     </footer>
   )

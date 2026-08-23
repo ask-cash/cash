@@ -1,3 +1,5 @@
+// The shift — four typographic sentences with a spotlight that follows whichever
+// one is nearest the viewport centre (lib/ethos).
 export default function Ethos() {
   return (
     <section className="section ethos" id="ethos">
@@ -6,12 +8,12 @@ export default function Ethos() {
         <div className="eyebrow">The shift</div>
         <div className="ethos-sentences" id="ethosBlock">
           <p className="ethos-sent reveal">
-            For decades, software made you the operator — switching tabs, chasing threads, and trying
+            For decades, software made you the operator, switching tabs, chasing threads, and trying
             to <span className="hl-u">remember what mattered.</span>
           </p>
           <p className="ethos-sent reveal d1">
-            <span className="hl">Cash inverts that.</span> It watches your markets, clears your inbox,
-            defends your calendar, runs your research, and ships your code.
+            <span className="hl">Cash inverts that.</span> It watches your markets, clears your
+            inbox, defends your calendar, runs your research, and ships your code.
           </p>
           <p className="ethos-sent reveal d2">
             It <span className="hl">remembers every decision,</span> learns your judgment, and gets{' '}

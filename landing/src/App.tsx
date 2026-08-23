@@ -3,17 +3,23 @@ import Nav from './components/Nav'
 import Hero from './components/Hero'
 import Sequence from './components/Sequence'
 import Ethos from './components/Ethos'
-// import Compare from './components/Compare'
+import Problem from './components/Problem'
+import HowItWorks from './components/HowItWorks'
+import Compare from './components/Compare'
+import FaqAccordion from './components/FaqAccordion'
 import Marquee from './components/Marquee'
 import Footer from './components/Footer'
 import WaitlistModal from './components/WaitlistModal'
 import { initReveal } from './lib/reveal'
 import { initNav } from './lib/nav'
 import { initEthos } from './lib/ethos'
-import { initHeroScene } from './lib/heroScene'
+import { initHeroChat } from './lib/heroChat'
+import { initHeroArt } from './lib/heroArt'
 import { initSequence } from './lib/sequence'
-// import { initCompareTable } from './lib/compareTable'
+import { initCompareTable } from './lib/compareTable'
+import { initFaq } from './lib/faq'
 import { initMarquee } from './lib/marquee'
+import { initFooterMark } from './lib/footerMark'
 import { initWaitlist } from './lib/waitlist'
 
 // The page's animations are imperative (canvas-like DOM choreography), so they
@@ -29,10 +35,13 @@ export default function App() {
     initReveal()
     initNav()
     initEthos()
-    initHeroScene() // must run before the sequence, which clones the hero scene
+    initHeroArt()
+    initHeroChat()
     initSequence()
-    // initCompareTable()
+    initCompareTable()
+    initFaq()
     initMarquee()
+    initFooterMark()
     initWaitlist()
   }, [])
 
@@ -41,10 +50,13 @@ export default function App() {
       <Nav />
       <main id="top">
         <Hero />
-        <Marquee />
         <Sequence />
         <Ethos />
+        <Problem />
+        <HowItWorks />
         {/* <Compare /> */}
+        <FaqAccordion />
+        <Marquee />
       </main>
       <Footer />
       <WaitlistModal />
