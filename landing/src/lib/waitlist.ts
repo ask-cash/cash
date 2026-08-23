@@ -6,6 +6,15 @@ import { submitWaitlist, type WaitlistSignup } from './supabase'
 
 type Answer = string | string[]
 
+// The flow is mounted imperatively, so React components reach it through this
+// handle rather than depending on the global a[href="#waitlist"] delegation.
+let openFlow: (() => void) | null = null
+
+/** Open the "Get access" flow. No-op until initWaitlist has run. */
+export function openWaitlist() {
+  openFlow?.()
+}
+
 export function initWaitlist() {
   const overlay = document.getElementById('tfOverlay')
   if (!overlay) return
@@ -223,6 +232,7 @@ export function initWaitlist() {
     i = 0
     render()
   }
+  openFlow = open
   function close() {
     overlay!.classList.remove('open')
     document.body.style.overflow = ''
