@@ -1,4 +1,4 @@
-// Nav: shadow-on-scroll, the fixed-footer reveal sizing, and the mobile drawer.
+// Nav: shadow-on-scroll and the mobile drawer.
 const BURGER =
   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>'
 const CLOSE =
@@ -11,17 +11,6 @@ export function initNav() {
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
   }
-
-  // The dark footer is fixed behind the page; the content slides up off it, so
-  // main needs a bottom margin equal to the footer's height.
-  const footerEl = document.querySelector('footer')
-  const mainEl = document.querySelector('main')
-  const sizeFooter = () => {
-    if (footerEl && mainEl) (mainEl as HTMLElement).style.marginBottom = footerEl.offsetHeight + 'px'
-  }
-  sizeFooter()
-  window.addEventListener('load', sizeFooter)
-  window.addEventListener('resize', sizeFooter)
 
   const navToggle = document.getElementById('navToggle')
   const navDrawer = document.getElementById('navLinksMobile')

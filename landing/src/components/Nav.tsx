@@ -1,5 +1,14 @@
 import CashMark from './CashMark'
 
+const LINKS = [
+  { href: '#problem', label: 'Why Cash' },
+  { href: '#how', label: 'How it works' },
+  { href: '#seq', label: 'Integrations' },
+  { href: '#faq', label: 'FAQ' },
+]
+
+// Floating glass pill. The scrolled state and the mobile drawer are wired up in
+// lib/nav (the burger icon is swapped imperatively there).
 export default function Nav() {
   return (
     <header className="nav" id="nav">
@@ -11,8 +20,11 @@ export default function Nav() {
           Cash
         </a>
         <nav className="nav-links" id="navLinks" aria-label="Primary">
-          <a href="#intmarq">Integrations</a>
-          <a href="#ethos">Use Cases</a>
+          {LINKS.map((l) => (
+            <a key={l.href} href={l.href}>
+              {l.label}
+            </a>
+          ))}
         </nav>
         <div className="nav-actions">
           <a href="#waitlist" className="btn btn-primary nav-cta">
@@ -28,8 +40,11 @@ export default function Nav() {
         </button>
       </div>
       <nav className="nav-drawer" id="navLinksMobile" aria-label="Mobile">
-        <a href="#seq">Integrations</a>
-        <a href="#ethos">Use Cases</a>
+        {LINKS.map((l) => (
+          <a key={l.href} href={l.href}>
+            {l.label}
+          </a>
+        ))}
         <div className="nav-drawer-foot">
           <a href="#waitlist" className="btn btn-primary">
             Get access

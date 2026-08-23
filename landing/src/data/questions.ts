@@ -16,7 +16,7 @@ export const QUESTIONS: Question[] = [
   {
     id: 'role',
     type: 'single',
-    q: 'First — what best describes you?',
+    q: 'First, what best describes you?',
     sub: 'So Cash calibrates to how you work and what you will need most.',
     options: ['Founder', 'Investor', 'Operator / PM', 'Engineer', 'Student', 'Something else'],
   },
@@ -24,7 +24,7 @@ export const QUESTIONS: Question[] = [
     id: 'use',
     type: 'multi',
     q: 'What should Cash run for you?',
-    sub: 'Pick all that apply — this shapes your first week.',
+    sub: 'Pick all that apply. This shapes your first week.',
     options: [
       'Financial intelligence',
       'Calendar & meetings',
@@ -46,7 +46,7 @@ export const QUESTIONS: Question[] = [
     id: 'priority',
     type: 'text',
     q: 'What is the one thing you would hand off today?',
-    sub: 'Optional — but it helps us set Cash up around you.',
+    sub: 'Optional, but it helps us set Cash up around you.',
     placeholder: 'e.g. my inbox, the morning market brief, scheduling…',
     optional: true,
   },
@@ -60,7 +60,7 @@ export const QUESTIONS: Question[] = [
   {
     id: 'email',
     type: 'email',
-    q: 'Last step — where should we send your invite?',
+    q: 'Last step, where should we send your invite?',
     sub: 'No spam, ever. Just your access the moment it opens.',
     placeholder: 'you@company.com',
   },
