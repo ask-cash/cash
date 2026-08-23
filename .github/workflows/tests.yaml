@@ -84,6 +84,12 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: client/package-lock.json
+      # npm >=11.11 gates dependency lifecycle scripts behind `npm
+      # approve-scripts`, so esbuild's postinstall (which links its platform
+      # binary) is skipped and vite then fails with "Cannot find package
+      # 'esbuild'". Pin to a version that still runs them.
+      - name: Pin npm
+        run: npm install -g npm@11.10.0
       - name: Install
         working-directory: client
         run: npm ci
@@ -100,6 +106,8 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: landing/package-lock.json
+      - name: Pin npm            # see the client job — esbuild postinstall gate
+        run: npm install -g npm@11.10.0
       - name: Install
         working-directory: landing
         run: npm ci

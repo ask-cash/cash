@@ -66,6 +66,9 @@ jobs:
       - name: Verify client
         working-directory: client
         run: |
+          # npm >=11.11 skips dependency install scripts unless approved, which
+          # leaves esbuild's platform binary unlinked and breaks the vite build.
+          npm install -g npm@11.10.0
           npm ci
           npm run build
       - name: Create non-RLS-bypass application role
